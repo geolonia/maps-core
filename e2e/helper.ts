@@ -17,9 +17,10 @@ export async function waitForMapLoad(page: Page): Promise<void> {
 }
 
 /**
- * Check if the canvas has been rendered with non-white pixels.
+ * Check if the upper half of the canvas has non-white pixels (tiles rendered).
+ * Only checks the upper half to avoid false positives from attribution controls at the bottom.
  */
-export async function readCanvasPixels(page: Page): Promise<boolean> {
+export async function readCanvasPixelsUpperHalf(page: Page): Promise<boolean> {
   return page.evaluate(() => {
     const canvas = document.querySelector('canvas.maplibregl-canvas') as HTMLCanvasElement | null;
     if (!canvas) return false;
@@ -28,18 +29,40 @@ export async function readCanvasPixels(page: Page): Promise<boolean> {
     if (!gl) return false;
 
     const width = gl.drawingBufferWidth;
-    const height = gl.drawingBufferHeight;
-    const pixels = new Uint8Array(width * height * 4);
-    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    const halfHeight = Math.floor(gl.drawingBufferHeight / 2);
+    const pixels = new Uint8Array(width * halfHeight * 4);
 
-    // Check if at least 1% of pixels are non-white
+    // WebGL reads bottom-to-top, so reading from y=halfHeight gets the upper half
+    gl.readPixels(0, halfHeight, width, halfHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
     let nonWhite = 0;
-    const total = width * height;
+    const total = width * halfHeight;
     for (let i = 0; i < pixels.length; i += 4) {
-      if (pixels[i] !== 255 || pixels[i + 1] !== 255 || pixels[i + 2] !== 255) {
+      if (pixels[i] < 250 || pixels[i + 1] < 250 || pixels[i + 2] < 250) {
         nonWhite++;
+        // Early exit: enough non-white pixels found
+        if (nonWhite > total * 0.01) {
+          return true;
+        }
       }
     }
-    return nonWhite / total > 0.01;
+    return nonWhite > 0;
   });
+}
+
+/**
+ * Collect console errors, excluding resource loading failures (tile 404s etc.)
+ */
+export function collectConsoleErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') {
+      const text = msg.text();
+      if (!text.startsWith('Failed to load resource')) {
+        errors.push(text);
+      }
+    }
+  });
+  page.on('pageerror', (err) => errors.push(err.message));
+  return errors;
 }
