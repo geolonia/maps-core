@@ -1,3 +1,5 @@
 node_modules/
 dist/
 docs/ADR/
+test-results/
+playwright-report/
