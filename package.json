@@ -27,17 +27,22 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
+    "@playwright/test": "^1.58.2",
     "@types/sanitize-html": "^2.16.1",
     "@types/tinycolor2": "^1.4.6",
+    "jsdom": "^29.0.1",
     "maplibre-gl": "5.7.0",
     "tsup": "^8",
     "typescript": "^5.8",
+    "vite": "^7.3.1",
     "vitest": "^3.2.0"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --external maplibre-gl",
     "test": "vitest run",
     "test:watch": "vitest",
+    "dev": "vite --config vite.config.ts",
+    "e2e": "playwright test",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."
   },
