@@ -1,45 +1,174 @@
 import { DOM, bindAll } from '../maplibre-util';
-import type { ControlPosition, IControl } from 'maplibre-gl';
+import type { ControlPosition, IControl, Map as MaplibreMap } from 'maplibre-gl';
 
 /**
- *  This class is a copy of maplibre-gl-js's AttributionControl class and rewrite by shadow DOM.
+ * Custom Attribution Control using Shadow DOM.
+ * Based on maplibre-gl-js's AttributionControl.
  * https://github.com/maplibre/maplibre-gl-js/blob/main/src/ui/control/attribution_control.ts
+ *
+ * Uses Shadow DOM to isolate attribution styles from the host page,
+ * preventing style conflicts. Collapses to an "i" icon on small maps.
  */
+
+export interface CustomAttributionControlOptions {
+  compact?: boolean;
+  customAttribution?: string | string[];
+}
 
 /**
- * When the map is too small to display the full attribution, it will be
- * collapsed in to a "i" icon. It is open by default, and will hide itself
- * when user interaction is detected.
- * For more information on why this is open by default, see the following links:
- *
- * The OSM Foundation attribution guidelines.
- * https://wiki.osmfoundation.org/wiki/Licence/Attribution_Guidelines#Interactive_maps
- * > You may use a mechanism to fade/collapse the attribution under certain conditions:
- * >  * immediately with a dismiss interaction, for example clicking an ‘x’ in the corner of a dialog
- * >  * automatically on map interaction such as panning, clicking, or zooming
- * >  * automatically after five seconds. This also applies to splash screens or pop-ups.
- *
- * This is the issue where attribution is open by default in the MapLibre GL JS library:
- * https://github.com/maplibre/maplibre-gl-js/issues/205
+ * MapLibre Map with internal properties used by this control.
+ * These are internal APIs not in the public MapLibre type.
+ * We use a type alias (not interface extends) to avoid conflicts
+ * with MapLibre's `style` property type.
  */
+type MapInternal = MaplibreMap & {
+  _getUIString(key: string): string;
+  style: MaplibreMap['style'] & {
+    stylesheet?: { owner: string; id: string };
+    sourceCaches: Record<string, {
+      used: boolean;
+      usedForTerrain: boolean;
+      getSource(): { attribution?: string };
+    }>;
+  };
+};
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+interface StyleDataEvent {
+  sourceDataType?: string;
+  dataType?: string;
+  type?: string;
+}
+
+const ATTRIBUTION_CSS = `
+.maplibregl-ctrl {
+  font: 12px/20px Helvetica Neue,Arial,Helvetica,sans-serif;
+  clear: both;
+  pointer-events: auto;
+  transform: translate(0);
+}
+.maplibregl-ctrl-attrib-button:focus,.maplibregl-ctrl-group button:focus {
+  box-shadow: 0 0 2px 2px #0096ff
+}
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background-color: hsla(0,0%,100%,.5);
+  margin: 0;
+  padding: 0 5px
+}
+@media screen {
+  .maplibregl-ctrl-attrib.maplibregl-compact {
+    background-color: #fff;
+    border-radius: 12px;
+    box-sizing: content-box;
+    min-height: 20px;
+    padding: 2px 24px 2px 0;
+    position: relative;
+    margin: 10px 10px 10px auto;
+    width: 0;
+  }
+  .maplibregl-ctrl-attrib.maplibregl-compact-show {
+    padding: 2px 28px 2px 8px;
+    visibility: visible;
+    width: auto;
+  }
+  .maplibregl-ctrl-bottom-left>.maplibregl-ctrl-attrib.maplibregl-compact-show,
+  .maplibregl-ctrl-top-left>.maplibregl-ctrl-attrib.maplibregl-compact-show {
+    border-radius: 12px;
+    padding: 2px 8px 2px 28px
+  }
+  .maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-inner {
+    display: none
+  }
+  .maplibregl-ctrl-attrib-button {
+    background-color: hsla(0,0%,100%,.5);
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg width='24' height='24' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg' fill-rule='evenodd'%3E%3Cpath d='M4 10a6 6 0 1 0 12 0 6 6 0 1 0-12 0m5-3a1 1 0 1 0 2 0 1 1 0 1 0-2 0m0 3a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0'/%3E%3C/svg%3E");
+    border: 0;
+    border-radius: 12px;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: none;
+    height: 24px;
+    outline: none;
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 24px
+  }
+  .maplibregl-ctrl-attrib summary.maplibregl-ctrl-attrib-button {
+    appearance: none;
+    list-style: none
+  }
+  .maplibregl-ctrl-attrib summary.maplibregl-ctrl-attrib-button::-webkit-details-marker {
+    display: none
+  }
+  .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib-button,
+  .maplibregl-ctrl-top-left .maplibregl-ctrl-attrib-button {
+    left: 0
+  }
+  .maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-button,
+  .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
+    display: block
+  }
+  .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
+    background-color: rgb(0 0 0/5%)
+  }
+  .maplibregl-ctrl-bottom-right>.maplibregl-ctrl-attrib.maplibregl-compact:after {
+    bottom: 0; right: 0
+  }
+  .maplibregl-ctrl-top-right>.maplibregl-ctrl-attrib.maplibregl-compact:after {
+    right: 0; top: 0
+  }
+  .maplibregl-ctrl-top-left>.maplibregl-ctrl-attrib.maplibregl-compact:after {
+    left: 0; top: 0
+  }
+  .maplibregl-ctrl-bottom-left>.maplibregl-ctrl-attrib.maplibregl-compact:after {
+    bottom: 0; left: 0
+  }
+}
+@media screen and (-ms-high-contrast:active) {
+  .maplibregl-ctrl-attrib.maplibregl-compact:after {
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg width='24' height='24' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg' fill-rule='evenodd' fill='%23fff'%3E%3Cpath d='M4 10a6 6 0 1 0 12 0 6 6 0 1 0-12 0m5-3a1 1 0 1 0 2 0 1 1 0 1 0-2 0m0 3a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0'/%3E%3C/svg%3E")
+  }
+}
+@media screen and (-ms-high-contrast:black-on-white) {
+  .maplibregl-ctrl-attrib.maplibregl-compact:after {
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg width='24' height='24' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg' fill-rule='evenodd'%3E%3Cpath d='M4 10a6 6 0 1 0 12 0 6 6 0 1 0-12 0m5-3a1 1 0 1 0 2 0 1 1 0 1 0-2 0m0 3a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0'/%3E%3C/svg%3E")
+  }
+}
+@media print {
+  .maplibregl-ctrl-attrib-button {
+    display: none !important;
+  }
+}
+.maplibregl-ctrl-attrib a {
+  color: rgba(0,0,0,.75);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.maplibregl-ctrl-attrib a:hover {
+  color: inherit;
+  text-decoration: underline
+}
+.maplibregl-attrib-empty {
+  display: none
+}
+`;
+
 class CustomAttributionControl implements IControl {
-  private options: any;
-  private _map: any;
-  private _compact: any;
-  private _container: any;
-  private _shadowContainer: any;
-  private _innerContainer: any;
-  private _compactButton: any;
-  private _editLink: any;
-  private _attribHTML: any;
-  private styleId: any;
-  private styleOwner: any;
-  private printQuery: any;
-  private onMediaPrintChange: any;
+  private options: CustomAttributionControlOptions;
+  private _map: MapInternal | undefined;
+  private _compact: boolean | undefined;
+  private _container: HTMLDivElement | undefined;
+  private _shadowContainer: HTMLDetailsElement | undefined;
+  private _innerContainer: HTMLElement | undefined;
+  private _compactButton: HTMLElement | undefined;
+  private _editLink: HTMLAnchorElement | null = null;
+  private _attribHTML: string | undefined;
+  private styleId: string | undefined;
+  private styleOwner: string | undefined;
+  private printQuery: MediaQueryList | undefined;
+  private onMediaPrintChange: ((e: MediaQueryListEvent) => void) | undefined;
 
-  constructor(options: any = {}) {
+  constructor(options: CustomAttributionControlOptions = {}) {
     this.options = options;
 
     bindAll(
@@ -49,7 +178,7 @@ class CustomAttributionControl implements IControl {
         '_updateCompact',
         '_updateCompactMinimize',
       ],
-      this,
+      this as unknown as Record<string, unknown>,
     );
   }
 
@@ -57,17 +186,17 @@ class CustomAttributionControl implements IControl {
     return 'bottom-right';
   }
 
-  onAdd(map: any) {
-    this._map = map;
-    this._compact = this.options && this.options.compact;
-    this._container = DOM.create('div');
+  onAdd(map: MaplibreMap): HTMLDivElement {
+    this._map = map as MapInternal;
+    this._compact = this.options.compact;
+    this._container = DOM.create('div') as HTMLDivElement;
 
     const shadow = this._container.attachShadow({ mode: 'open' });
 
     this._shadowContainer = DOM.create(
       'details',
       'maplibregl-ctrl maplibregl-ctrl-attrib',
-    );
+    ) as HTMLDetailsElement;
     this._compactButton = DOM.create(
       'summary',
       'maplibregl-ctrl-attrib-button',
@@ -82,142 +211,7 @@ class CustomAttributionControl implements IControl {
     );
 
     const style = document.createElement('style');
-    style.textContent = `
-    .maplibregl-ctrl {
-      font: 12px/20px Helvetica Neue,Arial,Helvetica,sans-serif;
-      clear: both;
-      pointer-events: auto;
-      transform: translate(0);
-    }
-
-    .maplibregl-ctrl-attrib-button:focus,.maplibregl-ctrl-group button:focus {
-      box-shadow: 0 0 2px 2px #0096ff
-    }
-
-    .maplibregl-ctrl.maplibregl-ctrl-attrib {
-      background-color: hsla(0,0%,100%,.5);
-      margin: 0;
-      padding: 0 5px
-    }
-
-    @media screen {
-       .maplibregl-ctrl-attrib.maplibregl-compact {
-            background-color: #fff;
-            border-radius: 12px;
-            box-sizing: content-box;
-            min-height: 20px;
-            padding: 2px 24px 2px 0;
-            position: relative;
-            margin: 10px 10px 10px auto;
-            width: 0;
-        }
-
-       .maplibregl-ctrl-attrib.maplibregl-compact-show {
-            padding: 2px 28px 2px 8px;
-            visibility: visible;
-            width: auto;
-        }
-
-        .maplibregl-ctrl-bottom-left>.maplibregl-ctrl-attrib.maplibregl-compact-show,.maplibregl-ctrl-top-left>.maplibregl-ctrl-attrib.maplibregl-compact-show {
-            border-radius: 12px;
-            padding: 2px 8px 2px 28px
-        }
-
-       .maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-inner {
-            display: none
-        }
-
-       .maplibregl-ctrl-attrib-button {
-            background-color: hsla(0,0%,100%,.5);
-            background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg width='24' height='24' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg' fill-rule='evenodd'%3E%3Cpath d='M4 10a6 6 0 1 0 12 0 6 6 0 1 0-12 0m5-3a1 1 0 1 0 2 0 1 1 0 1 0-2 0m0 3a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0'/%3E%3C/svg%3E");
-            border: 0;
-            border-radius: 12px;
-            box-sizing: border-box;
-            cursor: pointer;
-            display: none;
-            height: 24px;
-            outline: none;
-            position: absolute;
-            right: 0;
-            top: 0;
-            width: 24px
-        }
-
-        .maplibregl-ctrl-attrib summary.maplibregl-ctrl-attrib-button {
-            appearance: none;
-            list-style: none
-        }
-
-        .maplibregl-ctrl-attrib summary.maplibregl-ctrl-attrib-button::-webkit-details-marker {
-            display: none
-        }
-
-        .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib-button,.maplibregl-ctrl-top-left .maplibregl-ctrl-attrib-button {
-            left: 0
-        }
-
-        .maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-button,.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
-            display: block
-        }
-
-        .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
-            background-color: rgb(0 0 0/5%)
-        }
-
-        .maplibregl-ctrl-bottom-right>.maplibregl-ctrl-attrib.maplibregl-compact:after {
-            bottom: 0;
-            right: 0
-        }
-
-        .maplibregl-ctrl-top-right>.maplibregl-ctrl-attrib.maplibregl-compact:after {
-            right: 0;
-            top: 0
-        }
-
-        .maplibregl-ctrl-top-left>.maplibregl-ctrl-attrib.maplibregl-compact:after {
-            left: 0;
-            top: 0
-        }
-
-        .maplibregl-ctrl-bottom-left>.maplibregl-ctrl-attrib.maplibregl-compact:after {
-            bottom: 0;
-            left: 0
-        }
-    }
-
-    @media screen and (-ms-high-contrast:active) {
-        .maplibregl-ctrl-attrib.maplibregl-compact:after {
-            background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg width='24' height='24' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg' fill-rule='evenodd' fill='%23fff'%3E%3Cpath d='M4 10a6 6 0 1 0 12 0 6 6 0 1 0-12 0m5-3a1 1 0 1 0 2 0 1 1 0 1 0-2 0m0 3a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0'/%3E%3C/svg%3E")
-        }
-    }
-
-    @media screen and (-ms-high-contrast:black-on-white) {
-        .maplibregl-ctrl-attrib.maplibregl-compact:after {
-            background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg width='24' height='24' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg' fill-rule='evenodd'%3E%3Cpath d='M4 10a6 6 0 1 0 12 0 6 6 0 1 0-12 0m5-3a1 1 0 1 0 2 0 1 1 0 1 0-2 0m0 3a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0'/%3E%3C/svg%3E")
-        }
-    }
-
-    @media print {
-      .maplibregl-ctrl-attrib-button {
-        display: none!important;
-      }
-    }
-
-    .maplibregl-ctrl-attrib a {
-        color: rgba(0,0,0,.75);
-        text-decoration: none;
-        white-space: nowrap;
-    }
-
-    .maplibregl-ctrl-attrib a:hover {
-        color: inherit;
-        text-decoration: underline
-    }
-
-    .maplibregl-attrib-empty {
-        display: none
-    }
-    `;
+    style.textContent = ATTRIBUTION_CSS;
 
     this._updateAttributions();
     this._updateCompact();
@@ -232,11 +226,10 @@ class CustomAttributionControl implements IControl {
     shadow.appendChild(this._shadowContainer);
 
     this.printQuery = window.matchMedia('print');
-    this.onMediaPrintChange = (e: any) => {
+    this.onMediaPrintChange = (e: MediaQueryListEvent) => {
       if (e.matches) {
-        // force open
-        this._shadowContainer.setAttribute('open', '');
-        this._shadowContainer.classList.remove('maplibregl-compact-show');
+        this._shadowContainer!.setAttribute('open', '');
+        this._shadowContainer!.classList.remove('maplibregl-compact-show');
       }
     };
     this.printQuery.addEventListener('change', this.onMediaPrintChange);
@@ -244,29 +237,37 @@ class CustomAttributionControl implements IControl {
     return this._container;
   }
 
-  onRemove() {
-    DOM.remove(this._container);
+  onRemove(): void {
+    if (this._container) {
+      DOM.remove(this._container);
+    }
 
-    this._map.off('styledata', this._updateData);
-    this._map.off('sourcedata', this._updateData);
-    this._map.off('terrain', this._updateData);
-    this._map.off('resize', this._updateCompact);
-    this._map.off('drag', this._updateCompactMinimize);
+    if (this._map) {
+      this._map.off('styledata', this._updateData);
+      this._map.off('sourcedata', this._updateData);
+      this._map.off('terrain', this._updateData);
+      this._map.off('resize', this._updateCompact);
+      this._map.off('drag', this._updateCompactMinimize);
+    }
+
+    if (this.printQuery && this.onMediaPrintChange) {
+      this.printQuery.removeEventListener('change', this.onMediaPrintChange);
+    }
 
     this._map = undefined;
     this._compact = undefined;
     this._attribHTML = undefined;
-
-    this.printQuery.removeEventListener('change', this.onMediaPrintChange);
   }
 
-  _setElementTitle(element: any, title: string) {
+  _setElementTitle(element: HTMLElement, title: string): void {
+    if (!this._map) return;
     const str = this._map._getUIString(`AttributionControl.${title}`);
     element.title = str;
     element.setAttribute('aria-label', str);
   }
 
-  _toggleAttribution() {
+  _toggleAttribution(): void {
+    if (!this._shadowContainer) return;
     if (this._shadowContainer.classList.contains('maplibregl-compact')) {
       if (this._shadowContainer.classList.contains('maplibregl-compact-show')) {
         this._shadowContainer.setAttribute('open', '');
@@ -278,7 +279,7 @@ class CustomAttributionControl implements IControl {
     }
   }
 
-  _updateData(e: any) {
+  _updateData(e: StyleDataEvent): void {
     if (
       e &&
       (e.sourceDataType === 'metadata' ||
@@ -290,16 +291,17 @@ class CustomAttributionControl implements IControl {
     }
   }
 
-  _updateAttributions() {
-    if (!this._map.style) return;
+  _updateAttributions(): void {
+    if (!this._map || !this._map.style) return;
+
     let attributions: string[] = [];
+
     if (this.options.customAttribution) {
       if (Array.isArray(this.options.customAttribution)) {
         attributions = attributions.concat(
-          this.options.customAttribution.map((attribution: any) => {
-            if (typeof attribution !== 'string') return '';
-            return attribution;
-          }),
+          this.options.customAttribution.filter(
+            (attr): attr is string => typeof attr === 'string',
+          ),
         );
       } else if (typeof this.options.customAttribution === 'string') {
         attributions.push(this.options.customAttribution);
@@ -326,11 +328,10 @@ class CustomAttributionControl implements IControl {
       }
     }
 
-    // remove any entries that are whitespace
+    // Remove whitespace-only entries
     attributions = attributions.filter((e) => String(e).trim());
 
-    // remove any entries that are substrings of another entry.
-    // first sort by length so that substrings come first
+    // Remove entries that are substrings of another entry
     attributions.sort((a, b) => a.length - b.length);
     attributions = attributions.filter((attrib, i) => {
       for (let j = i + 1; j < attributions.length; j++) {
@@ -341,24 +342,23 @@ class CustomAttributionControl implements IControl {
       return true;
     });
 
-    // check if attribution string is different to minimize DOM changes
     const attribHTML = attributions.join(' | ');
     if (attribHTML === this._attribHTML) return;
 
     this._attribHTML = attribHTML;
 
     if (attributions.length) {
-      this._innerContainer.innerHTML = attribHTML;
-      this._shadowContainer.classList.remove('maplibregl-attrib-empty');
+      this._innerContainer!.innerHTML = attribHTML;
+      this._shadowContainer!.classList.remove('maplibregl-attrib-empty');
     } else {
-      this._shadowContainer.classList.add('maplibregl-attrib-empty');
+      this._shadowContainer!.classList.add('maplibregl-attrib-empty');
     }
     this._updateCompact();
-    // remove old DOM node from _editLink
     this._editLink = null;
   }
 
-  _updateCompact() {
+  _updateCompact(): void {
+    if (!this._map || !this._shadowContainer) return;
     if (this._map.getCanvasContainer().offsetWidth <= 640 || this._compact) {
       if (this._compact === false) {
         this._shadowContainer.setAttribute('open', '');
@@ -383,7 +383,8 @@ class CustomAttributionControl implements IControl {
     }
   }
 
-  _updateCompactMinimize() {
+  _updateCompactMinimize(): void {
+    if (!this._shadowContainer) return;
     if (this._shadowContainer.classList.contains('maplibregl-compact')) {
       if (this._shadowContainer.classList.contains('maplibregl-compact-show')) {
         this._shadowContainer.classList.remove('maplibregl-compact-show');
