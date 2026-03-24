@@ -10,12 +10,22 @@ import maplibregl, {
   type GetResourceResponse,
   type ControlPosition,
 } from 'maplibre-gl';
+import { Protocol } from 'pmtiles';
 import GeoloniaMarker from './geolonia-marker';
 import { GeoloniaControl } from './controls/geolonia-logo';
 import CustomAttributionControl from './controls/attribution';
 
 import { SimpleStyle } from './simplestyle';
 import SimpleStyleVector from './simplestyle-vector';
+
+// PMTiles protocol registration (once per runtime)
+let pmtilesRegistered = false;
+function ensurePMTiles(): void {
+  if (pmtilesRegistered) return;
+  pmtilesRegistered = true;
+  const protocol = new Protocol();
+  maplibregl.addProtocol('pmtiles', protocol.tile);
+}
 
 import {
   getSessionId,
@@ -45,6 +55,9 @@ export default class GeoloniaMap extends maplibregl.Map {
   private __styleExtensionLoadRequired!: boolean;
 
   constructor(options: GeoloniaMapOptions) {
+    // Register PMTiles protocol on first map creation
+    ensurePMTiles();
+
     // Set API key and stage from options
     if (options.apiKey) {
       keyring.setApiKey(options.apiKey);

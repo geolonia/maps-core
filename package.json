@@ -10,15 +10,18 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./css": "./src/assets/style.css"
   },
   "files": [
-    "dist"
+    "dist",
+    "src/assets/style.css"
   ],
   "dependencies": {
     "@geolonia/mbgl-gesture-handling": "^1.0.15",
     "@mapbox/geojson-extent": "^1.0.0",
     "@turf/center": "^6.0.1",
+    "pmtiles": "^4.4.0",
     "sanitize-html": "^2.8.0",
     "tinycolor2": "^1.4.1"
   },

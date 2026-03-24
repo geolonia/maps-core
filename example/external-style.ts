@@ -1,3 +1,5 @@
+import 'maplibre-gl/dist/maplibre-gl.css';
+import '../src/assets/style.css';
 import { GeoloniaMap } from '../src/index';
 
 const EXTERNAL_STYLE_URL = 'https://tile.openstreetmap.jp/styles/osm-bright/style.json';

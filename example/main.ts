@@ -1,3 +1,5 @@
+import 'maplibre-gl/dist/maplibre-gl.css';
+import '../src/assets/style.css';
 import { GeoloniaMap } from '../src/index';
 
 const map = new GeoloniaMap({
