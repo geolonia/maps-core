@@ -13,6 +13,12 @@ export type GeoloniaMapOptions = MapOptions & {
   marker?: boolean;
   /** Marker color (CSS color string) */
   markerColor?: string;
+  /** Automatically open marker popup on load */
+  openPopup?: boolean;
+  /** CSS selector for a custom marker element */
+  customMarker?: string;
+  /** Offset for custom marker as [x, y] */
+  customMarkerOffset?: [number, number];
   /** Show loader animation during map load */
   loader?: boolean;
   /** Enable gesture handling for scroll pages */

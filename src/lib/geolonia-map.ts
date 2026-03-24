@@ -170,7 +170,8 @@ export default class GeoloniaMap extends maplibregl.Map {
 
     // Remove Geolonia-specific options before passing to MapLibre
     for (const key of [
-      'apiKey', 'stage', 'lang', 'marker', 'markerColor', 'loader',
+      'apiKey', 'stage', 'lang', 'marker', 'markerColor',
+      'openPopup', 'customMarker', 'customMarkerOffset', 'loader',
       'gestureHandling', 'navigationControl', 'geolocateControl',
       'fullscreenControl', 'scaleControl', 'geoloniaControl',
       'geojson', 'cluster', 'clusterColor', 'simpleVector', '3d',
@@ -249,9 +250,41 @@ export default class GeoloniaMap extends maplibregl.Map {
         const center: [number, number] = Array.isArray(c)
           ? [c[0], c[1]]
           : 'lng' in c ? [c.lng, c.lat] : [c.lon, c.lat];
-        const marker = new GeoloniaMarker({ color: options.markerColor })
-          .setLngLat(center)
-          .addTo(map);
+
+        let marker: GeoloniaMarker;
+        if (options.customMarker) {
+          const customEl = document.querySelector(options.customMarker) as HTMLElement | null;
+          if (customEl) {
+            customEl.style.display = 'block';
+            marker = new GeoloniaMarker({
+              element: customEl,
+              offset: options.customMarkerOffset || [0, 0],
+            })
+              .setLngLat(center)
+              .addTo(map);
+          } else {
+            marker = new GeoloniaMarker({ color: options.markerColor })
+              .setLngLat(center)
+              .addTo(map);
+          }
+        } else {
+          marker = new GeoloniaMarker({ color: options.markerColor })
+            .setLngLat(center)
+            .addTo(map);
+        }
+
+        // Popup from container's inner HTML content
+        const content = container.dataset?.popupContent;
+        if (content) {
+          const popup = new Popup({ offset: [0, -25] }).setHTML(content);
+          marker.setPopup(popup);
+          if (options.openPopup) {
+            marker.togglePopup();
+          }
+        } else if (options.openPopup) {
+          // openPopup without content — just mark as clickable
+        }
+
         marker.getElement().classList.add('geolonia-clickable-marker');
       }
     });
