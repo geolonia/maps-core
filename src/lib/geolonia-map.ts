@@ -1,0 +1,334 @@
+import maplibregl, {
+  FullscreenControl,
+  GeolocateControl,
+  NavigationControl,
+  Popup,
+  ScaleControl,
+  type StyleOptions,
+  type StyleSpecification,
+  type StyleSwapOptions,
+  type GetResourceResponse,
+  type ControlPosition,
+} from 'maplibre-gl';
+import GeoloniaMarker from './geolonia-marker';
+import { GeoloniaControl } from './controls/geolonia-logo';
+import CustomAttributionControl from './controls/attribution';
+
+import { SimpleStyle } from './simplestyle';
+import SimpleStyleVector from './simplestyle-vector';
+
+import {
+  getSessionId,
+  getStyle,
+  getLang,
+  handleRestrictedMode,
+  handleErrorMode,
+  parseControlOption,
+  parseSimpleVector,
+  loadImageCompatibility,
+  isGeoloniaTilesHost,
+  type GetImageCallback,
+} from './util';
+import { keyring } from './keyring';
+import type { GeoloniaMapOptions } from '../types';
+
+type Container = HTMLElement & {
+  geoloniaMap?: GeoloniaMap;
+};
+
+/**
+ * Geolonia Map - extends MapLibre GL Map with Geolonia-specific features.
+ * Accepts a GeoloniaMapOptions object directly (no DOM attribute parsing).
+ */
+export default class GeoloniaMap extends maplibregl.Map {
+  private geoloniaSourcesUrl!: URL;
+  private __styleExtensionLoadRequired!: boolean;
+
+  constructor(options: GeoloniaMapOptions) {
+    // Set API key and stage from options
+    if (options.apiKey) {
+      keyring.setApiKey(options.apiKey);
+    }
+    if (options.stage) {
+      keyring.setStage(options.stage);
+    }
+
+    // Resolve language
+    const lang = options.lang === 'auto' || !options.lang ? getLang() : options.lang;
+
+    // Resolve style
+    const styleName = (options.style as string) || 'geolonia/basic-v2';
+    keyring.isGeoloniaStyle = keyring.isGeoloniaStyleCheck(styleName);
+    const resolvedStyle = getStyle(styleName, { lang, apiKey: options.apiKey || keyring.apiKey });
+
+    // Resolve container
+    const container = (
+      typeof options.container === 'string'
+        ? document.querySelector(options.container) || document.getElementById(options.container)
+        : options.container
+    ) as Container | null;
+
+    if (!container) {
+      throw new Error(
+        `[Geolonia] No HTML elements found. Please ensure the map container element exists.`,
+      );
+    }
+
+    if (container.geoloniaMap) {
+      return container.geoloniaMap;
+    }
+
+    // Build MapLibre options
+    const apiKey = options.apiKey || keyring.apiKey;
+    const stage = options.stage || keyring.stage;
+    const apiUrl = `https://api.geolonia.com/${stage}`;
+
+    const sessionId = getSessionId(40);
+    const sourcesUrl = new URL(`${apiUrl}/sources`);
+    sourcesUrl.searchParams.set('key', apiKey);
+    sourcesUrl.searchParams.set('sessionId', sessionId);
+
+    const userTransformRequest = options.transformRequest;
+    const transformRequest = (url: string, resourceType?: maplibregl.ResourceType) => {
+      if (resourceType === 'Source' && url.startsWith('https://api.geolonia.com')) {
+        return { url: sourcesUrl.toString() };
+      }
+
+      let transformedUrl = url;
+      if (url.startsWith('geolonia://')) {
+        const tilesMatch = url.match(
+          /^geolonia:\/\/tiles\/(?<username>.+)\/(?<customtileId>.+)/,
+        );
+        if (tilesMatch?.groups) {
+          transformedUrl = `https://tileserver.geolonia.com/customtiles/${tilesMatch.groups.customtileId}/tiles.json`;
+        }
+      }
+
+      const transformedUrlObj = new URL(transformedUrl);
+      const geoloniaTilesHost = isGeoloniaTilesHost(transformedUrlObj);
+
+      if (resourceType === 'Source' && geoloniaTilesHost) {
+        if (stage === 'dev' && transformedUrlObj.hostname === 'tileserver.geolonia.com') {
+          transformedUrlObj.hostname = 'tileserver-dev.geolonia.com';
+        }
+        transformedUrlObj.searchParams.set('sessionId', sessionId);
+        transformedUrlObj.searchParams.set('key', apiKey);
+        return { url: transformedUrlObj.toString() };
+      }
+
+      if (
+        (resourceType === 'SpriteJSON' || resourceType === 'SpriteImage') &&
+        transformedUrl.match(/^https:\/\/api\.geolonia\.com\/(dev|v1)\/sprites\//)
+      ) {
+        const pathParts = transformedUrlObj.pathname.split('/');
+        pathParts[1] = stage;
+        transformedUrlObj.pathname = pathParts.join('/');
+        transformedUrlObj.searchParams.set('key', apiKey);
+        return { url: transformedUrlObj.toString() };
+      }
+
+      if (typeof userTransformRequest === 'function') {
+        return userTransformRequest(transformedUrl, resourceType);
+      }
+
+      return undefined;
+    };
+
+    // Loading UI
+    let loading: HTMLDivElement | undefined;
+    const showLoader = options.loader !== false;
+    if (showLoader) {
+      loading = document.createElement('div');
+      loading.className = 'loading-geolonia-map';
+      loading.innerHTML = `<div class="lds-grid"><div></div><div></div><div></div>
+          <div></div><div></div><div></div><div></div><div></div><div></div></div>`;
+      container.appendChild(loading);
+    }
+
+    const mapOptions = {
+      ...options,
+      container,
+      style: resolvedStyle,
+      hash: options.hash ?? false,
+      localIdeographFontFamily: options.localIdeographFontFamily ?? 'sans-serif',
+      attributionControl: false as const,
+      transformRequest,
+    };
+
+    // Remove Geolonia-specific options before passing to MapLibre
+    for (const key of [
+      'apiKey', 'stage', 'lang', 'marker', 'markerColor', 'loader',
+      'gestureHandling', 'navigationControl', 'geolocateControl',
+      'fullscreenControl', 'scaleControl', 'geoloniaControl',
+      'geojson', 'cluster', 'clusterColor', 'simpleVector', '3d',
+    ] as const) {
+      delete (mapOptions as Record<string, unknown>)[key];
+    }
+
+    try {
+      super(mapOptions);
+    } catch (error) {
+      handleErrorMode(container);
+      throw error;
+    }
+
+    const map = this;
+    this.geoloniaSourcesUrl = sourcesUrl;
+    this.__styleExtensionLoadRequired = true;
+
+    // Controls
+    const geoloniaCtrl = parseControlOption(options.geoloniaControl ?? true);
+    map.addControl(new GeoloniaControl(), geoloniaCtrl.position as ControlPosition);
+
+    map.addControl(new CustomAttributionControl(), 'bottom-right');
+
+    const fullscreen = parseControlOption(options.fullscreenControl ?? false);
+    if (fullscreen.enabled) {
+      map.addControl(new FullscreenControl(), fullscreen.position as ControlPosition);
+    }
+
+    const nav = parseControlOption(options.navigationControl ?? true);
+    if (nav.enabled) {
+      map.addControl(new NavigationControl(), nav.position as ControlPosition);
+    }
+
+    const geolocate = parseControlOption(options.geolocateControl ?? false);
+    if (geolocate.enabled) {
+      map.addControl(new GeolocateControl({}), geolocate.position as ControlPosition);
+    }
+
+    const scale = parseControlOption(options.scaleControl ?? false);
+    if (scale.enabled) {
+      map.addControl(new ScaleControl({}), scale.position as ControlPosition);
+    }
+
+    // On load
+    map.on('load', (event) => {
+      const map = event.target;
+
+      if (loading) {
+        try {
+          container.removeChild(loading);
+        } catch {
+          // Already removed
+        }
+      }
+
+      // Gesture handling
+      if (options.gestureHandling !== false) {
+        import('@geolonia/mbgl-gesture-handling').then(({ default: GestureHandling }) => {
+          const body = document.body;
+          const html = document.documentElement;
+          const isScrollable =
+            body.scrollHeight > body.clientHeight ||
+            html.scrollHeight > html.clientHeight;
+          if (isScrollable) {
+            new GestureHandling({ lang }).addTo(map);
+          }
+        }).catch(() => {
+          // gesture handling not available
+        });
+      }
+
+      // Default marker
+      if (options.marker && options.center) {
+        const c = options.center;
+        const center: [number, number] = Array.isArray(c)
+          ? [c[0], c[1]]
+          : 'lng' in c ? [c.lng, c.lat] : [c.lon, c.lat];
+        const marker = new GeoloniaMarker({ color: options.markerColor })
+          .setLngLat(center)
+          .addTo(map);
+        marker.getElement().classList.add('geolonia-clickable-marker');
+      }
+    });
+
+    // Style extensions (SimpleStyle, SimpleVector, 3D)
+    map.on('styledata', async () => {
+      if (!this.__styleExtensionLoadRequired) {
+        return;
+      }
+      this.__styleExtensionLoadRequired = false;
+
+      if (options.simpleVector) {
+        const url = parseSimpleVector(options.simpleVector);
+        new SimpleStyleVector(url).addTo(map);
+      }
+
+      if (options.geojson) {
+        const ss = new SimpleStyle(options.geojson, {
+          cluster: options.cluster !== false,
+          clusterColor: options.clusterColor || '#ff0000',
+        });
+        ss.addTo(map);
+
+        if (!options.center) {
+          ss.fitBounds();
+        }
+      }
+
+      if (options['3d'] === true) {
+        const style = map.getStyle();
+        if (style?.layers) {
+          for (const layer of style.layers) {
+            const metadata = (layer as { metadata?: Record<string, boolean> }).metadata;
+            if (metadata?.['visible-on-3d']) {
+              map.setLayoutProperty(layer.id, 'visibility', 'visible');
+            }
+            if (metadata?.['hide-on-3d']) {
+              map.setLayoutProperty(layer.id, 'visibility', 'none');
+            }
+          }
+        }
+      }
+    });
+
+    // Handle server errors
+    map.on('error', async (error) => {
+      if (error.error && (error.error as { status?: number }).status === 402) {
+        handleRestrictedMode(map);
+      }
+    });
+
+    container.geoloniaMap = map;
+
+    return map;
+  }
+
+  setStyle(
+    style: string | StyleSpecification,
+    options: StyleSwapOptions & StyleOptions = {},
+  ): this {
+    if (style !== null && typeof style === 'string') {
+      style = getStyle(style, { lang: getLang(), apiKey: keyring.apiKey });
+    }
+
+    this.__styleExtensionLoadRequired = true;
+    super.setStyle.call(this, style, options);
+
+    return this;
+  }
+
+  remove(): void {
+    const container = this.getContainer() as Container;
+    super.remove.call(this);
+    delete container.geoloniaMap;
+  }
+
+  loadImage(url: string, callback: GetImageCallback): void;
+  loadImage(
+    url: string,
+  ): Promise<GetResourceResponse<HTMLImageElement | ImageBitmap>>;
+  loadImage(
+    url: string,
+    callback?: GetImageCallback,
+  ): Promise<GetResourceResponse<HTMLImageElement | ImageBitmap>> | void {
+    const promise = super.loadImage(url);
+
+    if (callback) {
+      loadImageCompatibility(promise, callback);
+    } else {
+      return promise;
+    }
+  }
+}

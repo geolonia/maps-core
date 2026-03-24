@@ -1,0 +1,45 @@
+{
+  "name": "@geolonia/maps-core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@geolonia/mbgl-gesture-handling": "^1.0.15",
+    "@mapbox/geojson-extent": "^1.0.0",
+    "@turf/center": "^6.0.1",
+    "sanitize-html": "^2.8.0",
+    "tinycolor2": "^1.4.1"
+  },
+  "peerDependencies": {
+    "maplibre-gl": "^5.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@types/sanitize-html": "^2.16.1",
+    "@types/tinycolor2": "^1.4.6",
+    "maplibre-gl": "5.7.0",
+    "tsup": "^8",
+    "typescript": "^5.8",
+    "vitest": "^3.2.0"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --external maplibre-gl",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
+  },
+  "license": "MIT"
+}
