@@ -1,4 +1,4 @@
-import Point from '@mapbox/point-geometry';
+import Point from "@mapbox/point-geometry";
 
 /**
  * DOM utility class extracted from maplibre-gl-js.
@@ -6,20 +6,23 @@ import Point from '@mapbox/point-geometry';
  */
 export class DOM {
   static #docStyle: CSSStyleDeclaration | false =
-    typeof window !== 'undefined' &&
+    typeof window !== "undefined" &&
     window.document &&
     window.document.documentElement.style;
 
   static #userSelect: string | undefined;
 
   static #selectProp: string = DOM.testProp([
-    'userSelect',
-    'MozUserSelect',
-    'WebkitUserSelect',
-    'msUserSelect',
+    "userSelect",
+    "MozUserSelect",
+    "WebkitUserSelect",
+    "msUserSelect",
   ]);
 
-  static #transformProp: string = DOM.testProp(['transform', 'WebkitTransform']);
+  static #transformProp: string = DOM.testProp([
+    "transform",
+    "WebkitTransform",
+  ]);
 
   static testProp(props: string[]): string {
     if (!DOM.#docStyle) return props[0];
@@ -31,7 +34,11 @@ export class DOM {
     return props[0];
   }
 
-  static create(tagName: string, className?: string, container?: HTMLElement): HTMLElement {
+  static create(
+    tagName: string,
+    className?: string,
+    container?: HTMLElement,
+  ): HTMLElement {
     const el = window.document.createElement(tagName);
     if (className !== undefined) el.className = className;
     if (container) container.appendChild(el);
@@ -44,14 +51,17 @@ export class DOM {
 
   static disableDrag(): void {
     if (DOM.#docStyle && DOM.#selectProp) {
-      DOM.#userSelect = (DOM.#docStyle as Record<string, string>)[DOM.#selectProp];
-      (DOM.#docStyle as Record<string, string>)[DOM.#selectProp] = 'none';
+      DOM.#userSelect = (DOM.#docStyle as Record<string, string>)[
+        DOM.#selectProp
+      ];
+      (DOM.#docStyle as Record<string, string>)[DOM.#selectProp] = "none";
     }
   }
 
   static enableDrag(): void {
     if (DOM.#docStyle && DOM.#selectProp) {
-      (DOM.#docStyle as Record<string, string>)[DOM.#selectProp] = DOM.#userSelect ?? '';
+      (DOM.#docStyle as Record<string, string>)[DOM.#selectProp] =
+        DOM.#userSelect ?? "";
     }
   }
 
@@ -65,7 +75,7 @@ export class DOM {
     callback: EventListenerOrEventListenerObject,
     options: AddEventListenerOptions,
   ): void {
-    if ('passive' in options) {
+    if ("passive" in options) {
       target.addEventListener(type, callback, options);
     } else {
       target.addEventListener(type, callback, options.capture);
@@ -78,7 +88,7 @@ export class DOM {
     callback: EventListenerOrEventListenerObject,
     options: EventListenerOptions,
   ): void {
-    if ('passive' in options) {
+    if ("passive" in options) {
       target.removeEventListener(type, callback, options);
     } else {
       target.removeEventListener(type, callback, options.capture);
@@ -93,7 +103,10 @@ export class DOM {
     );
   }
 
-  static touchPos(el: HTMLElement, touches: TouchList): InstanceType<typeof Point>[] {
+  static touchPos(
+    el: HTMLElement,
+    touches: TouchList,
+  ): InstanceType<typeof Point>[] {
     const rect = el.getBoundingClientRect();
     const points: InstanceType<typeof Point>[] = [];
     for (let i = 0; i < touches.length; i++) {
@@ -124,8 +137,10 @@ export class DOM {
  */
 export function bindAll(fns: string[], context: Record<string, unknown>): void {
   for (const fn of fns) {
-    if (typeof context[fn] === 'function') {
-      context[fn] = (context[fn] as (...args: unknown[]) => unknown).bind(context);
+    if (typeof context[fn] === "function") {
+      context[fn] = (context[fn] as (...args: unknown[]) => unknown).bind(
+        context,
+      );
     }
   }
 }

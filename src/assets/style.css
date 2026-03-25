@@ -95,7 +95,8 @@
 }
 
 @keyframes lds-grid {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -131,7 +132,7 @@
   position: absolute;
   z-index: 99999;
   word-wrap: break-word;
-  box-shadow: 0 4px 10px #0000001a
+  box-shadow: 0 4px 10px #0000001a;
 }
 
 .geolonia__error-message-description {
@@ -141,20 +142,20 @@
 /* CSS for Attribution */
 /* Fix: https://github.com/geolonia/embed/issues/291 */
 .maplibregl-map {
-  display: block!important;
+  display: block !important;
 }
 
 .maplibregl-ctrl-attrib-inner {
-  display: block!important;
+  display: block !important;
 }
 
 .maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-inner {
-  display: none!important;
+  display: none !important;
 }
 
 .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner,
 .maplibregl-ctrl-attrib.maplibregl-compact .maplibregl-ctrl-attrib-button {
-  display: block!important;
+  display: block !important;
 }
 /* End: CSS for Attribution */
 

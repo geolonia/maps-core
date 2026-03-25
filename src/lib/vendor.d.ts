@@ -1,4 +1,4 @@
-declare module '@mapbox/point-geometry' {
+declare module "@mapbox/point-geometry" {
   class Point {
     x: number;
     y: number;
@@ -7,20 +7,22 @@ declare module '@mapbox/point-geometry' {
   export default Point;
 }
 
-declare module '@geolonia/mbgl-gesture-handling' {
+declare module "@geolonia/mbgl-gesture-handling" {
   export default class GestureHandling {
     constructor(options?: { lang?: string });
     addTo(map: any): void;
   }
 }
 
-declare module '@mapbox/geojson-extent' {
-  function geojsonExtent(geojson: GeoJSON.GeoJSON): [number, number, number, number] | undefined;
+declare module "@mapbox/geojson-extent" {
+  function geojsonExtent(
+    geojson: GeoJSON.GeoJSON,
+  ): [number, number, number, number] | undefined;
   export default geojsonExtent;
 }
 
-declare module '@turf/center' {
-  import type { Feature, Point, GeoJSON } from 'geojson';
+declare module "@turf/center" {
+  import type { Feature, Point, GeoJSON } from "geojson";
   function center(geojson: GeoJSON): Feature<Point>;
   export default center;
 }

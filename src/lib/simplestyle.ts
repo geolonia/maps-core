@@ -1,17 +1,15 @@
-'use strict';
+import geojsonExtent from "@mapbox/geojson-extent";
+import turfCenter from "@turf/center";
+import maplibregl from "maplibre-gl";
+import { isURL, sanitizeDescription } from "./util";
 
-import maplibregl from 'maplibre-gl';
-import geojsonExtent from '@mapbox/geojson-extent';
-import turfCenter from '@turf/center';
-import { isURL, sanitizeDescription } from './util';
-
-const textColor = '#000000';
-const textHaloColor = '#FFFFFF';
-const backgroundColor = 'rgba(255, 0, 0, 0.4)';
-const strokeColor = '#FFFFFF';
+const textColor = "#000000";
+const textHaloColor = "#FFFFFF";
+const backgroundColor = "rgba(255, 0, 0, 0.4)";
+const strokeColor = "#FFFFFF";
 
 const template = {
-  type: 'FeatureCollection',
+  type: "FeatureCollection",
   features: [],
 };
 
@@ -22,16 +20,23 @@ export class SimpleStyle {
   private geojson: any;
   private map: any;
   private options: any;
-  private _eventHandlers: { event: string; layer: string; handler: (...args: any[]) => void }[] = [];
+  private _eventHandlers: {
+    event: string;
+    layer: string;
+    handler: (...args: any[]) => void;
+  }[] = [];
 
-  constructor(geojson: string | GeoJSON.GeoJSON, options?: Record<string, any>) {
+  constructor(
+    geojson: string | GeoJSON.GeoJSON,
+    options?: Record<string, any>,
+  ) {
     this.setGeoJSON(geojson);
 
     this.options = {
-      id: 'geolonia-simple-style',
+      id: "geolonia-simple-style",
       cluster: true,
       heatmap: false, // TODO: It should support heatmap.
-      clusterColor: '#ff0000',
+      clusterColor: "#ff0000",
       ...options,
     };
   }
@@ -41,19 +46,19 @@ export class SimpleStyle {
 
     const features = this.geojson.features;
     const polygonAndLines = features.filter(
-      (feature: any) => feature.geometry.type.toLowerCase() !== 'point',
+      (feature: any) => feature.geometry.type.toLowerCase() !== "point",
     );
     const points = features.filter(
-      (feature: any) => feature.geometry.type.toLowerCase() === 'point',
+      (feature: any) => feature.geometry.type.toLowerCase() === "point",
     );
 
     this.map.getSource(this.options.id).setData({
-      type: 'FeatureCollection',
+      type: "FeatureCollection",
       features: polygonAndLines,
     });
 
     this.map.getSource(`${this.options.id}-points`).setData({
-      type: 'FeatureCollection',
+      type: "FeatureCollection",
       features: points,
     });
 
@@ -65,16 +70,16 @@ export class SimpleStyle {
 
     const features = this.geojson.features;
     const polygonAndLines = features.filter(
-      (feature: any) => feature.geometry.type.toLowerCase() !== 'point',
+      (feature: any) => feature.geometry.type.toLowerCase() !== "point",
     );
     const points = features.filter(
-      (feature: any) => feature.geometry.type.toLowerCase() === 'point',
+      (feature: any) => feature.geometry.type.toLowerCase() === "point",
     );
 
     this.map.addSource(this.options.id, {
-      type: 'geojson',
+      type: "geojson",
       data: {
-        type: 'FeatureCollection',
+        type: "FeatureCollection",
         features: polygonAndLines,
       },
     });
@@ -83,9 +88,9 @@ export class SimpleStyle {
     this.setLineGeometries();
 
     this.map.addSource(`${this.options.id}-points`, {
-      type: 'geojson',
+      type: "geojson",
       data: {
-        type: 'FeatureCollection',
+        type: "FeatureCollection",
         features: points,
       },
       cluster: this.options.cluster,
@@ -95,48 +100,48 @@ export class SimpleStyle {
 
     this.map.addLayer({
       id: `${this.options.id}-polygon-symbol`,
-      type: 'symbol',
+      type: "symbol",
       source: this.options.id,
-      filter: ['==', '$type', 'Polygon'],
+      filter: ["==", "$type", "Polygon"],
       paint: {
-        'text-color': ['string', ['get', 'text-color'], textColor],
-        'text-halo-color': [
-          'string',
-          ['get', 'text-halo-color'],
+        "text-color": ["string", ["get", "text-color"], textColor],
+        "text-halo-color": [
+          "string",
+          ["get", "text-halo-color"],
           textHaloColor,
         ],
-        'text-halo-width': 1,
+        "text-halo-width": 1,
       },
       layout: {
-        'text-field': ['get', 'title'],
-        'text-font': ['Noto Sans Regular'],
-        'text-size': 12,
-        'text-max-width': 12,
-        'text-allow-overlap': false,
+        "text-field": ["get", "title"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 12,
+        "text-max-width": 12,
+        "text-allow-overlap": false,
       },
     });
 
     this.map.addLayer({
       id: `${this.options.id}-linestring-symbol`,
-      type: 'symbol',
+      type: "symbol",
       source: this.options.id,
-      filter: ['==', '$type', 'LineString'],
+      filter: ["==", "$type", "LineString"],
       paint: {
-        'text-color': ['string', ['get', 'text-color'], textColor],
-        'text-halo-color': [
-          'string',
-          ['get', 'text-halo-color'],
+        "text-color": ["string", ["get", "text-color"], textColor],
+        "text-halo-color": [
+          "string",
+          ["get", "text-halo-color"],
           textHaloColor,
         ],
-        'text-halo-width': 1,
+        "text-halo-width": 1,
       },
       layout: {
-        'symbol-placement': 'line',
-        'text-field': ['get', 'title'],
-        'text-font': ['Noto Sans Regular'],
-        'text-size': 12,
-        'text-max-width': 12,
-        'text-allow-overlap': false,
+        "symbol-placement": "line",
+        "text-field": ["get", "title"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 12,
+        "text-max-width": 12,
+        "text-allow-overlap": false,
       },
     });
 
@@ -171,13 +176,13 @@ export class SimpleStyle {
   setPolygonGeometries() {
     this.map.addLayer({
       id: `${this.options.id}-polygon`,
-      type: 'fill',
+      type: "fill",
       source: this.options.id,
-      filter: ['==', '$type', 'Polygon'],
+      filter: ["==", "$type", "Polygon"],
       paint: {
-        'fill-color': ['string', ['get', 'fill'], backgroundColor],
-        'fill-opacity': ['number', ['get', 'fill-opacity'], 1.0],
-        'fill-outline-color': ['string', ['get', 'stroke'], strokeColor],
+        "fill-color": ["string", ["get", "fill"], backgroundColor],
+        "fill-opacity": ["number", ["get", "fill-opacity"], 1.0],
+        "fill-outline-color": ["string", ["get", "stroke"], strokeColor],
       },
     });
 
@@ -190,17 +195,17 @@ export class SimpleStyle {
   setLineGeometries() {
     this.map.addLayer({
       id: `${this.options.id}-linestring`,
-      type: 'line',
+      type: "line",
       source: this.options.id,
-      filter: ['==', '$type', 'LineString'],
+      filter: ["==", "$type", "LineString"],
       paint: {
-        'line-width': ['number', ['get', 'stroke-width'], 2],
-        'line-color': ['string', ['get', 'stroke'], backgroundColor],
-        'line-opacity': ['number', ['get', 'stroke-opacity'], 1.0],
+        "line-width": ["number", ["get", "stroke-width"], 2],
+        "line-color": ["string", ["get", "stroke"], backgroundColor],
+        "line-opacity": ["number", ["get", "stroke-opacity"], 1.0],
       },
       layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
+        "line-cap": "round",
+        "line-join": "round",
       },
     });
 
@@ -213,54 +218,54 @@ export class SimpleStyle {
   setPointGeometries() {
     this.map.addLayer({
       id: `${this.options.id}-circle-points`,
-      type: 'circle',
+      type: "circle",
       source: `${this.options.id}-points`,
-      filter: ['all', ['!has', 'point_count'], ['!has', 'marker-symbol']],
+      filter: ["all", ["!has", "point_count"], ["!has", "marker-symbol"]],
       paint: {
-        'circle-radius': [
-          'case',
-          ['==', 'small', ['get', 'marker-size']],
+        "circle-radius": [
+          "case",
+          ["==", "small", ["get", "marker-size"]],
           7,
-          ['==', 'large', ['get', 'marker-size']],
+          ["==", "large", ["get", "marker-size"]],
           13,
           9,
         ],
-        'circle-color': ['string', ['get', 'marker-color'], backgroundColor],
-        'circle-opacity': ['number', ['get', 'fill-opacity'], 1.0],
-        'circle-stroke-width': ['number', ['get', 'stroke-width'], 1],
-        'circle-stroke-color': ['string', ['get', 'stroke'], strokeColor],
-        'circle-stroke-opacity': ['number', ['get', 'stroke-opacity'], 1.0],
+        "circle-color": ["string", ["get", "marker-color"], backgroundColor],
+        "circle-opacity": ["number", ["get", "fill-opacity"], 1.0],
+        "circle-stroke-width": ["number", ["get", "stroke-width"], 1],
+        "circle-stroke-color": ["string", ["get", "stroke"], strokeColor],
+        "circle-stroke-opacity": ["number", ["get", "stroke-opacity"], 1.0],
       },
     });
 
     this.map.addLayer({
       id: `${this.options.id}-symbol-points`,
-      type: 'symbol',
+      type: "symbol",
       source: `${this.options.id}-points`,
-      filter: ['!', ['has', 'point_count']],
+      filter: ["!", ["has", "point_count"]],
       paint: {
-        'text-color': ['string', ['get', 'text-color'], textColor],
-        'text-halo-color': [
-          'string',
-          ['get', 'text-halo-color'],
+        "text-color": ["string", ["get", "text-color"], textColor],
+        "text-halo-color": [
+          "string",
+          ["get", "text-halo-color"],
           textHaloColor,
         ],
-        'text-halo-width': 1,
+        "text-halo-width": 1,
       },
       layout: {
-        'icon-image': ['get', 'marker-symbol'],
-        'text-field': ['get', 'title'],
-        'text-font': ['Noto Sans Regular'],
-        'text-size': 12,
-        'text-max-width': 12,
-        'text-allow-overlap': true,
-        'icon-allow-overlap': true,
-        'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
-        'text-radial-offset': [
-          'case',
-          ['==', 'small', ['get', 'marker-size']],
+        "icon-image": ["get", "marker-symbol"],
+        "text-field": ["get", "title"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 12,
+        "text-max-width": 12,
+        "text-allow-overlap": true,
+        "icon-allow-overlap": true,
+        "text-variable-anchor": ["top", "bottom", "left", "right"],
+        "text-radial-offset": [
+          "case",
+          ["==", "small", ["get", "marker-size"]],
           1,
-          ['==', 'large', ['get', 'marker-size']],
+          ["==", "large", ["get", "marker-size"]],
           1.6,
           1.2,
         ],
@@ -290,22 +295,22 @@ export class SimpleStyle {
 
     const mouseEnterHandler = (e: any) => {
       if (e.features[0].properties.description) {
-        map.getCanvas().style.cursor = 'pointer';
+        map.getCanvas().style.cursor = "pointer";
       }
     };
 
     const mouseLeaveHandler = () => {
-      map.getCanvas().style.cursor = '';
+      map.getCanvas().style.cursor = "";
     };
 
-    map.on('click', source, clickHandler);
-    map.on('mouseenter', source, mouseEnterHandler);
-    map.on('mouseleave', source, mouseLeaveHandler);
+    map.on("click", source, clickHandler);
+    map.on("mouseenter", source, mouseEnterHandler);
+    map.on("mouseleave", source, mouseLeaveHandler);
 
     this._eventHandlers.push(
-      { event: 'click', layer: source, handler: clickHandler },
-      { event: 'mouseenter', layer: source, handler: mouseEnterHandler },
-      { event: 'mouseleave', layer: source, handler: mouseLeaveHandler },
+      { event: "click", layer: source, handler: clickHandler },
+      { event: "mouseenter", layer: source, handler: mouseEnterHandler },
+      { event: "mouseleave", layer: source, handler: mouseLeaveHandler },
     );
   }
 
@@ -315,25 +320,25 @@ export class SimpleStyle {
   setCluster() {
     this.map.addLayer({
       id: `${this.options.id}-clusters`,
-      type: 'circle',
+      type: "circle",
       source: `${this.options.id}-points`,
-      filter: ['has', 'point_count'],
+      filter: ["has", "point_count"],
       paint: {
-        'circle-radius': 20,
-        'circle-color': this.options.clusterColor,
-        'circle-opacity': 1.0,
+        "circle-radius": 20,
+        "circle-color": this.options.clusterColor,
+        "circle-opacity": 1.0,
       },
     });
 
     this.map.addLayer({
       id: `${this.options.id}-cluster-count`,
-      type: 'symbol',
+      type: "symbol",
       source: `${this.options.id}-points`,
-      filter: ['has', 'point_count'],
+      filter: ["has", "point_count"],
       layout: {
-        'text-field': '{point_count_abbreviated}',
-        'text-size': 14,
-        'text-font': ['Noto Sans Regular'],
+        "text-field": "{point_count_abbreviated}",
+        "text-size": 14,
+        "text-font": ["Noto Sans Regular"],
       },
     });
 
@@ -355,21 +360,29 @@ export class SimpleStyle {
     };
 
     const clusterEnterHandler = () => {
-      this.map.getCanvas().style.cursor = 'pointer';
+      this.map.getCanvas().style.cursor = "pointer";
     };
 
     const clusterLeaveHandler = () => {
-      this.map.getCanvas().style.cursor = '';
+      this.map.getCanvas().style.cursor = "";
     };
 
-    this.map.on('click', clusterLayer, clusterClickHandler);
-    this.map.on('mouseenter', clusterLayer, clusterEnterHandler);
-    this.map.on('mouseleave', clusterLayer, clusterLeaveHandler);
+    this.map.on("click", clusterLayer, clusterClickHandler);
+    this.map.on("mouseenter", clusterLayer, clusterEnterHandler);
+    this.map.on("mouseleave", clusterLayer, clusterLeaveHandler);
 
     this._eventHandlers.push(
-      { event: 'click', layer: clusterLayer, handler: clusterClickHandler },
-      { event: 'mouseenter', layer: clusterLayer, handler: clusterEnterHandler },
-      { event: 'mouseleave', layer: clusterLayer, handler: clusterLeaveHandler },
+      { event: "click", layer: clusterLayer, handler: clusterClickHandler },
+      {
+        event: "mouseenter",
+        layer: clusterLayer,
+        handler: clusterEnterHandler,
+      },
+      {
+        event: "mouseleave",
+        layer: clusterLayer,
+        handler: clusterLeaveHandler,
+      },
     );
   }
 
@@ -403,13 +416,13 @@ export class SimpleStyle {
       }
     }
 
-    this.map.getCanvas().style.cursor = '';
+    this.map.getCanvas().style.cursor = "";
 
     return this;
   }
 
   setGeoJSON(geojson: string | GeoJSON.GeoJSON) {
-    if (typeof geojson === 'string' && isURL(geojson)) {
+    if (typeof geojson === "string" && isURL(geojson)) {
       this.geojson = template;
 
       const fetchGeoJSON = async () => {
@@ -424,7 +437,7 @@ export class SimpleStyle {
             this.callFitBounds = false;
           }
         } catch (error) {
-          console.error('[Geolonia] Failed to load GeoJSON:', error); // eslint-disable-line no-console
+          console.error("[Geolonia] Failed to load GeoJSON:", error); // eslint-disable-line no-console
         }
       };
 

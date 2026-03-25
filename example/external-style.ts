@@ -1,11 +1,12 @@
-import 'maplibre-gl/dist/maplibre-gl.css';
-import '../src/assets/style.css';
-import { GeoloniaMap } from '../src/index';
+import "maplibre-gl/dist/maplibre-gl.css";
+import "../src/assets/style.css";
+import { GeoloniaMap } from "../src/index";
 
-const EXTERNAL_STYLE_URL = 'https://tile.openstreetmap.jp/styles/osm-bright/style.json';
+const EXTERNAL_STYLE_URL =
+  "https://tile.openstreetmap.jp/styles/osm-bright/style.json";
 
 const map = new GeoloniaMap({
-  container: '#map',
+  container: "#map",
   style: EXTERNAL_STYLE_URL,
   center: [139.7671, 35.6812],
   zoom: 12,
@@ -16,4 +17,5 @@ const map = new GeoloniaMap({
 });
 
 (window as unknown as Record<string, unknown>).map = map;
-(window as unknown as Record<string, unknown>).EXTERNAL_STYLE_URL = EXTERNAL_STYLE_URL;
+(window as unknown as Record<string, unknown>).EXTERNAL_STYLE_URL =
+  EXTERNAL_STYLE_URL;

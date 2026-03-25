@@ -1,6 +1,6 @@
 class Keyring {
-  #apiKey = '';
-  #stage = 'dev';
+  #apiKey = "";
+  #stage = "dev";
   #isGeoloniaStyle = true;
 
   get apiKey() {
@@ -28,8 +28,8 @@ class Keyring {
   }
 
   reset() {
-    this.#apiKey = '';
-    this.#stage = 'dev';
+    this.#apiKey = "";
+    this.#stage = "dev";
     this.#isGeoloniaStyle = true;
   }
 
@@ -37,13 +37,13 @@ class Keyring {
    * Check if the given style is a Geolonia style (requires API key)
    */
   isGeoloniaStyleCheck(style: string): boolean {
-    if (!style || style === '') {
+    if (!style || style === "") {
       return true;
     }
 
     if (
-      style.startsWith('https://cdn.geolonia.com/style/') ||
-      style.startsWith('https://api.geolonia.com/')
+      style.startsWith("https://cdn.geolonia.com/style/") ||
+      style.startsWith("https://api.geolonia.com/")
     ) {
       return true;
     }
@@ -52,7 +52,7 @@ class Keyring {
       return false;
     }
 
-    if (style.endsWith('.json')) {
+    if (style.endsWith(".json")) {
       return false;
     }
 

@@ -1,4 +1,4 @@
-import type { MapOptions, ControlPosition } from 'maplibre-gl';
+import type { ControlPosition, MapOptions } from "maplibre-gl";
 
 export type GeoloniaMapOptions = MapOptions & {
   /** Geolonia API key */
@@ -8,7 +8,7 @@ export type GeoloniaMapOptions = MapOptions & {
   /** Map style name or URL. Default: 'geolonia/basic-v2' */
   style?: string;
   /** Language for style labels. Default: 'auto' */
-  lang?: 'ja' | 'en' | 'auto';
+  lang?: "ja" | "en" | "auto";
   /** Show default marker at center */
   marker?: boolean;
   /** Marker color (CSS color string) */
@@ -42,5 +42,5 @@ export type GeoloniaMapOptions = MapOptions & {
   /** Simple vector tile URL */
   simpleVector?: string;
   /** Enable 3D mode */
-  '3d'?: boolean;
+  "3d"?: boolean;
 };

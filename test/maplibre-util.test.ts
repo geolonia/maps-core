@@ -1,37 +1,37 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect } from 'vitest';
-import { DOM, bindAll } from '../src/lib/maplibre-util';
+import { describe, expect, it } from "vitest";
+import { bindAll, DOM } from "../src/lib/maplibre-util";
 
-describe('DOM.create', () => {
-  it('should create an element with given tag name', () => {
-    const el = DOM.create('div');
-    expect(el.tagName).toBe('DIV');
+describe("DOM.create", () => {
+  it("should create an element with given tag name", () => {
+    const el = DOM.create("div");
+    expect(el.tagName).toBe("DIV");
   });
 
-  it('should set className when provided', () => {
-    const el = DOM.create('span', 'my-class');
-    expect(el.className).toBe('my-class');
+  it("should set className when provided", () => {
+    const el = DOM.create("span", "my-class");
+    expect(el.className).toBe("my-class");
   });
 
-  it('should append to container when provided', () => {
-    const container = document.createElement('div');
-    const el = DOM.create('p', 'child', container);
+  it("should append to container when provided", () => {
+    const container = document.createElement("div");
+    const el = DOM.create("p", "child", container);
     expect(container.children.length).toBe(1);
     expect(container.children[0]).toBe(el);
   });
 
-  it('should not set className when undefined', () => {
-    const el = DOM.create('div');
-    expect(el.className).toBe('');
+  it("should not set className when undefined", () => {
+    const el = DOM.create("div");
+    expect(el.className).toBe("");
   });
 });
 
-describe('DOM.remove', () => {
-  it('should remove node from parent', () => {
-    const parent = document.createElement('div');
-    const child = document.createElement('span');
+describe("DOM.remove", () => {
+  it("should remove node from parent", () => {
+    const parent = document.createElement("div");
+    const child = document.createElement("span");
     parent.appendChild(child);
 
     expect(parent.children.length).toBe(1);
@@ -39,22 +39,22 @@ describe('DOM.remove', () => {
     expect(parent.children.length).toBe(0);
   });
 
-  it('should not throw if node has no parent', () => {
-    const orphan = document.createElement('div');
+  it("should not throw if node has no parent", () => {
+    const orphan = document.createElement("div");
     expect(() => DOM.remove(orphan)).not.toThrow();
   });
 });
 
-describe('DOM.createNS', () => {
-  it('should create an element with namespace', () => {
-    const el = DOM.createNS('http://www.w3.org/2000/svg', 'svg');
-    expect(el.tagName).toBe('svg');
-    expect(el.namespaceURI).toBe('http://www.w3.org/2000/svg');
+describe("DOM.createNS", () => {
+  it("should create an element with namespace", () => {
+    const el = DOM.createNS("http://www.w3.org/2000/svg", "svg");
+    expect(el.tagName).toBe("svg");
+    expect(el.namespaceURI).toBe("http://www.w3.org/2000/svg");
   });
 });
 
-describe('bindAll', () => {
-  it('should bind methods to context', () => {
+describe("bindAll", () => {
+  it("should bind methods to context", () => {
     const obj = {
       value: 42,
       getValue() {
@@ -62,23 +62,23 @@ describe('bindAll', () => {
       },
     };
 
-    bindAll(['getValue'], obj as unknown as Record<string, unknown>);
+    bindAll(["getValue"], obj as unknown as Record<string, unknown>);
 
     const fn = obj.getValue;
     expect(fn()).toBe(42);
   });
 
-  it('should skip non-existent methods', () => {
+  it("should skip non-existent methods", () => {
     const obj = { value: 1 };
     expect(() =>
-      bindAll(['nonExistent'], obj as unknown as Record<string, unknown>),
+      bindAll(["nonExistent"], obj as unknown as Record<string, unknown>),
     ).not.toThrow();
   });
 
-  it('should skip non-function properties', () => {
+  it("should skip non-function properties", () => {
     const obj = { value: 42 };
     expect(() =>
-      bindAll(['value'], obj as unknown as Record<string, unknown>),
+      bindAll(["value"], obj as unknown as Record<string, unknown>),
     ).not.toThrow();
   });
 });

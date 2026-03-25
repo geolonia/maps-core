@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { sanitizeDescription } from "../src/lib/util";
 
 describe("sanitizeDescription", () => {
@@ -19,8 +19,7 @@ describe("sanitizeDescription", () => {
   });
 
   it("should preserve class attributes", async () => {
-    const input =
-      '<span class="red">ここが集合場所です。</span>';
+    const input = '<span class="red">ここが集合場所です。</span>';
     expect(await sanitizeDescription(input)).toBe(
       '<span class="red">ここが集合場所です。</span>',
     );

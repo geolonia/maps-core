@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 beforeAll(() => {
   // maplibre-gl tries URL.createObjectURL on import
@@ -85,10 +85,7 @@ describe("SimpleStyle", () => {
     const map = new MockMap();
     new SimpleStyle(geojson, { id: "custom-id" }).addTo(map);
 
-    expect(Object.keys(map.sources)).toEqual([
-      "custom-id",
-      "custom-id-points",
-    ]);
+    expect(Object.keys(map.sources)).toEqual(["custom-id", "custom-id-points"]);
     expect(map.layers.length).toBe(8);
   });
 
@@ -112,15 +109,21 @@ describe("SimpleStyle", () => {
     const ss = new SimpleStyle(emptyGeojson).addTo(map);
 
     expect(
-      (map.sources["geolonia-simple-style-points"] as { data: { features: unknown[] } }).data
-        .features.length,
+      (
+        map.sources["geolonia-simple-style-points"] as {
+          data: { features: unknown[] };
+        }
+      ).data.features.length,
     ).toBe(0);
 
     ss.updateData(geojson);
 
     expect(
-      (map.sources["geolonia-simple-style-points"] as { data: { features: unknown[] } }).data
-        .features.length,
+      (
+        map.sources["geolonia-simple-style-points"] as {
+          data: { features: unknown[] };
+        }
+      ).data.features.length,
     ).toBe(1);
   });
 

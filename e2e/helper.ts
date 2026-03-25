@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Page } from "@playwright/test";
 
 const LOAD_TIMEOUT = 15000;
 
@@ -6,11 +6,15 @@ const LOAD_TIMEOUT = 15000;
  * Wait for the map canvas to be visible and the map to be loaded.
  */
 export async function waitForMapLoad(page: Page): Promise<void> {
-  await page.waitForSelector('canvas.maplibregl-canvas', { timeout: LOAD_TIMEOUT });
+  await page.waitForSelector("canvas.maplibregl-canvas", {
+    timeout: LOAD_TIMEOUT,
+  });
   await page.waitForFunction(
     () => {
-      const map = (window as unknown as Record<string, unknown>).map as { loaded?: () => boolean } | undefined;
-      return map && typeof map.loaded === 'function' && map.loaded();
+      const map = (window as unknown as Record<string, unknown>).map as
+        | { loaded?: () => boolean }
+        | undefined;
+      return map && typeof map.loaded === "function" && map.loaded();
     },
     { timeout: LOAD_TIMEOUT },
   );
@@ -22,10 +26,12 @@ export async function waitForMapLoad(page: Page): Promise<void> {
  */
 export async function readCanvasPixelsUpperHalf(page: Page): Promise<boolean> {
   return page.evaluate(() => {
-    const canvas = document.querySelector('canvas.maplibregl-canvas') as HTMLCanvasElement | null;
+    const canvas = document.querySelector(
+      "canvas.maplibregl-canvas",
+    ) as HTMLCanvasElement | null;
     if (!canvas) return false;
 
-    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
     if (!gl) return false;
 
     const width = gl.drawingBufferWidth;
@@ -33,7 +39,15 @@ export async function readCanvasPixelsUpperHalf(page: Page): Promise<boolean> {
     const pixels = new Uint8Array(width * halfHeight * 4);
 
     // WebGL reads bottom-to-top, so reading from y=halfHeight gets the upper half
-    gl.readPixels(0, halfHeight, width, halfHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    gl.readPixels(
+      0,
+      halfHeight,
+      width,
+      halfHeight,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      pixels,
+    );
 
     let nonWhite = 0;
     const total = width * halfHeight;
@@ -55,14 +69,14 @@ export async function readCanvasPixelsUpperHalf(page: Page): Promise<boolean> {
  */
 export function collectConsoleErrors(page: Page): string[] {
   const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') {
+  page.on("console", (msg) => {
+    if (msg.type() === "error") {
       const text = msg.text();
-      if (!text.startsWith('Failed to load resource')) {
+      if (!text.startsWith("Failed to load resource")) {
         errors.push(text);
       }
     }
   });
-  page.on('pageerror', (err) => errors.push(err.message));
+  page.on("pageerror", (err) => errors.push(err.message));
   return errors;
 }
