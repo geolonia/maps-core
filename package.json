@@ -41,6 +41,7 @@
     "vitest": "^3.2.0"
   },
   "scripts": {
+    "prepare": "tsup src/index.ts --format esm,cjs --dts --external maplibre-gl",
     "build": "tsup src/index.ts --format esm,cjs --dts --external maplibre-gl",
     "test": "vitest run",
     "test:watch": "vitest",
