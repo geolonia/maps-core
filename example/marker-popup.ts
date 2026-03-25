@@ -17,7 +17,9 @@ const map1 = new GeoloniaMap({
 });
 
 // Set popup content via dataset (simulating embed behavior)
-document.querySelector("#map")!.dataset.popupContent =
-  '<p class="test-popup">Hello Tokyo</p>';
+const mapEl = document.querySelector("#map");
+if (mapEl instanceof HTMLElement) {
+  mapEl.dataset.popupContent = '<p class="test-popup">Hello Tokyo</p>';
+}
 
 (window as unknown as Record<string, unknown>).map = map1;

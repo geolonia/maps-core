@@ -415,7 +415,7 @@ export default class GeoloniaMap extends maplibregl.Map {
   loadImage(
     url: string,
     callback?: GetImageCallback,
-  ): Promise<GetResourceResponse<HTMLImageElement | ImageBitmap>> | void {
+  ): Promise<GetResourceResponse<HTMLImageElement | ImageBitmap>> | undefined {
     const promise = super.loadImage(url);
 
     if (callback) {
