@@ -1,21 +1,24 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
-  "files": {
-    "includes": ["**", "!dist/**", "!node_modules/**"]
-  },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
     "rules": {
       "recommended": true,
       "complexity": {
-        "noImportantStyles": "warn"
+        "noImportantStyles": "off",
+        "noStaticOnlyClass": "off"
       },
       "style": {
         "noNonNullAssertion": "warn"
       },
       "correctness": {
-        "noUnusedPrivateClassMembers": "warn"
+        "noUnusedPrivateClassMembers": "warn",
+        "noUnreachableSuper": "warn",
+        "noConstructorReturn": "warn"
+      },
+      "suspicious": {
+        "noConfusingVoidType": "warn"
       }
     }
   },

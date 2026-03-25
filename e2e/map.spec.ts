@@ -24,7 +24,7 @@ test.describe("GeoloniaMap basic rendering", () => {
       const container = document.querySelector("#map") as HTMLElement & {
         geoloniaMap?: unknown;
       };
-      return !!(container?.geoloniaMap);
+      return !!container?.geoloniaMap;
     });
     expect(hasGeoloniaMap).toBe(true);
   });
