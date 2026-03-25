@@ -2,7 +2,7 @@
 
 Core library for Geolonia Maps. Extends [MapLibre GL JS](https://maplibre.org/) with Geolonia Maps platform integration.
 
-Designed to be side-effect-free and DOM-independent, serving as the shared foundation for downstream packages: HTML embed (maps-embed), React (maps-react), and Google Maps compat (maps-advanced).
+Designed to be side-effect-free and DOM-independent, serving as the shared foundation for downstream packages such as maps-embed and maps-react.
 
 ## Install
 
