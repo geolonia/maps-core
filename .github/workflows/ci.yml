@@ -75,13 +75,14 @@ jobs:
         with:
           name: dist
           path: dist/
+
+      - name: Update npm
+        run: npm install -g npm@latest
+
       - name: Publish (latest)
         if: "!contains(github.ref, '-pre.')"
-        run: npm publish --access=public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access=public
+
       - name: Publish (next)
         if: "contains(github.ref, '-pre.')"
-        run: npm publish --access=public --provenance --tag=next
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access=public --tag=next
