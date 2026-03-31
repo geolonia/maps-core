@@ -81,8 +81,8 @@ jobs:
 
       - name: Publish (latest)
         if: "!contains(github.ref, '-pre.')"
-        run: npm publish --access=public
+        run: npm publish --access=public --ignore-scripts
 
       - name: Publish (next)
         if: "contains(github.ref, '-pre.')"
-        run: npm publish --access=public --tag=next
+        run: npm publish --access=public --tag=next --ignore-scripts
