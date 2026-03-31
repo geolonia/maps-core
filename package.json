@@ -50,5 +50,9 @@
     "lint": "biome check src/ test/ e2e/ example/",
     "lint:fix": "biome check --write src/ test/ e2e/ example/"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/geolonia/maps-core"
+  }
 }
