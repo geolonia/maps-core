@@ -49,8 +49,8 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-  publish:
-    name: Publish npm package
+  release:
+    name: Release
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -69,17 +69,7 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Update npm
-        run: npm install -g npm@latest
-
-      - name: Publish (latest)
-        if: "!contains(github.ref, '-pre.')"
-        run: npm publish --access=public --ignore-scripts
-
-      - name: Publish (next)
-        if: "contains(github.ref, '-pre.')"
-        run: npm publish --access=public --tag=next --ignore-scripts
-
+      # GitHub Release first — idempotent and safe to retry
       - name: Create UMD tarball
         run: tar -czf maps-core-umd.tar.gz -C dist/umd .
 
@@ -92,8 +82,22 @@ jobs:
           if echo "$TAG" | grep -q '\-pre\.'; then
             PRERELEASE="--prerelease"
           fi
+          # Delete existing release if re-running after partial failure
+          gh release delete "$TAG" --yes 2>/dev/null || true
           gh release create "$TAG" \
             --title "$TAG" \
             --generate-notes \
             $PRERELEASE \
             maps-core-umd.tar.gz
+
+      # npm publish last — once published, the version is immutable
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Publish (latest)
+        if: "!contains(github.ref, '-pre.')"
+        run: npm publish --access=public --ignore-scripts
+
+      - name: Publish (next)
+        if: "contains(github.ref, '-pre.')"
+        run: npm publish --access=public --tag=next --ignore-scripts
