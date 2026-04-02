@@ -2,19 +2,19 @@
   "name": "@geolonia/maps-core",
   "version": "0.2.0",
   "type": "module",
-  "main": "dist/index.cjs",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/npm/index.cjs",
+  "module": "dist/npm/index.js",
+  "types": "dist/npm/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "types": "./dist/npm/index.d.ts",
+      "import": "./dist/npm/index.js",
+      "require": "./dist/npm/index.cjs"
     },
     "./css": "./src/assets/style.css"
   },
   "files": [
-    "dist",
+    "dist/npm",
     "src/assets/style.css"
   ],
   "dependencies": {
@@ -42,7 +42,7 @@
   },
   "scripts": {
     "prepare": "npm run build && npm run build:umd",
-    "build": "tsup src/index.ts --format esm,cjs --dts --external maplibre-gl",
+    "build": "tsup src/index.ts --format esm,cjs --dts --external maplibre-gl --outDir dist/npm",
     "build:umd": "vite build --config vite.umd.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
