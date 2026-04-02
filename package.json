@@ -1,6 +1,6 @@
 {
   "name": "@geolonia/maps-core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -43,6 +43,7 @@
   "scripts": {
     "prepare": "tsup src/index.ts --format esm,cjs --dts --external maplibre-gl",
     "build": "tsup src/index.ts --format esm,cjs --dts --external maplibre-gl",
+    "build:umd": "vite build --config vite.umd.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "vite --config vite.config.ts",
