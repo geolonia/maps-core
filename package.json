@@ -41,7 +41,7 @@
     "vitest": "^3.2.0"
   },
   "scripts": {
-    "prepare": "tsup src/index.ts --format esm,cjs --dts --external maplibre-gl",
+    "prepare": "npm run build && npm run build:umd",
     "build": "tsup src/index.ts --format esm,cjs --dts --external maplibre-gl",
     "build:umd": "vite build --config vite.umd.config.ts",
     "test": "vitest run",
