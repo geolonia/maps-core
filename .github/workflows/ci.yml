@@ -20,6 +20,7 @@ jobs:
       - run: npm run lint
       - run: npm run test
       - run: npm run build
+      - run: npm run build:umd
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:
@@ -53,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-      contents: read
+      contents: write
     needs: [build, e2e]
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
@@ -78,3 +79,21 @@ jobs:
       - name: Publish (next)
         if: "contains(github.ref, '-pre.')"
         run: npm publish --access=public --tag=next --ignore-scripts
+
+      - name: Create UMD tarball
+        run: tar -czf maps-core-umd.tar.gz -C dist/umd .
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          PRERELEASE=""
+          if echo "$TAG" | grep -q '\-pre\.'; then
+            PRERELEASE="--prerelease"
+          fi
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            $PRERELEASE \
+            maps-core-umd.tar.gz
