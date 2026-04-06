@@ -41,8 +41,8 @@
     "vitest": "^3.2.0"
   },
   "scripts": {
-    "prepare": "tsup src/index.ts --format esm,cjs --dts --external maplibre-gl",
-    "build": "tsup src/index.ts --format esm,cjs --dts --external maplibre-gl",
+    "prepare": "tsup",
+    "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "vite --config vite.config.ts",
