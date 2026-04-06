@@ -64,6 +64,7 @@ jobs:
           node-version: '22.x'
           registry-url: 'https://registry.npmjs.org'
           scope: '@geolonia'
+      - run: npm ci
       - uses: actions/download-artifact@v8
         with:
           name: dist
@@ -91,16 +92,10 @@ jobs:
             maps-core-umd.tar.gz
 
       # npm publish last — once published, the version is immutable
-      # npm_config_ignore_scripts ensures prepare script is skipped
-      # (--ignore-scripts alone may not suppress lifecycle scripts on all npm versions)
       - name: Publish (latest)
         if: "!contains(github.ref, '-pre.')"
-        env:
-          npm_config_ignore_scripts: "true"
         run: npm publish --access=public
 
       - name: Publish (next)
         if: "contains(github.ref, '-pre.')"
-        env:
-          npm_config_ignore_scripts: "true"
         run: npm publish --access=public --tag=next
