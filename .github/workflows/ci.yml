@@ -91,10 +91,16 @@ jobs:
             maps-core-umd.tar.gz
 
       # npm publish last — once published, the version is immutable
+      # npm_config_ignore_scripts ensures prepare script is skipped
+      # (--ignore-scripts alone may not suppress lifecycle scripts on all npm versions)
       - name: Publish (latest)
         if: "!contains(github.ref, '-pre.')"
-        run: npm publish --access=public --ignore-scripts
+        env:
+          npm_config_ignore_scripts: "true"
+        run: npm publish --access=public
 
       - name: Publish (next)
         if: "contains(github.ref, '-pre.')"
-        run: npm publish --access=public --tag=next --ignore-scripts
+        env:
+          npm_config_ignore_scripts: "true"
+        run: npm publish --access=public --tag=next
