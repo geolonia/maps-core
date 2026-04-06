@@ -64,7 +64,6 @@ jobs:
           node-version: '22.x'
           registry-url: 'https://registry.npmjs.org'
           scope: '@geolonia'
-      - run: npm ci
       - uses: actions/download-artifact@v8
         with:
           name: dist
@@ -92,10 +91,11 @@ jobs:
             maps-core-umd.tar.gz
 
       # npm publish last — once published, the version is immutable
+      # --ignore-scripts skips prepare; --provenance uses OIDC (id-token: write)
       - name: Publish (latest)
         if: "!contains(github.ref, '-pre.')"
-        run: npm publish --access=public
+        run: npm publish --access=public --ignore-scripts --provenance
 
       - name: Publish (next)
         if: "contains(github.ref, '-pre.')"
-        run: npm publish --access=public --tag=next
+        run: npm publish --access=public --tag=next --ignore-scripts --provenance
