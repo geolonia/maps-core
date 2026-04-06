@@ -91,9 +91,6 @@ jobs:
             maps-core-umd.tar.gz
 
       # npm publish last — once published, the version is immutable
-      - name: Update npm
-        run: npm install -g npm@latest
-
       - name: Publish (latest)
         if: "!contains(github.ref, '-pre.')"
         run: npm publish --access=public --ignore-scripts
