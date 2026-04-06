@@ -5,6 +5,7 @@ export default defineConfig({
   format: ["esm", "cjs"],
   dts: true,
   external: ["maplibre-gl"],
+  outDir: "dist/npm",
   define: {
     global: "globalThis",
   },
