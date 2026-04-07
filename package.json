@@ -33,18 +33,20 @@
     "@playwright/test": "^1.58.2",
     "@types/sanitize-html": "^2.16.1",
     "@types/tinycolor2": "^1.4.6",
+    "@vitest/coverage-v8": "^4.1.2",
     "jsdom": "^29.0.1",
     "maplibre-gl": "5.7.0",
     "tsup": "^8",
     "typescript": "^5.8",
     "vite": "^7.3.1",
-    "vitest": "^3.2.0"
+    "vitest": "^4.1.2"
   },
   "scripts": {
     "build": "tsup",
     "build:umd": "vite build --config vite.umd.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "dev": "vite --config vite.config.ts",
     "e2e": "playwright test",
     "lint": "biome check src/ test/ e2e/ example/",
