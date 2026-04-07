@@ -3,3 +3,4 @@ dist/
 docs/ADR/
 test-results/
 playwright-report/
+coverage/
