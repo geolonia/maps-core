@@ -1,4 +1,4 @@
-import geojsonExtent from "@mapbox/geojson-extent";
+import bbox from "@turf/bbox";
 import turfCenter from "@turf/center";
 import maplibregl from "maplibre-gl";
 import { isURL, sanitizeDescription } from "./util";
@@ -160,7 +160,10 @@ export class SimpleStyle {
       ...options,
     };
 
-    const bounds = geojsonExtent(this.geojson);
+    const bounds =
+      this.geojson.features.length > 0
+        ? (bbox(this.geojson) as [number, number, number, number])
+        : undefined;
     if (bounds) {
       window.requestAnimationFrame(() => {
         this.map.fitBounds(bounds, _options);

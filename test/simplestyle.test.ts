@@ -89,6 +89,50 @@ describe("SimpleStyle", () => {
     expect(map.layers.length).toBe(8);
   });
 
+  it("should call map.fitBounds with correct bbox", async () => {
+    const multiFeatureGeojson = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Point",
+            coordinates: [139.0, 35.0],
+          },
+        },
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Point",
+            coordinates: [140.0, 36.0],
+          },
+        },
+      ],
+    };
+
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    const fitBoundsSpy = vi.spyOn(map, "fitBounds");
+
+    // fitBounds uses requestAnimationFrame, so we need to mock it
+    const origRAF = window.requestAnimationFrame;
+    window.requestAnimationFrame = (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    };
+
+    new SimpleStyle(multiFeatureGeojson).addTo(map).fitBounds();
+
+    expect(fitBoundsSpy).toHaveBeenCalledTimes(1);
+    const [bounds] = fitBoundsSpy.mock.calls[0];
+    // bbox should be [west, south, east, north] = [minLng, minLat, maxLng, maxLat]
+    expect(bounds).toEqual([139.0, 35.0, 140.0, 36.0]);
+
+    window.requestAnimationFrame = origRAF;
+  });
+
   it("should handle empty GeoJSON", async () => {
     const { SimpleStyle } = await import("../src/lib/simplestyle");
     const map = new MockMap();
