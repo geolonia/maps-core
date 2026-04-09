@@ -13,9 +13,3 @@ declare module "@geolonia/mbgl-gesture-handling" {
     addTo(map: any): void;
   }
 }
-
-declare module "@turf/center" {
-  import type { Feature, Point, GeoJSON } from "geojson";
-  function center(geojson: GeoJSON): Feature<Point>;
-  export default center;
-}
