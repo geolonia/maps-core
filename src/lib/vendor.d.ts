@@ -14,13 +14,6 @@ declare module "@geolonia/mbgl-gesture-handling" {
   }
 }
 
-declare module "@mapbox/geojson-extent" {
-  function geojsonExtent(
-    geojson: GeoJSON.GeoJSON,
-  ): [number, number, number, number] | undefined;
-  export default geojsonExtent;
-}
-
 declare module "@turf/center" {
   import type { Feature, Point, GeoJSON } from "geojson";
   function center(geojson: GeoJSON): Feature<Point>;
