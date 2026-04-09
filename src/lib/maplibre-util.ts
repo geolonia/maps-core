@@ -1,4 +1,4 @@
-import Point from "@mapbox/point-geometry";
+import { Point } from "maplibre-gl";
 
 /**
  * DOM utility class extracted from maplibre-gl-js.
