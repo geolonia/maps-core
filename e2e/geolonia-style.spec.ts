@@ -7,6 +7,15 @@ import {
 
 test.describe("Geolonia style with API key", () => {
   test.beforeEach(async ({ page }) => {
+    // Route glyph requests to the dev server.
+    // Remove this if the production server is fixed to support CORS.
+    await page.route("**/glyphs.geolonia.com/**", (route) => {
+      const url = route
+        .request()
+        .url()
+        .replace("glyphs.geolonia.com", "glyphs-dev.geolonia.com");
+      route.continue({ url });
+    });
     await page.goto("/geolonia-style.html");
   });
 
