@@ -53,6 +53,97 @@ describe("DOM.createNS", () => {
   });
 });
 
+describe("DOM.mousePos", () => {
+  it("should return a Point with correct coordinates", () => {
+    const el = document.createElement("div");
+    // jsdom does not populate getBoundingClientRect by default, so we stub it
+    el.getBoundingClientRect = () => ({
+      left: 10,
+      top: 20,
+      right: 0,
+      bottom: 0,
+      width: 0,
+      height: 0,
+      x: 10,
+      y: 20,
+      toJSON() {},
+    });
+    // clientLeft/clientTop default to 0 in jsdom
+
+    const event = new MouseEvent("click", { clientX: 50, clientY: 80 });
+    const point = DOM.mousePos(el, event);
+
+    // x = clientX(50) - rect.left(10) - clientLeft(0) = 40
+    // y = clientY(80) - rect.top(20) - clientTop(0) = 60
+    expect(point.x).toBe(40);
+    expect(point.y).toBe(60);
+  });
+});
+
+describe("DOM.touchPos", () => {
+  it("should return an array of Points for each touch", () => {
+    const el = document.createElement("div");
+    el.getBoundingClientRect = () => ({
+      left: 5,
+      top: 10,
+      right: 0,
+      bottom: 0,
+      width: 0,
+      height: 0,
+      x: 5,
+      y: 10,
+      toJSON() {},
+    });
+
+    const touches = {
+      length: 2,
+      0: { clientX: 25, clientY: 40 },
+      1: { clientX: 55, clientY: 70 },
+      item: (i: number) => (touches as Record<number, unknown>)[i],
+    } as unknown as TouchList;
+
+    const points = DOM.touchPos(el, touches);
+
+    expect(points).toHaveLength(2);
+    // touch 0: x = 25 - 5 - 0 = 20, y = 40 - 10 - 0 = 30
+    expect(points[0].x).toBe(20);
+    expect(points[0].y).toBe(30);
+    // touch 1: x = 55 - 5 - 0 = 50, y = 70 - 10 - 0 = 60
+    expect(points[1].x).toBe(50);
+    expect(points[1].y).toBe(60);
+  });
+
+  it("should return an empty array when there are no touches", () => {
+    const el = document.createElement("div");
+    el.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      width: 0,
+      height: 0,
+      x: 0,
+      y: 0,
+      toJSON() {},
+    });
+
+    const touches = {
+      length: 0,
+      item: () => null,
+    } as unknown as TouchList;
+
+    const points = DOM.touchPos(el, touches);
+    expect(points).toHaveLength(0);
+  });
+});
+
+describe("DOM.mouseButton", () => {
+  it("should return the mouse button value", () => {
+    const event = new MouseEvent("mousedown", { button: 2 });
+    expect(DOM.mouseButton(event)).toBe(2);
+  });
+});
+
 describe("bindAll", () => {
   it("should bind methods to context", () => {
     const obj = {
