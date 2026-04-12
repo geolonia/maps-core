@@ -49,13 +49,20 @@ export class MockMap {
     delete this.sources[id];
   }
 
-  on(eventOrLayer: string, handlerOrLayer?: EventHandler | string, handler?: EventHandler) {
+  on(
+    eventOrLayer: string,
+    handlerOrLayer?: EventHandler | string,
+    handler?: EventHandler,
+  ) {
     if (typeof handlerOrLayer === "function") {
       // on(event, handler)
       const handlers = this._eventHandlers.get(eventOrLayer) || [];
       handlers.push(handlerOrLayer);
       this._eventHandlers.set(eventOrLayer, handlers);
-    } else if (typeof handlerOrLayer === "string" && typeof handler === "function") {
+    } else if (
+      typeof handlerOrLayer === "string" &&
+      typeof handler === "function"
+    ) {
       // on(event, layer, handler)
       const key = `${eventOrLayer}:${handlerOrLayer}`;
       const handlers = this._layerEventHandlers.get(key) || [];
@@ -64,7 +71,11 @@ export class MockMap {
     }
   }
 
-  off(eventOrLayer: string, handlerOrLayer?: EventHandler | string, handler?: EventHandler) {
+  off(
+    eventOrLayer: string,
+    handlerOrLayer?: EventHandler | string,
+    handler?: EventHandler,
+  ) {
     if (typeof handlerOrLayer === "function") {
       // off(event, handler)
       const handlers = this._eventHandlers.get(eventOrLayer) || [];
@@ -72,7 +83,10 @@ export class MockMap {
         eventOrLayer,
         handlers.filter((h) => h !== handlerOrLayer),
       );
-    } else if (typeof handlerOrLayer === "string" && typeof handler === "function") {
+    } else if (
+      typeof handlerOrLayer === "string" &&
+      typeof handler === "function"
+    ) {
       // off(event, layer, handler)
       const key = `${eventOrLayer}:${handlerOrLayer}`;
       const handlers = this._layerEventHandlers.get(key) || [];
