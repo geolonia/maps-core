@@ -12,6 +12,9 @@ export class MockMap {
   layers: Record<string, unknown>[] = [];
   sources: Record<string, unknown> = {};
   removed = false;
+  private _canvas = { style: { cursor: "" } };
+  private _container = { dataset: {} } as unknown as HTMLElement;
+  private _canvasContainer = { offsetWidth: 800 } as unknown as HTMLElement;
 
   private _eventHandlers: Map<string, EventHandler[]> = new Map();
   private _layerEventHandlers: Map<string, EventHandler[]> = new Map();
@@ -25,16 +28,19 @@ export class MockMap {
   }
 
   getSource(id: string) {
-    const sources = this.sources;
-    const raw = sources[id] as Record<string, unknown> | undefined;
-    return raw
-      ? {
-          ...raw,
-          setData(geojson: unknown) {
-            sources[id] = { type: "geojson", data: geojson };
-          },
-        }
-      : undefined;
+    const raw = this.sources[id] as
+      | (Record<string, unknown> & {
+          data?: unknown;
+          setData?: (geojson: unknown) => void;
+        })
+      | undefined;
+    if (!raw) return undefined;
+
+    raw.setData ??= (geojson: unknown) => {
+      raw.data = geojson;
+    };
+
+    return raw;
   }
 
   getLayer(id: string) {
@@ -98,15 +104,15 @@ export class MockMap {
   }
 
   getCanvas() {
-    return { style: { cursor: "" } };
+    return this._canvas;
   }
 
   getContainer() {
-    return { dataset: {} } as unknown as HTMLElement;
+    return this._container;
   }
 
   getCanvasContainer() {
-    return { offsetWidth: 800 } as unknown as HTMLElement;
+    return this._canvasContainer;
   }
 
   fitBounds(..._args: unknown[]) {
