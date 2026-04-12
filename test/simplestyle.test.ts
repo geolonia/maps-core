@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { MockMap } from "./helpers/mock-map";
 
 beforeAll(() => {
   // maplibre-gl tries URL.createObjectURL on import
@@ -9,44 +10,6 @@ beforeAll(() => {
     window.URL.createObjectURL = () => "blob:mock";
   }
 });
-
-// Mock Map class for testing SimpleStyle without MapLibre
-class MockMap {
-  bounds = false;
-  layers: Record<string, unknown>[] = [];
-  sources: Record<string, unknown> = {};
-
-  addSource(id: string, source: unknown) {
-    this.sources[id] = source;
-  }
-
-  addLayer(layer: Record<string, unknown>) {
-    this.layers.push(layer);
-  }
-
-  on() {}
-
-  getSource(id: string) {
-    const sources = this.sources;
-    return {
-      setData(geojson: unknown) {
-        sources[id] = { type: "geojson", data: geojson };
-      },
-    };
-  }
-
-  getCanvas() {
-    return { style: {} };
-  }
-
-  getContainer() {
-    return { dataset: {} };
-  }
-
-  fitBounds() {
-    this.bounds = true;
-  }
-}
 
 const geojson = {
   type: "FeatureCollection",
