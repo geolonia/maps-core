@@ -431,7 +431,7 @@ export class SimpleStyle {
       const fetchGeoJSON = async () => {
         try {
           const response = await window.fetch(geojson);
-          const data = response.ok ? await response.json() : {};
+          const data = response.ok ? await response.json() : template;
           this.geojson = data;
           this.updateData(data);
 
