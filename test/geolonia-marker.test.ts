@@ -63,9 +63,9 @@ describe("GeoloniaMarker", () => {
     expect(left.style.fill).toBe("rgb(0, 0, 255)");
 
     const right = el.querySelector(".right") as HTMLElement;
-    // right side should be a darkened variant, not the original color
-    expect(right.style.fill).not.toBe("#0000FF");
+    // right side should be a darkened variant, distinct from left
     expect(right.style.fill).toBeTruthy();
+    expect(right.style.fill).not.toBe(left.style.fill);
   });
 
   it("should set element size to 26px × 34px", () => {
