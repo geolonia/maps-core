@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Page, Request } from "@playwright/test";
 
 const LOAD_TIMEOUT = 15000;
 
@@ -79,4 +79,84 @@ export function collectConsoleErrors(page: Page): string[] {
   });
   page.on("pageerror", (err) => errors.push(err.message));
   return errors;
+}
+
+/**
+ * Wait for a specific map container to load (for pages with multiple maps).
+ */
+export async function waitForMapLoadOn(
+  page: Page,
+  containerSelector: string,
+): Promise<void> {
+  await page.waitForSelector(`${containerSelector} canvas.maplibregl-canvas`, {
+    timeout: LOAD_TIMEOUT,
+  });
+  await page.waitForFunction(
+    (selector: string) => {
+      const container = document.querySelector(selector) as
+        | (HTMLElement & { geoloniaMap?: { loaded?: () => boolean } })
+        | null;
+      const map = container?.geoloniaMap;
+      return map && typeof map.loaded === "function" && map.loaded();
+    },
+    containerSelector,
+    { timeout: LOAD_TIMEOUT },
+  );
+}
+
+/**
+ * Intercept network requests matching a URL pattern and collect them.
+ * Call this BEFORE navigating to the page.
+ */
+export function interceptRequests(
+  page: Page,
+  urlPattern: string | RegExp,
+): Request[] {
+  const requests: Request[] = [];
+  page.on("request", (req) => {
+    const url = req.url();
+    if (
+      typeof urlPattern === "string"
+        ? url.includes(urlPattern)
+        : urlPattern.test(url)
+    ) {
+      requests.push(req);
+    }
+  });
+  return requests;
+}
+
+/**
+ * Check if a map layer exists.
+ */
+export async function hasLayer(page: Page, layerId: string): Promise<boolean> {
+  return page.evaluate((id: string) => {
+    const map = (window as unknown as Record<string, unknown>).map as
+      | { getLayer?: (id: string) => unknown }
+      | undefined;
+    return !!map?.getLayer?.(id);
+  }, layerId);
+}
+
+/**
+ * Check if a map source exists.
+ */
+export async function hasSource(
+  page: Page,
+  sourceId: string,
+): Promise<boolean> {
+  return page.evaluate((id: string) => {
+    const map = (window as unknown as Record<string, unknown>).map as
+      | { getSource?: (id: string) => unknown }
+      | undefined;
+    return !!map?.getSource?.(id);
+  }, sourceId);
+}
+
+/**
+ * Check if a popup is currently visible on the page.
+ */
+export async function isPopupVisible(page: Page): Promise<boolean> {
+  const popup = page.locator(".maplibregl-popup");
+  return popup.isVisible();
 }
