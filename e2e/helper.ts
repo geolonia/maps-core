@@ -106,24 +106,28 @@ export async function waitForMapLoadOn(
 
 /**
  * Intercept network requests matching a URL pattern and collect them.
- * Call this BEFORE navigating to the page.
+ * Call this BEFORE navigating to the page. Call `dispose()` when done
+ * to remove the listener.
  */
 export function interceptRequests(
   page: Page,
   urlPattern: string | RegExp,
-): Request[] {
+): { requests: Request[]; dispose: () => void } {
   const requests: Request[] = [];
-  page.on("request", (req) => {
+  const pattern =
+    typeof urlPattern === "string"
+      ? urlPattern
+      : new RegExp(urlPattern.source, urlPattern.flags.replace(/[gy]/g, ""));
+  const onRequest = (req: Request) => {
     const url = req.url();
     if (
-      typeof urlPattern === "string"
-        ? url.includes(urlPattern)
-        : urlPattern.test(url)
+      typeof pattern === "string" ? url.includes(pattern) : pattern.test(url)
     ) {
       requests.push(req);
     }
-  });
-  return requests;
+  };
+  page.on("request", onRequest);
+  return { requests, dispose: () => page.off("request", onRequest) };
 }
 
 /**
