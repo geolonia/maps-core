@@ -17,22 +17,22 @@ beforeAll(() => {
     window.URL.createObjectURL = () => "blob:mock";
   }
   // jsdom does not implement matchMedia
-  if (!window.matchMedia) {
-    window.matchMedia = () =>
-      ({
-        matches: false,
-        media: "",
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      }) as unknown as MediaQueryList;
-  }
-});
-
-afterAll(() => {
-  window.URL.createObjectURL = originalCreateObjectURL;
+  window.matchMedia = () =>
+    ({
+      matches: false,
+      media: "",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }) as unknown as MediaQueryList;
 });
 
 const originalCreateObjectURL = window.URL.createObjectURL;
+const originalMatchMedia = window.matchMedia;
+
+afterAll(() => {
+  window.URL.createObjectURL = originalCreateObjectURL;
+  window.matchMedia = originalMatchMedia;
+});
 
 /**
  * Extend MockMap with internal properties required by CustomAttributionControl.
@@ -170,6 +170,27 @@ describe("CustomAttributionControl", () => {
       ctrl.onRemove();
       expect(document.body.contains(container)).toBe(false);
     });
+
+    it("should unregister print media query listener", () => {
+      const removeListenerSpy = vi.fn();
+      window.matchMedia = () =>
+        ({
+          matches: false,
+          media: "",
+          addEventListener: vi.fn(),
+          removeEventListener: removeListenerSpy,
+        }) as unknown as MediaQueryList;
+
+      const m = createAttributionMap();
+      const c = new CustomAttributionControl();
+      c.onAdd(m as never);
+      c.onRemove();
+
+      expect(removeListenerSpy).toHaveBeenCalledWith(
+        "change",
+        expect.any(Function),
+      );
+    });
   });
 
   describe("_updateAttributions", () => {
@@ -273,6 +294,17 @@ describe("CustomAttributionControl", () => {
   describe("_updateCompact", () => {
     it("should add compact classes when canvas width ≤ 640", () => {
       const map = createAttributionMap({ canvasWidth: 400 });
+      const ctrl = new CustomAttributionControl({
+        customAttribution: "© Test",
+      });
+      const container = ctrl.onAdd(map as never);
+      const details = container.shadowRoot?.querySelector("details");
+
+      expect(details?.classList.contains("maplibregl-compact")).toBe(true);
+    });
+
+    it("should add compact classes when canvas width = 640", () => {
+      const map = createAttributionMap({ canvasWidth: 640 });
       const ctrl = new CustomAttributionControl({
         customAttribution: "© Test",
       });
