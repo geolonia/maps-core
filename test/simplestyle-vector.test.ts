@@ -1,7 +1,15 @@
 /**
  * @vitest-environment jsdom
  */
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { MockMap } from "./helpers/mock-map";
 
 // Mock maplibre-gl Popup used in setPopup()
@@ -20,10 +28,16 @@ vi.mock("maplibre-gl", () => {
   return { default: { Popup: MockPopup } };
 });
 
+const originalCreateObjectURL = window.URL.createObjectURL;
+
 beforeAll(() => {
   if (!window.URL.createObjectURL) {
     window.URL.createObjectURL = () => "blob:mock";
   }
+});
+
+afterAll(() => {
+  window.URL.createObjectURL = originalCreateObjectURL;
 });
 
 const TEST_URL = "https://example.com/tiles/{z}/{x}/{y}.pbf";
@@ -132,12 +146,9 @@ describe("SimpleStyleVector", () => {
   });
 
   it("should skip fitBounds listener when dataset.lng is set", () => {
-    (
-      map.getContainer() as unknown as { dataset: Record<string, string> }
-    ).dataset.lng = "139.77";
-    (
-      map.getContainer() as unknown as { dataset: Record<string, string> }
-    ).dataset.lat = "35.68";
+    const container = map.getContainer() as { dataset: Record<string, string> };
+    container.dataset.lng = "139.77";
+    container.dataset.lat = "35.68";
 
     const onSpy = vi.spyOn(map, "on");
     new SimpleStyleVector(TEST_URL).addTo(map);
