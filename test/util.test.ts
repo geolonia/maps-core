@@ -189,6 +189,7 @@ describe("getLang", () => {
 describe("handleRestrictedMode", () => {
   it("should call map.remove() on first invocation", () => {
     const container = document.createElement("div");
+    container.innerHTML = "<p>existing content</p>";
     const removeSpy = vi.fn();
     const map = {
       getContainer: () => container,
