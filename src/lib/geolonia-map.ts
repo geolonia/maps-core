@@ -222,6 +222,8 @@ export default class GeoloniaMap extends maplibregl.Map {
     this.__styleExtensionLoadRequired = true;
 
     // Controls
+    // Note: GeoloniaControl should be placed before another controls.
+    // Because this control should be "very" bottom-left(default) or the attributed position.
     const geoloniaCtrl = parseControlOption(options.geoloniaControl ?? true);
     this.addControl(
       new GeoloniaControl(),
