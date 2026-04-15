@@ -1,8 +1,14 @@
-import { beforeEach, describe, expect, it } from "vitest";
+/**
+ * @vitest-environment jsdom
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { keyring } from "../src/lib/keyring";
 import {
+  getLang,
   getSessionId,
   getStyle,
+  handleErrorMode,
+  handleRestrictedMode,
   isGeoloniaTilesHost,
   parseControlOption,
   parseSimpleVector,
@@ -138,5 +144,97 @@ describe("getSessionId", () => {
     const id1 = getSessionId(40);
     const id2 = getSessionId(40);
     expect(id1).toBe(id2);
+  });
+});
+
+describe("getLang", () => {
+  const originalNavigator = globalThis.navigator;
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, "navigator", {
+      value: originalNavigator,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it('should return "ja" when navigator.languages is ["ja"]', () => {
+    Object.defineProperty(globalThis, "navigator", {
+      value: { languages: ["ja"], language: "ja" },
+      writable: true,
+      configurable: true,
+    });
+    expect(getLang()).toBe("ja");
+  });
+
+  it('should return "en" when navigator.languages is ["en-US"]', () => {
+    Object.defineProperty(globalThis, "navigator", {
+      value: { languages: ["en-US"], language: "en-US" },
+      writable: true,
+      configurable: true,
+    });
+    expect(getLang()).toBe("en");
+  });
+
+  it('should return "en" when navigator is undefined', () => {
+    Object.defineProperty(globalThis, "navigator", {
+      value: undefined,
+      writable: true,
+      configurable: true,
+    });
+    expect(getLang()).toBe("en");
+  });
+});
+
+describe("handleRestrictedMode", () => {
+  it("should call map.remove() on first invocation", () => {
+    const container = document.createElement("div");
+    const removeSpy = vi.fn();
+    const map = {
+      getContainer: () => container,
+      remove: removeSpy,
+    };
+
+    handleRestrictedMode(map);
+
+    expect(removeSpy).toHaveBeenCalledTimes(1);
+    expect(container.innerHTML).toBe("");
+    expect(
+      container.classList.contains("geolonia__restricted-mode-image-container"),
+    ).toBe(true);
+  });
+
+  it("should not call map.remove() on second invocation", () => {
+    const container = document.createElement("div");
+    const removeSpy = vi.fn();
+    const map = {
+      getContainer: () => container,
+      remove: removeSpy,
+    };
+
+    handleRestrictedMode(map);
+    handleRestrictedMode(map);
+
+    expect(removeSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("handleErrorMode", () => {
+  it("should generate error UI elements", () => {
+    const container = document.createElement("div");
+    handleErrorMode(container);
+
+    const errorContainer = container.querySelector(
+      ".geolonia__error-container",
+    );
+    expect(errorContainer).not.toBeNull();
+
+    const h2 = errorContainer?.querySelector("h2");
+    expect(h2?.textContent).toBe("Geolonia Maps");
+
+    const desc = errorContainer?.querySelector(
+      ".geolonia__error-message-description",
+    );
+    expect(desc).not.toBeNull();
   });
 });
