@@ -65,7 +65,9 @@ test.describe("Constructor options", () => {
 
     const hash = await page.evaluate(() => window.location.hash);
     // Hash format: #zoom/lat/lng or #zoom/lat/lng/bearing/pitch
-    expect(hash).toMatch(/^#\d/);
+    expect(hash).toMatch(
+      /^#\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?(?:\/-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?)?$/,
+    );
   });
 
   test("should resolve Geolonia style with lang parameter", async ({
@@ -79,8 +81,10 @@ test.describe("Constructor options", () => {
     await page.goto(
       "/options.html?style=geolonia/basic-v2&lang=en&apiKey=YOUR-API-KEY",
     );
-    // Wait a bit for style request to be made (will 403 without valid API key, but URL is still requested)
-    await page.waitForTimeout(3000);
+    // Wait for style request to be made (will 403 without valid API key, but URL is still requested)
+    await expect
+      .poll(() => requests.length, { timeout: 10000 })
+      .toBeGreaterThan(0);
     dispose();
 
     const styleUrls = requests.map((r) => r.url());
