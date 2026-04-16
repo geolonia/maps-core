@@ -22,7 +22,7 @@
     "@turf/bbox": "^7.3.4",
     "@turf/center": "^7.3.4",
     "pmtiles": "^4.4.0",
-    "sanitize-html": "^2.8.0",
+    "sanitize-html": "^2.17.3",
     "tinycolor2": "^1.4.1"
   },
   "peerDependencies": {
