@@ -240,13 +240,13 @@ describe("SimpleStyle", () => {
   it("should unregister all events on remove()", async () => {
     const { SimpleStyle } = await import("../src/lib/simplestyle");
     const map = new MockMap();
+    const onSpy = vi.spyOn(map, "on");
     const offSpy = vi.spyOn(map, "off");
     const ss = new SimpleStyle(geojson).addTo(map);
 
     ss.remove();
 
-    // 4 popup layers × 3 events + 1 cluster layer × 3 events = 15
-    expect(offSpy.mock.calls.length).toBe(15);
+    expect(offSpy.mock.calls.length).toBe(onSpy.mock.calls.length);
   });
 
   it("should be safe to call remove() twice", async () => {
@@ -281,6 +281,7 @@ describe("SimpleStyle", () => {
     const clusterLayer = map.layers.find(
       (l) => l.id === "geolonia-simple-style-clusters",
     ) as { paint: Record<string, unknown> };
+    expect(clusterLayer).toBeDefined();
     expect(clusterLayer.paint["circle-color"]).toBe("#00ff00");
   });
 
@@ -293,8 +294,16 @@ describe("SimpleStyle", () => {
     const clickCalls = onSpy.mock.calls.filter(
       (call) => call[0] === "click" && typeof call[2] === "function",
     );
-    // polygon, linestring, circle-points, symbol-points, clusters = 5
-    expect(clickCalls.length).toBe(5);
+    const layers = clickCalls.map(([, layer]) => layer).sort();
+    expect(layers).toEqual(
+      [
+        "geolonia-simple-style-polygon",
+        "geolonia-simple-style-linestring",
+        "geolonia-simple-style-circle-points",
+        "geolonia-simple-style-symbol-points",
+        "geolonia-simple-style-clusters",
+      ].sort(),
+    );
   });
 
   it("should separate Point features from Polygon/LineString into different sources", async () => {
