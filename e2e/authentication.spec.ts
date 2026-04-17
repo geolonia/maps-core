@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { interceptRequests } from "./helper";
 
-test.describe("Authentication (apiKey, sessionId, stage, transformRequest)", () => {
+test.describe("Authentication (apiKey, sessionId, stage)", () => {
   test("should append key= to Geolonia tile requests", async ({ page }) => {
     const { requests, dispose } = interceptRequests(
       page,
@@ -67,9 +67,8 @@ test.describe("Authentication (apiKey, sessionId, stage, transformRequest)", () 
     dispose();
 
     // Every api.geolonia.com request should hit /v1/ path, not /dev/
-    const v1Urls = requests
-      .map((r) => r.url())
-      .filter((url) => new URL(url).pathname.startsWith("/v1/"));
-    expect(v1Urls.length).toBeGreaterThan(0);
+    const paths = requests.map((r) => new URL(r.url()).pathname);
+    expect(paths.some((p) => p.startsWith("/v1/"))).toBe(true);
+    expect(paths.every((p) => !p.startsWith("/dev/"))).toBe(true);
   });
 });
