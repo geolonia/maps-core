@@ -1,0 +1,19 @@
+{
+  "tilejson": "2.2.0",
+  "name": "sample-vector",
+  "minzoom": 0,
+  "maxzoom": 14,
+  "bounds": [139.6, 35.55, 139.85, 35.75],
+  "center": [139.7671, 35.6812, 10],
+  "tiles": ["http://localhost:5174/tiles/{z}/{x}/{y}.pbf"],
+  "vector_layers": [
+    {
+      "id": "g-simplestyle-v1",
+      "description": "sample simplestyle layer",
+      "fields": {
+        "title": "String",
+        "description": "String"
+      }
+    }
+  ]
+}
