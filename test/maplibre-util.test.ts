@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { bindAll, DOM } from "../src/lib/maplibre-util";
 
 describe("DOM.create", () => {
@@ -141,6 +141,65 @@ describe("DOM.mouseButton", () => {
   it("should return the mouse button value", () => {
     const event = new MouseEvent("mousedown", { button: 2 });
     expect(DOM.mouseButton(event)).toBe(2);
+  });
+});
+
+describe("DOM.setTransform", () => {
+  it("should set the transform style property", () => {
+    const el = document.createElement("div");
+    DOM.setTransform(el, "translate(10px, 20px)");
+    expect(el.style.transform).toBe("translate(10px, 20px)");
+  });
+});
+
+describe("DOM.addEventListener / removeEventListener", () => {
+  it("should add and remove event listener with passive option", () => {
+    const target = document.createElement("div");
+    const callback = vi.fn();
+
+    DOM.addEventListener(target, "click", callback, { passive: true });
+    target.dispatchEvent(new Event("click"));
+    expect(callback).toHaveBeenCalledTimes(1);
+
+    DOM.removeEventListener(target, "click", callback, { passive: true });
+    target.dispatchEvent(new Event("click"));
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it("should add and remove event listener with capture option", () => {
+    const parent = document.createElement("div");
+    const child = document.createElement("div");
+    parent.appendChild(child);
+    document.body.appendChild(parent);
+    const callback = vi.fn();
+
+    DOM.addEventListener(parent, "click", callback, { capture: true });
+    child.dispatchEvent(new Event("click", { bubbles: true }));
+    expect(callback).toHaveBeenCalledTimes(1);
+
+    DOM.removeEventListener(parent, "click", callback, { capture: true });
+    child.dispatchEvent(new Event("click", { bubbles: true }));
+    expect(callback).toHaveBeenCalledTimes(1);
+    parent.remove();
+  });
+});
+
+describe("DOM.disableDrag / enableDrag", () => {
+  const originalUserSelect = document.documentElement.style.userSelect;
+
+  afterEach(() => {
+    document.documentElement.style.userSelect = originalUserSelect;
+  });
+
+  it("should disable and re-enable user-select", () => {
+    const style = document.documentElement.style;
+    style.userSelect = "auto";
+
+    DOM.disableDrag();
+    expect(style.userSelect).toBe("none");
+
+    DOM.enableDrag();
+    expect(style.userSelect).toBe("auto");
   });
 });
 
