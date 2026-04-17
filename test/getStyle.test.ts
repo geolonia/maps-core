@@ -73,4 +73,22 @@ describe("getStyle - edge cases", () => {
       getStyle("geolonia/basic-v2", { lang: "fr" as "en", apiKey: "test-key" }),
     ).toContain("/en.json");
   });
+
+  it("should attempt base URL resolution for .json filename (non-URL)", () => {
+    const result = getStyle("my-style.json", {
+      lang: "ja",
+      apiKey: "test-key",
+    });
+    // In jsdom without a real location, falls back to returning the filename as-is
+    expect(result).toContain("my-style.json");
+  });
+
+  it('should treat "ja-jp" language code as "ja"', () => {
+    expect(
+      getStyle("geolonia/basic-v2", {
+        lang: "ja-jp",
+        apiKey: "test-key",
+      }),
+    ).toContain("/ja.json");
+  });
 });
