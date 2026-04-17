@@ -1,14 +1,20 @@
 /**
  * @vitest-environment jsdom
  */
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { MockMap } from "./helpers/mock-map";
+
+const originalCreateObjectURL = window.URL.createObjectURL;
 
 beforeAll(() => {
   // maplibre-gl tries URL.createObjectURL on import
   if (!window.URL.createObjectURL) {
     window.URL.createObjectURL = () => "blob:mock";
   }
+});
+
+afterAll(() => {
+  window.URL.createObjectURL = originalCreateObjectURL;
 });
 
 const geojson = {
@@ -215,5 +221,136 @@ describe("SimpleStyle", () => {
     expect(symbolLayer).toBeDefined();
     expect(symbolLayer.layout["icon-allow-overlap"]).toBe(true);
     expect(symbolLayer.layout["text-allow-overlap"]).toBe(true);
+  });
+
+  it("should remove all layers and sources on remove()", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    const ss = new SimpleStyle(geojson).addTo(map);
+
+    expect(map.layers.length).toBe(8);
+    expect(Object.keys(map.sources).length).toBe(2);
+
+    ss.remove();
+
+    expect(map.layers.length).toBe(0);
+    expect(Object.keys(map.sources).length).toBe(0);
+  });
+
+  it("should unregister all events on remove()", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    const onSpy = vi.spyOn(map, "on");
+    const offSpy = vi.spyOn(map, "off");
+    const ss = new SimpleStyle(geojson).addTo(map);
+
+    ss.remove();
+
+    expect(offSpy.mock.calls.length).toBe(onSpy.mock.calls.length);
+  });
+
+  it("should be safe to call remove() twice", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    const ss = new SimpleStyle(geojson).addTo(map);
+
+    ss.remove();
+    expect(() => ss.remove()).not.toThrow();
+  });
+
+  it("should create cluster layers", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    new SimpleStyle(geojson).addTo(map);
+
+    const clusterLayer = map.layers.find(
+      (l) => l.id === "geolonia-simple-style-clusters",
+    );
+    const clusterCountLayer = map.layers.find(
+      (l) => l.id === "geolonia-simple-style-cluster-count",
+    );
+    expect(clusterLayer).toBeDefined();
+    expect(clusterCountLayer).toBeDefined();
+  });
+
+  it("should apply cluster color", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    new SimpleStyle(geojson, { clusterColor: "#00ff00" }).addTo(map);
+
+    const clusterLayer = map.layers.find(
+      (l) => l.id === "geolonia-simple-style-clusters",
+    ) as { paint: Record<string, unknown> };
+    expect(clusterLayer).toBeDefined();
+    expect(clusterLayer.paint["circle-color"]).toBe("#00ff00");
+  });
+
+  it("should register click events for popup and cluster layers", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    const onSpy = vi.spyOn(map, "on");
+    new SimpleStyle(geojson).addTo(map);
+
+    const clickCalls = onSpy.mock.calls.filter(
+      (call) => call[0] === "click" && typeof call[2] === "function",
+    );
+    const layers = clickCalls.map(([, layer]) => layer).sort();
+    expect(layers).toEqual(
+      [
+        "geolonia-simple-style-polygon",
+        "geolonia-simple-style-linestring",
+        "geolonia-simple-style-circle-points",
+        "geolonia-simple-style-symbol-points",
+        "geolonia-simple-style-clusters",
+      ].sort(),
+    );
+  });
+
+  it("should separate Point features from Polygon/LineString into different sources", async () => {
+    const mixedGeojson = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Point", coordinates: [139.77, 35.68] },
+        },
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [139.0, 35.0],
+                [140.0, 35.0],
+                [140.0, 36.0],
+                [139.0, 36.0],
+                [139.0, 35.0],
+              ],
+            ],
+          },
+        },
+      ],
+    };
+
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    new SimpleStyle(mixedGeojson).addTo(map);
+
+    const mainSource = map.sources["geolonia-simple-style"] as {
+      data: { features: { geometry: { type: string } }[] };
+    };
+    const pointsSource = map.sources["geolonia-simple-style-points"] as {
+      data: { features: { geometry: { type: string } }[] };
+    };
+
+    // Main source should have only Polygon (non-Point features)
+    expect(mainSource.data.features.length).toBe(1);
+    expect(mainSource.data.features[0].geometry.type).toBe("Polygon");
+
+    // Points source should have only Point features
+    expect(pointsSource.data.features.length).toBe(1);
+    expect(pointsSource.data.features[0].geometry.type).toBe("Point");
   });
 });
