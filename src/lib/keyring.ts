@@ -52,6 +52,14 @@ class Keyring {
       return false;
     }
 
+    // geolonia:// is a Geolonia protocol, other non-http protocols are not
+    if (style.startsWith("geolonia://")) {
+      return true;
+    }
+    if (style.match(/^[a-z][a-z0-9+.-]*:\/\//i)) {
+      return false;
+    }
+
     if (style.endsWith(".json")) {
       return false;
     }

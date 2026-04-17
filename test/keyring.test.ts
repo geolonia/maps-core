@@ -70,5 +70,17 @@ describe("keyring", () => {
       expect(keyring.isGeoloniaStyleCheck("geolonia/basic-v2")).toBe(true);
       expect(keyring.isGeoloniaStyleCheck("geolonia/gsi")).toBe(true);
     });
+
+    it('should return true for "geolonia://" prefix', () => {
+      expect(keyring.isGeoloniaStyleCheck("geolonia://tiles/custom/test")).toBe(
+        true,
+      );
+    });
+
+    it('should return false for "pmtiles://" prefix', () => {
+      expect(
+        keyring.isGeoloniaStyleCheck("pmtiles://example.com/tiles.pmtiles"),
+      ).toBe(false);
+    });
   });
 });
