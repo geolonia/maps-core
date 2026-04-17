@@ -52,7 +52,7 @@ export function getStyle(
   }
 
   if (!style || style === "") {
-    return `https://cdn.geolonia.com/style/geolonia/basic-v2/${lang === "ja" ? "ja" : "en"}.json`;
+    return `https://cdn.geolonia.com/style/geolonia/basic-v2/${lang === "ja" || lang === "ja-jp" ? "ja" : "en"}.json`;
   }
 
   const styleUrl = isURL(style);
@@ -69,7 +69,7 @@ export function getStyle(
   }
 
   // Geolonia logical name like "geolonia/basic-v2"
-  return `https://cdn.geolonia.com/style/${style}/${lang === "ja" ? "ja" : "en"}.json`;
+  return `https://cdn.geolonia.com/style/${style}/${lang === "ja" || lang === "ja-jp" ? "ja" : "en"}.json`;
 }
 
 /**
