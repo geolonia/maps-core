@@ -51,22 +51,23 @@ export class DOM {
 
   static disableDrag(): void {
     if (DOM.#docStyle && DOM.#selectProp) {
-      DOM.#userSelect = (DOM.#docStyle as Record<string, string>)[
+      DOM.#userSelect = (DOM.#docStyle as unknown as Record<string, string>)[
         DOM.#selectProp
       ];
-      (DOM.#docStyle as Record<string, string>)[DOM.#selectProp] = "none";
+      (DOM.#docStyle as unknown as Record<string, string>)[DOM.#selectProp] =
+        "none";
     }
   }
 
   static enableDrag(): void {
     if (DOM.#docStyle && DOM.#selectProp) {
-      (DOM.#docStyle as Record<string, string>)[DOM.#selectProp] =
+      (DOM.#docStyle as unknown as Record<string, string>)[DOM.#selectProp] =
         DOM.#userSelect ?? "";
     }
   }
 
   static setTransform(el: HTMLElement, value: string): void {
-    (el.style as Record<string, string>)[DOM.#transformProp] = value;
+    (el.style as unknown as Record<string, string>)[DOM.#transformProp] = value;
   }
 
   static addEventListener(
