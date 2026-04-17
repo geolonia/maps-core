@@ -1,0 +1,24 @@
+{
+  "version": 8,
+  "sources": {},
+  "layers": [
+    {
+      "id": "base-background",
+      "type": "background",
+      "paint": { "background-color": "#ffffff" }
+    },
+    {
+      "id": "show-on-3d-layer",
+      "type": "background",
+      "metadata": { "visible-on-3d": true },
+      "layout": { "visibility": "none" },
+      "paint": { "background-color": "#ff0000" }
+    },
+    {
+      "id": "hide-on-3d-layer",
+      "type": "background",
+      "metadata": { "hide-on-3d": true },
+      "paint": { "background-color": "#00ff00" }
+    }
+  ]
+}
