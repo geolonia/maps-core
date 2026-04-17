@@ -1,25 +1,34 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import "../src/assets/style.css";
+import type { GeoloniaMapOptions } from "../src/index";
 import { GeoloniaMap } from "../src/index";
 
-// Test 1: Default marker with openPopup
-const map1 = new GeoloniaMap({
+// Read options from URL search params so e2e tests can configure dynamically
+const params = new URLSearchParams(window.location.search);
+
+const options: GeoloniaMapOptions = {
   container: "#map",
   style: "https://tile.openstreetmap.jp/styles/osm-bright/style.json",
   center: [139.7671, 35.6812],
   zoom: 14,
-  marker: true,
-  markerColor: "#FF0000",
-  openPopup: true,
+  marker: params.get("marker") !== "false",
+  markerColor: params.get("markerColor") || "#FF0000",
+  openPopup: params.get("openPopup") !== "false",
   gestureHandling: false,
   geoloniaControl: false,
   loader: false,
-});
+};
 
-// Set popup content via dataset (simulating embed behavior)
+if (params.has("customMarker")) {
+  options.customMarker = params.get("customMarker")!;
+}
+
+// Set popup content via dataset unless disabled
 const mapEl = document.querySelector("#map");
-if (mapEl instanceof HTMLElement) {
+if (mapEl instanceof HTMLElement && params.get("popupContent") !== "false") {
   mapEl.dataset.popupContent = '<p class="test-popup">Hello Tokyo</p>';
 }
 
-(window as unknown as Record<string, unknown>).map = map1;
+const map = new GeoloniaMap(options);
+
+(window as unknown as Record<string, unknown>).map = map;
