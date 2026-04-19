@@ -375,6 +375,7 @@ export class SimpleStyle {
       });
       if (!features[0]) return;
       const clusterId = features[0].properties?.cluster_id;
+      if (clusterId === undefined) return;
       const source = this.map.getSource(
         `${this.options.id}-points`,
       ) as GeoJSONSource;
