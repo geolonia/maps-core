@@ -12,7 +12,7 @@ const options: GeoloniaMapOptions = {
     params.get("style") ||
     "https://tile.openstreetmap.jp/styles/osm-bright/style.json",
   center: params.has("center")
-    ? JSON.parse(params.get("center")!)
+    ? JSON.parse(params.get("center") ?? "[]")
     : [139.7671, 35.6812],
   zoom: params.has("zoom") ? Number(params.get("zoom")) : 12,
   navigationControl: false,
@@ -29,7 +29,7 @@ if (params.get("hash") === "true") options.hash = true;
 if (params.has("lang")) {
   options.lang = params.get("lang") as "ja" | "en" | "auto";
 }
-if (params.has("apiKey")) options.apiKey = params.get("apiKey")!;
+if (params.has("apiKey")) options.apiKey = params.get("apiKey") ?? "";
 
 const map = new GeoloniaMap(options);
 

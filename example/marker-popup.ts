@@ -20,7 +20,7 @@ const options: GeoloniaMapOptions = {
 };
 
 if (params.has("customMarker")) {
-  options.customMarker = params.get("customMarker")!;
+  options.customMarker = params.get("customMarker") ?? "";
 }
 
 // Set popup content via dataset unless disabled

@@ -34,7 +34,7 @@ export type GeoloniaMapOptions = MapOptions & {
   /** Geolonia logo control */
   geoloniaControl?: boolean | ControlPosition;
   /** GeoJSON URL or object for SimpleStyle */
-  geojson?: string | GeoJSON.GeoJSON;
+  geojson?: string | GeoJSON.FeatureCollection;
   /** Enable clustering for GeoJSON points */
   cluster?: boolean;
   /** Cluster marker color */

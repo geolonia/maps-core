@@ -168,10 +168,7 @@ class CustomAttributionControl implements IControl {
   private _shadowContainer: HTMLDetailsElement | undefined;
   private _innerContainer: HTMLElement | undefined;
   private _compactButton: HTMLElement | undefined;
-  private _editLink: HTMLAnchorElement | null = null;
   private _attribHTML: string | undefined;
-  private styleId: string | undefined;
-  private styleOwner: string | undefined;
   private printQuery: MediaQueryList | undefined;
   private onMediaPrintChange: ((e: MediaQueryListEvent) => void) | undefined;
 
@@ -235,8 +232,8 @@ class CustomAttributionControl implements IControl {
     this.printQuery = window.matchMedia("print");
     this.onMediaPrintChange = (e: MediaQueryListEvent) => {
       if (e.matches) {
-        this._shadowContainer!.setAttribute("open", "");
-        this._shadowContainer!.classList.remove("maplibregl-compact-show");
+        this._shadowContainer?.setAttribute("open", "");
+        this._shadowContainer?.classList.remove("maplibregl-compact-show");
       }
     };
     this.printQuery.addEventListener("change", this.onMediaPrintChange);
@@ -299,7 +296,7 @@ class CustomAttributionControl implements IControl {
   }
 
   _updateAttributions(): void {
-    if (!this._map || !this._map.style) return;
+    if (!this._map?.style) return;
 
     let attributions: string[] = [];
 
@@ -313,12 +310,6 @@ class CustomAttributionControl implements IControl {
       } else if (typeof this.options.customAttribution === "string") {
         attributions.push(this.options.customAttribution);
       }
-    }
-
-    if (this._map.style.stylesheet) {
-      const stylesheet = this._map.style.stylesheet;
-      this.styleOwner = stylesheet.owner;
-      this.styleId = stylesheet.id;
     }
 
     const sourceCaches = this._map.style.sourceCaches;
@@ -355,13 +346,12 @@ class CustomAttributionControl implements IControl {
     this._attribHTML = attribHTML;
 
     if (attributions.length) {
-      this._innerContainer!.innerHTML = attribHTML;
-      this._shadowContainer!.classList.remove("maplibregl-attrib-empty");
+      if (this._innerContainer) this._innerContainer.innerHTML = attribHTML;
+      this._shadowContainer?.classList.remove("maplibregl-attrib-empty");
     } else {
-      this._shadowContainer!.classList.add("maplibregl-attrib-empty");
+      this._shadowContainer?.classList.add("maplibregl-attrib-empty");
     }
     this._updateCompact();
-    this._editLink = null;
   }
 
   _updateCompact(): void {
