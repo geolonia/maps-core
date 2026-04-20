@@ -18,7 +18,7 @@
     "src/assets/style.css"
   ],
   "dependencies": {
-    "@geolonia/mbgl-gesture-handling": "^1.0.15",
+    "@geolonia/maplibre-gesture-handling": "^3.0.0",
     "@turf/bbox": "^7.3.4",
     "@turf/center": "^7.3.4",
     "pmtiles": "^4.4.0",

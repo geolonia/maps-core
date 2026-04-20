@@ -272,7 +272,7 @@ export default class GeoloniaMap extends maplibregl.Map {
 
       // Gesture handling
       if (options.gestureHandling !== false) {
-        import("@geolonia/mbgl-gesture-handling")
+        import("@geolonia/maplibre-gesture-handling")
           .then(({ default: GestureHandling }) => {
             const body = document.body;
             const html = document.documentElement;
@@ -280,7 +280,7 @@ export default class GeoloniaMap extends maplibregl.Map {
               body.scrollHeight > body.clientHeight ||
               html.scrollHeight > html.clientHeight;
             if (isScrollable) {
-              new GestureHandling({ lang }).addTo(map);
+              map.addControl(new GestureHandling({ lang }));
             }
           })
           .catch(() => {
