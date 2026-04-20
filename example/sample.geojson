@@ -1,0 +1,20 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "title": "Tokyo Station" },
+      "geometry": { "type": "Point", "coordinates": [139.767, 35.681] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "title": "Shinjuku" },
+      "geometry": { "type": "Point", "coordinates": [139.700, 35.689] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "title": "Shibuya" },
+      "geometry": { "type": "Point", "coordinates": [139.701, 35.659] }
+    }
+  ]
+}
