@@ -1,34 +1,49 @@
 import bbox from "@turf/bbox";
 import turfCenter from "@turf/center";
-import maplibregl from "maplibre-gl";
+import maplibregl, {
+  type GeoJSONSource,
+  type MapLayerEventType,
+  type MapLayerMouseEvent,
+  type Map as MaplibreMap,
+} from "maplibre-gl";
 import { isURL, sanitizeDescription } from "./util";
+
+type FeatureCollection = GeoJSON.FeatureCollection;
 
 const textColor = "#000000";
 const textHaloColor = "#FFFFFF";
 const backgroundColor = "rgba(255, 0, 0, 0.4)";
 const strokeColor = "#FFFFFF";
 
-const template = {
+const template: FeatureCollection = {
   type: "FeatureCollection",
   features: [],
 };
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+interface SimpleStyleOptions {
+  id: string;
+  cluster: boolean;
+  heatmap: boolean;
+  clusterColor: string;
+  [key: string]: unknown;
+}
+
 export class SimpleStyle {
   public _loadingPromise: Promise<unknown> | undefined;
   private callFitBounds = false;
-  private geojson: any;
-  private map: any;
-  private options: any;
+  private geojson!: FeatureCollection;
+  private map!: MaplibreMap;
+  private options: SimpleStyleOptions;
   private _eventHandlers: {
-    event: string;
+    event: keyof MapLayerEventType;
     layer: string;
+    // biome-ignore lint/suspicious/noExplicitAny: handlers have varying signatures
     handler: (...args: any[]) => void;
   }[] = [];
 
   constructor(
-    geojson: string | GeoJSON.GeoJSON,
-    options?: Record<string, any>,
+    geojson: string | FeatureCollection,
+    options?: Record<string, unknown>,
   ) {
     this.setGeoJSON(geojson);
 
@@ -41,39 +56,45 @@ export class SimpleStyle {
     };
   }
 
-  updateData(geojson: any) {
+  updateData(geojson: FeatureCollection) {
     this.setGeoJSON(geojson);
 
     const features = this.geojson.features;
     const polygonAndLines = features.filter(
-      (feature: any) => feature.geometry.type.toLowerCase() !== "point",
+      (feature: GeoJSON.Feature) =>
+        feature.geometry.type.toLowerCase() !== "point",
     );
     const points = features.filter(
-      (feature: any) => feature.geometry.type.toLowerCase() === "point",
+      (feature: GeoJSON.Feature) =>
+        feature.geometry.type.toLowerCase() === "point",
     );
 
-    this.map.getSource(this.options.id).setData({
+    (this.map.getSource(this.options.id) as GeoJSONSource)?.setData({
       type: "FeatureCollection",
       features: polygonAndLines,
     });
 
-    this.map.getSource(`${this.options.id}-points`).setData({
-      type: "FeatureCollection",
-      features: points,
-    });
+    (this.map.getSource(`${this.options.id}-points`) as GeoJSONSource)?.setData(
+      {
+        type: "FeatureCollection",
+        features: points,
+      },
+    );
 
     return this;
   }
 
-  addTo(map: any) {
+  addTo(map: MaplibreMap) {
     this.map = map;
 
     const features = this.geojson.features;
     const polygonAndLines = features.filter(
-      (feature: any) => feature.geometry.type.toLowerCase() !== "point",
+      (feature: GeoJSON.Feature) =>
+        feature.geometry.type.toLowerCase() !== "point",
     );
     const points = features.filter(
-      (feature: any) => feature.geometry.type.toLowerCase() === "point",
+      (feature: GeoJSON.Feature) =>
+        feature.geometry.type.toLowerCase() === "point",
     );
 
     this.map.addSource(this.options.id, {
@@ -279,13 +300,14 @@ export class SimpleStyle {
     this.setPopup(this.map, `${this.options.id}-symbol-points`);
   }
 
-  async setPopup(map: any, source: string) {
-    const clickHandler = async (e: any) => {
+  async setPopup(map: MaplibreMap, source: string) {
+    const clickHandler = async (e: MapLayerMouseEvent) => {
+      if (!e.features?.[0]) return;
       const center = turfCenter(e.features[0]).geometry.coordinates as [
         number,
         number,
       ];
-      const description = e.features[0].properties.description;
+      const description = e.features[0].properties?.description;
 
       if (description) {
         const sanitizedDescription = await sanitizeDescription(description);
@@ -296,8 +318,8 @@ export class SimpleStyle {
       }
     };
 
-    const mouseEnterHandler = (e: any) => {
-      if (e.features[0].properties.description) {
+    const mouseEnterHandler = (e: MapLayerMouseEvent) => {
+      if (e.features?.[0]?.properties?.description) {
         map.getCanvas().style.cursor = "pointer";
       }
     };
@@ -347,18 +369,24 @@ export class SimpleStyle {
 
     const clusterLayer = `${this.options.id}-clusters`;
 
-    const clusterClickHandler = async (e: any) => {
+    const clusterClickHandler = async (e: MapLayerMouseEvent) => {
       const features = this.map.queryRenderedFeatures(e.point, {
         layers: [clusterLayer],
       });
-      const clusterId = features[0].properties.cluster_id;
-      const zoom = await this.map
-        .getSource(`${this.options.id}-points`)
-        .getClusterExpansionZoom(clusterId);
+      if (!features[0]) return;
+      const clusterId = features[0].properties?.cluster_id;
+      if (clusterId === undefined) return;
+      const source = this.map.getSource(
+        `${this.options.id}-points`,
+      ) as GeoJSONSource;
+      const zoom = await source.getClusterExpansionZoom(clusterId);
 
       this.map.easeTo({
-        center: features[0].geometry.coordinates,
-        zoom: zoom,
+        center: (features[0].geometry as GeoJSON.Point).coordinates as [
+          number,
+          number,
+        ],
+        zoom,
       });
     };
 
@@ -424,7 +452,7 @@ export class SimpleStyle {
     return this;
   }
 
-  setGeoJSON(geojson: string | GeoJSON.GeoJSON) {
+  setGeoJSON(geojson: string | FeatureCollection) {
     if (typeof geojson === "string" && isURL(geojson)) {
       this.geojson = template;
 
@@ -445,7 +473,7 @@ export class SimpleStyle {
       };
 
       this._loadingPromise = fetchGeoJSON();
-    } else {
+    } else if (typeof geojson !== "string") {
       this.geojson = geojson;
     }
   }

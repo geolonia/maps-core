@@ -1,5 +1,9 @@
 import turfCenter from "@turf/center";
-import maplibregl from "maplibre-gl";
+import maplibregl, {
+  type MapLayerMouseEvent,
+  type Map as MaplibreMap,
+  type MapSourceDataEvent,
+} from "maplibre-gl";
 import { sanitizeDescription } from "./util";
 
 const textColor = "#000000";
@@ -14,8 +18,7 @@ class SimpleStyleVector {
     this.sourceName = "vt-geolonia-simple-style";
   }
 
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  addTo(map: any) {
+  addTo(map: MaplibreMap) {
     const container = map.getContainer();
 
     if (
@@ -23,7 +26,7 @@ class SimpleStyleVector {
       (!container.dataset.lng && !container.dataset.lat)
     ) {
       let initialZoomDone = false;
-      map.on("sourcedata", (event: any) => {
+      map.on("sourcedata", (event: MapSourceDataEvent) => {
         // skip events for sources that don't concern us
         if (event.sourceId !== this.sourceName) {
           return;
@@ -32,7 +35,7 @@ class SimpleStyleVector {
         const source = map.getSource(event.sourceId);
         // query the map to see if the source is actually loaded or not. We can't trust `isSourceLoaded` in the event
         // because it's unreliable and often incorrect.
-        const isLoaded = source && source.loaded();
+        const isLoaded = source?.loaded();
 
         if (isLoaded !== true) {
           return;
@@ -44,10 +47,14 @@ class SimpleStyleVector {
         }
         initialZoomDone = true;
 
-        map.fitBounds(source.bounds, {
-          duration: 0,
-          padding: 30,
-        });
+        map.fitBounds(
+          (source as unknown as { bounds: [number, number, number, number] })
+            .bounds,
+          {
+            duration: 0,
+            padding: 30,
+          },
+        );
       });
     }
 
@@ -116,7 +123,7 @@ class SimpleStyleVector {
    *
    * @param map
    */
-  setPolygonGeometries(map: any) {
+  setPolygonGeometries(map: MaplibreMap) {
     map.addLayer({
       id: "vt-geolonia-simple-style-polygon",
       type: "fill",
@@ -138,7 +145,7 @@ class SimpleStyleVector {
    *
    * @param map
    */
-  setLineGeometries(map: any) {
+  setLineGeometries(map: MaplibreMap) {
     map.addLayer({
       id: "vt-geolonia-simple-style-linestring",
       type: "line",
@@ -164,7 +171,7 @@ class SimpleStyleVector {
    *
    * @param map
    */
-  setPointGeometries(map: any) {
+  setPointGeometries(map: MaplibreMap) {
     map.addLayer({
       id: "vt-circle-simple-style-points",
       type: "circle",
@@ -226,11 +233,12 @@ class SimpleStyleVector {
     this.setPopup(map, "vt-geolonia-simple-style-points");
   }
 
-  async setPopup(map: any, source: string) {
-    map.on("click", source, async (e: any) => {
+  async setPopup(map: MaplibreMap, source: string) {
+    map.on("click", source, async (e: MapLayerMouseEvent) => {
+      if (!e.features?.[0]) return;
       const center: [number, number] = turfCenter(e.features[0]).geometry
         .coordinates as [number, number];
-      const description = e.features[0].properties.description;
+      const description = e.features[0].properties?.description;
 
       if (description) {
         const sanitizedDescription = await sanitizeDescription(description);
@@ -241,8 +249,8 @@ class SimpleStyleVector {
       }
     });
 
-    map.on("mouseenter", source, (e: any) => {
-      if (e.features[0].properties.description) {
+    map.on("mouseenter", source, (e: MapLayerMouseEvent) => {
+      if (e.features?.[0]?.properties?.description) {
         map.getCanvas().style.cursor = "pointer";
       }
     });

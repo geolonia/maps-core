@@ -54,6 +54,7 @@ export default class GeoloniaMap extends maplibregl.Map {
   private geoloniaSourcesUrl!: URL;
   private __styleExtensionLoadRequired!: boolean;
 
+  // biome-ignore lint/correctness/noUnreachableSuper: intentional singleton pattern - returns existing map instance before super()
   constructor(options: GeoloniaMapOptions) {
     // Register PMTiles protocol on first map creation
     ensurePMTiles();
@@ -93,6 +94,7 @@ export default class GeoloniaMap extends maplibregl.Map {
     }
 
     if (container.geoloniaMap) {
+      // biome-ignore lint/correctness/noConstructorReturn: intentional singleton pattern
       return container.geoloniaMap;
     }
 
@@ -387,6 +389,7 @@ export default class GeoloniaMap extends maplibregl.Map {
 
     container.geoloniaMap = this;
 
+    // biome-ignore lint/correctness/noConstructorReturn: intentional singleton pattern
     return this;
   }
 
