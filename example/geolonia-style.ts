@@ -16,7 +16,7 @@ const options: GeoloniaMapOptions = {
   loader: false,
 };
 
-if (params.has("stage")) options.stage = params.get("stage")!;
+if (params.has("stage")) options.stage = params.get("stage") ?? "";
 
 const map = new GeoloniaMap(options);
 
