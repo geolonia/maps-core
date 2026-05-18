@@ -4,7 +4,7 @@ import { GeoloniaMap } from "../src/index";
 
 const map = new GeoloniaMap({
   container: "#map",
-  style: "https://tile.openstreetmap.jp/styles/osm-bright/style.json",
+  style: "/sample-basic-style.json",
   center: [139.7671, 35.6812],
   zoom: 12,
   navigationControl: false,

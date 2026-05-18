@@ -7,7 +7,7 @@ const params = new URLSearchParams(window.location.search);
 
 const options: GeoloniaMapOptions = {
   container: "#map",
-  style: "https://tile.openstreetmap.jp/styles/osm-bright/style.json",
+  style: "/sample-basic-style.json",
   zoom: 6,
   marker: false,
   gestureHandling: false,

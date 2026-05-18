@@ -58,8 +58,21 @@ test.describe("GeoJSON / SimpleStyle", () => {
     await page.goto("/geojson.html?noCenter=true");
     await waitForMapLoad(page);
 
-    // Allow a little time for fitBounds to animate
-    await page.waitForTimeout(500);
+    // SimpleStyle.fitBounds() runs an animated transition (duration: 3000ms),
+    // so poll until the center has moved into the Tokyo bbox instead of
+    // relying on a fixed sleep.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const map = (window as unknown as Record<string, unknown>).map as {
+              getCenter: () => { lng: number; lat: number };
+            };
+            return map.getCenter().lng;
+          }),
+        { timeout: 5000 },
+      )
+      .toBeGreaterThan(139);
 
     const center = await page.evaluate(() => {
       const map = (window as unknown as Record<string, unknown>).map as {
@@ -69,10 +82,6 @@ test.describe("GeoJSON / SimpleStyle", () => {
       return { lng: c.lng, lat: c.lat };
     });
 
-    // Feature centroid is roughly around 139.72, 35.68 (Tokyo area).
-    // Default center in options.ts is 139.7671, 35.6812 — when unset,
-    // MapLibre defaults to [0, 0]. fitBounds should move it to Tokyo.
-    expect(center.lng).toBeGreaterThan(139);
     expect(center.lng).toBeLessThan(140);
     expect(center.lat).toBeGreaterThan(35);
     expect(center.lat).toBeLessThan(36);
