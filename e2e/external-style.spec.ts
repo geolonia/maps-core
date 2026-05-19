@@ -1,8 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { readCanvasPixelsUpperHalf, waitForMapLoad } from "./helper";
 
-const EXTERNAL_STYLE_URL =
-  "https://tile.openstreetmap.jp/styles/osm-bright/style.json";
+const EXTERNAL_STYLE_URL = "https://demotiles.maplibre.org/globe.json";
 
 test.describe("External style support", () => {
   test("should render a map with external style URL", async ({ page }) => {

@@ -129,7 +129,7 @@ test.describe("Constructor options", () => {
 
       const map2 = new GeoloniaMapCtor({
         container: div,
-        style: "https://tile.openstreetmap.jp/styles/osm-bright/style.json",
+        style: "https://demotiles.maplibre.org/globe.json",
         center: [139.7671, 35.6812],
         zoom: 10,
         navigationControl: false,
