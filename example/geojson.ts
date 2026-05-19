@@ -28,7 +28,7 @@ const inlineGeoJSON: GeoJSON.FeatureCollection = {
 
 const options: GeoloniaMapOptions = {
   container: "#map",
-  style: "https://tile.openstreetmap.jp/styles/osm-bright/style.json",
+  style: "/sample-basic-style.json",
   zoom: 12,
   marker: false,
   gestureHandling: false,

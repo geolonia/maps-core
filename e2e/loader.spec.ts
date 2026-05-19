@@ -5,9 +5,14 @@ test.describe("Loader animation", () => {
   test("should show loader while the map is loading (default)", async ({
     page,
   }) => {
+    // Delay the style fetch so the loader is observable. With the local
+    // fixture the map otherwise finishes loading almost instantly.
+    await page.route("**/sample-basic-style.json", async (route) => {
+      await new Promise((r) => setTimeout(r, 1000));
+      await route.continue();
+    });
+
     await page.goto("/loader.html");
-    // Grab the loader before the map finishes loading. The element is
-    // created synchronously in the constructor, so it exists immediately.
     await expect(page.locator(".loading-geolonia-map")).toHaveCount(1);
   });
 

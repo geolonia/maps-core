@@ -2,9 +2,10 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "../src/assets/style.css";
 import { GeoloniaMap } from "../src/index";
 
-const osmStyle = "https://tile.openstreetmap.jp/styles/osm-bright/style.json";
-const vtStyle =
-  "https://tile.openstreetmap.jp/styles/maptiler-toner-en/style.json";
+// Use two distinct local fixtures so the "different styles per map" assertion
+// in multiple-maps.spec.ts can compare them without external dependencies.
+const styleA = "/sample-basic-style.json";
+const styleB = "/sample-3d-style.json";
 
 const commonOptions = {
   zoom: 10,
@@ -17,14 +18,14 @@ const commonOptions = {
 
 const mapA = new GeoloniaMap({
   container: "#map-a",
-  style: osmStyle,
+  style: styleA,
   center: [139.7671, 35.6812],
   ...commonOptions,
 });
 
 const mapB = new GeoloniaMap({
   container: "#map-b",
-  style: vtStyle,
+  style: styleB,
   center: [135.5023, 34.6937],
   ...commonOptions,
 });
@@ -34,7 +35,7 @@ const mapB = new GeoloniaMap({
 // new one.
 const mapADup = new GeoloniaMap({
   container: "#map-a",
-  style: osmStyle,
+  style: styleA,
   ...commonOptions,
 });
 

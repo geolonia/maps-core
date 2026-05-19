@@ -8,9 +8,7 @@ const params = new URLSearchParams(window.location.search);
 
 const options: GeoloniaMapOptions = {
   container: "#map",
-  style:
-    params.get("style") ||
-    "https://tile.openstreetmap.jp/styles/osm-bright/style.json",
+  style: params.get("style") || "/sample-basic-style.json",
   center: params.has("center")
     ? JSON.parse(params.get("center") ?? "[]")
     : [139.7671, 35.6812],
