@@ -23,21 +23,24 @@ test.describe("dev environment (api.geolonia.com/dev)", () => {
     });
   });
 
-  test("requests the dev backend (api.geolonia.com/dev)", async ({ page }) => {
-    // stage=dev のとき SDK が api.geolonia.com の dev ステージを叩くことを確認する。
-    // basic-v2 では sprite が api.geolonia.com/dev/sprites/... に解決される。
-    const devRequests: string[] = [];
+  test("requests dev sprites (api.geolonia.com/dev/sprites)", async ({
+    page,
+  }) => {
+    // stage=dev のとき SDK が sprite を api.geolonia.com/dev/sprites/... に解決して
+    // 叩くことを確認する (sprite の stage 書き換えの回帰検知)。
+    const devSpriteRequests: string[] = [];
     page.on("request", (req) => {
       const url = req.url();
-      if (url.includes("api.geolonia.com/dev/")) {
-        devRequests.push(url.split("?")[0]);
+      if (url.includes("api.geolonia.com/dev/sprites/")) {
+        devSpriteRequests.push(url.split("?")[0]);
       }
     });
     await page.goto("/geolonia-style.html?stage=dev");
     await waitForMapLoad(page);
-    // 地図ロード後に残りのアセット (sprite 等) 取得を少し待つ
-    await page.waitForTimeout(2000);
-    expect(devRequests.length).toBeGreaterThan(0);
+    // 固定 sleep ではなく観測条件を待つ (CI 安定性のため)
+    await expect
+      .poll(() => devSpriteRequests.length, { timeout: 10_000 })
+      .toBeGreaterThan(0);
   });
 
   test("renders a map backed by the dev environment", async ({ page }) => {
