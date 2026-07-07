@@ -29,6 +29,7 @@ function ensurePMTiles(): void {
 
 import type { GeoloniaMapOptions } from "../types";
 import { keyring } from "./keyring";
+import { normalizeConstructorArg } from "./legacy-options";
 import {
   type GetImageCallback,
   getLang,
@@ -48,14 +49,22 @@ type Container = HTMLElement & {
 
 /**
  * Geolonia Map - extends MapLibre GL Map with Geolonia-specific features.
- * Accepts a GeoloniaMapOptions object directly (no DOM attribute parsing).
+ *
+ * Accepts a {@link GeoloniaMapOptions} object, or — for backward compatibility
+ * with the old embed API — a CSS selector string or an HTMLElement, in which
+ * case the container's `data-*` attributes are read into options.
  */
 export default class GeoloniaMap extends maplibregl.Map {
   private geoloniaSourcesUrl!: URL;
   private __styleExtensionLoadRequired!: boolean;
 
   // biome-ignore lint/correctness/noUnreachableSuper: intentional singleton pattern - returns existing map instance before super()
-  constructor(options: GeoloniaMapOptions) {
+  constructor(arg: string | HTMLElement | GeoloniaMapOptions) {
+    // Backward compatibility: accept a bare container (CSS selector string or
+    // HTMLElement) like the old embed API. In that legacy form the container's
+    // `data-*` attributes are read into options; the object form is unchanged.
+    const options = normalizeConstructorArg(arg);
+
     // Register PMTiles protocol on first map creation
     ensurePMTiles();
 
