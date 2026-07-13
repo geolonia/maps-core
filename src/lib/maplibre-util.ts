@@ -1,4 +1,4 @@
-import { Point } from "maplibre-gl";
+import maplibregl, { type Point } from "maplibre-gl";
 
 /**
  * DOM utility class extracted from maplibre-gl-js.
@@ -96,23 +96,20 @@ export class DOM {
     }
   }
 
-  static mousePos(el: HTMLElement, e: MouseEvent): InstanceType<typeof Point> {
+  static mousePos(el: HTMLElement, e: MouseEvent): Point {
     const rect = el.getBoundingClientRect();
-    return new Point(
+    return new maplibregl.Point(
       e.clientX - rect.left - el.clientLeft,
       e.clientY - rect.top - el.clientTop,
     );
   }
 
-  static touchPos(
-    el: HTMLElement,
-    touches: TouchList,
-  ): InstanceType<typeof Point>[] {
+  static touchPos(el: HTMLElement, touches: TouchList): Point[] {
     const rect = el.getBoundingClientRect();
-    const points: InstanceType<typeof Point>[] = [];
+    const points: Point[] = [];
     for (let i = 0; i < touches.length; i++) {
       points.push(
-        new Point(
+        new maplibregl.Point(
           touches[i].clientX - rect.left - el.clientLeft,
           touches[i].clientY - rect.top - el.clientTop,
         ),
