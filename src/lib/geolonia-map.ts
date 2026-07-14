@@ -1,11 +1,6 @@
 import maplibregl, {
   type ControlPosition,
-  FullscreenControl,
-  GeolocateControl,
   type GetResourceResponse,
-  NavigationControl,
-  Popup,
-  ScaleControl,
   type StyleOptions,
   type StyleSpecification,
   type StyleSwapOptions,
@@ -246,27 +241,33 @@ export default class GeoloniaMap extends maplibregl.Map {
     const fullscreen = parseControlOption(options.fullscreenControl ?? false);
     if (fullscreen.enabled) {
       this.addControl(
-        new FullscreenControl(),
+        new maplibregl.FullscreenControl(),
         fullscreen.position as ControlPosition,
       );
     }
 
     const nav = parseControlOption(options.navigationControl ?? true);
     if (nav.enabled) {
-      this.addControl(new NavigationControl(), nav.position as ControlPosition);
+      this.addControl(
+        new maplibregl.NavigationControl(),
+        nav.position as ControlPosition,
+      );
     }
 
     const geolocate = parseControlOption(options.geolocateControl ?? false);
     if (geolocate.enabled) {
       this.addControl(
-        new GeolocateControl({}),
+        new maplibregl.GeolocateControl({}),
         geolocate.position as ControlPosition,
       );
     }
 
     const scale = parseControlOption(options.scaleControl ?? false);
     if (scale.enabled) {
-      this.addControl(new ScaleControl({}), scale.position as ControlPosition);
+      this.addControl(
+        new maplibregl.ScaleControl({}),
+        scale.position as ControlPosition,
+      );
     }
 
     // On load
@@ -335,7 +336,9 @@ export default class GeoloniaMap extends maplibregl.Map {
         // Popup from container's inner HTML content
         const content = container.dataset?.popupContent;
         if (content) {
-          const popup = new Popup({ offset: [0, -25] }).setHTML(content);
+          const popup = new maplibregl.Popup({ offset: [0, -25] }).setHTML(
+            content,
+          );
           marker.setPopup(popup);
           if (options.openPopup) {
             marker.togglePopup();
