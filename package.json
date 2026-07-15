@@ -44,6 +44,9 @@
   "scripts": {
     "build": "tsup",
     "build:umd": "vite build --config vite.umd.config.ts",
+    "check:externals": "node scripts/check-externals.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "verify": "npm run build && npm run check:externals && npm run smoke",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
