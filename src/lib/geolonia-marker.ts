@@ -27,6 +27,7 @@ const DEFAULT_COLOR = "#E4402F";
  * ```typescript
  * const map = new GeoloniaMap({
  *   container: "#map",
+ *   apiKey: "YOUR-API-KEY",
  *   center: [139.7671, 35.6812],
  *   zoom: 14,
  * });

@@ -41,11 +41,12 @@ interface SimpleStyleOptions {
  *
  * ポリゴン、ライン、ポイントの各ジオメトリをそれぞれに適したレイヤーで描画し、
  * `fill`、`stroke`、`marker-color`、`marker-size`、`title`、`description` などの
- * simplestyle プロパティを解釈してスタイルへ反映します。ポイントについてはクラスタリング表示に対応し、
- * `description` プロパティを持つフィーチャーはクリックでポップアップを表示します。
+ * simplestyle プロパティを解釈してスタイルへ反映します。ポイントについてはクラスタリング表示に対応します。
+ * ポリゴン、ライン、ポイントの各ジオメトリレイヤー上でクリックすると、`description` プロパティを持つ
+ * フィーチャーについてポップアップを表示します（ラベル用のシンボルレイヤーにはポップアップを登録しません）。
  *
  * GeoJSON は {@link FeatureCollection} を直接渡すほか、GeoJSON を返す URL 文字列を渡して非同期に取得させることもできます。
- * 各設定用メソッドは `this` を返すため、メソッドチェーンで記述できます。
+ * `addTo`、`updateData`、`fitBounds`、`remove` は `this` を返すため、メソッドチェーンで記述できます。
  *
  * @example
  * ```typescript
@@ -577,7 +578,8 @@ export class SimpleStyle {
    * `geojson` が URL 文字列の場合は、いったん空のデータを設定したうえで、その URL から GeoJSON を
    * 非同期に取得します。取得中の Promise は `_loadingPromise` に保持され、取得完了後に
    * {@link SimpleStyle.updateData | updateData} で表示を更新します。フィット要求が保留されていれば
-   * あわせてフィットします。取得に失敗した場合はエラーをコンソールに出力します。
+   * あわせてフィットします。応答が 2xx 以外の場合は空のデータとして扱い、通信や JSON の解析で
+   * 例外が発生した場合はエラーをコンソールに出力します。
    * `geojson` が {@link FeatureCollection} の場合は、そのまま内部データとして設定します。
    *
    * @param geojson 設定する {@link FeatureCollection} または GeoJSON を返す URL 文字列です。
