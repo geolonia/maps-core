@@ -25,6 +25,16 @@ export function isURL(str: string): string | false {
   return false;
 }
 
+/**
+ * 与えられた URL が Geolonia のタイルホストかどうかを判定します。
+ *
+ * ホスト名が `tileserver.geolonia.com` に完全一致するか、または
+ * `.tiles.geolonia.com` で終わる場合に Geolonia のタイルホストとみなします。
+ * URL の解釈に失敗した場合は `false` を返します。
+ *
+ * @param url 判定対象の URL 文字列または `URL` オブジェクト。
+ * @returns Geolonia のタイルホストであれば `true`、それ以外や解釈に失敗した場合は `false`。
+ */
 export function isGeoloniaTilesHost(url: string | URL): boolean {
   try {
     const urlObj = typeof url === "string" ? new URL(url) : url;
@@ -38,7 +48,42 @@ export function isGeoloniaTilesHost(url: string | URL): boolean {
 }
 
 /**
- * Resolve style name or URL to a full style URL.
+ * スタイル名または URL を完全なスタイル URL に解決します。
+ *
+ * 解決のルールは次のとおりです。
+ *
+ * - `style` が空文字の場合は、`basic-v2` のデフォルトスタイル URL を返します。
+ * - `style` が絶対 URL または相対 URL の場合は、そのまま解決した URL を返します。
+ * - `style` が `.json` で終わる場合は、`.json` ファイルへの URL として解決します。
+ * - 上記以外は Geolonia の論理名とみなし、
+ *   `https://cdn.geolonia.com/style/<name>/<ja|en>.json` を返します。
+ *
+ * `lang` が `"ja"` または `"ja-jp"` の場合は `ja` 版、それ以外は `en` 版のスタイルを返します。
+ *
+ * `style` が Geolonia のスタイルであるにもかかわらず API キーが指定されていない場合は
+ * エラーを投げます。API キーは `options.apiKey`、指定がなければ `keyring.apiKey` を使用します。
+ *
+ * @param style スタイル名または URL。空文字の場合はデフォルトスタイルを返します。
+ * @param options 解決時のオプション。
+ * @param options.lang 言語コード。`"ja"` または `"ja-jp"` で日本語版、省略時は `"en"`。
+ * @param options.apiKey Geolonia スタイルの利用に必要な API キー。省略時は `keyring.apiKey` を使用します。
+ * @returns 解決された完全なスタイル URL。
+ * @throws {Error} Geolonia のスタイルであるのに API キーが指定されていない場合。
+ *
+ * @example
+ * ```typescript
+ * // 論理名を日本語版のスタイル URL に解決する
+ * getStyle("geolonia/basic-v2", { lang: "ja", apiKey: "YOUR-API-KEY" });
+ * // => "https://cdn.geolonia.com/style/geolonia/basic-v2/ja.json"
+ *
+ * // 空文字を渡すとデフォルトスタイルを返す
+ * getStyle("", { apiKey: "YOUR-API-KEY" });
+ * // => "https://cdn.geolonia.com/style/geolonia/basic-v2/en.json"
+ *
+ * // URL はそのまま解決する
+ * getStyle("https://example.com/style.json", {});
+ * // => "https://example.com/style.json"
+ * ```
  */
 export function getStyle(
   style: string,
@@ -73,7 +118,13 @@ export function getStyle(
 }
 
 /**
- * Detect browser language.
+ * ブラウザの言語設定を検出して `"ja"` または `"en"` を返します。
+ *
+ * `navigator.languages[0]`、なければ `navigator.language` を小文字化して判定します。
+ * 値が `"ja"` または `"ja-jp"` の場合は `"ja"`、それ以外は `"en"` を返します。
+ * `navigator` が存在しない環境では `"en"` を返します。
+ *
+ * @returns 検出された言語。日本語なら `"ja"`、それ以外は `"en"`。
  */
 export function getLang(): "ja" | "en" {
   if (typeof globalThis.navigator === "undefined") {

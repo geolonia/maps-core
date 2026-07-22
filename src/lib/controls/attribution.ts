@@ -6,16 +6,30 @@ import type {
 import { bindAll, DOM } from "../maplibre-util";
 
 /**
- * Custom Attribution Control using Shadow DOM.
- * Based on maplibre-gl-js's AttributionControl.
+ * Shadow DOM を用いたカスタム帰属表示コントロールの実装です。
+ * maplibre-gl-js の AttributionControl をもとにしています。
  * https://github.com/maplibre/maplibre-gl-js/blob/main/src/ui/control/attribution_control.ts
  *
- * Uses Shadow DOM to isolate attribution styles from the host page,
- * preventing style conflicts. Collapses to an "i" icon on small maps.
+ * Shadow DOM で帰属表示のスタイルをホストページから隔離し、スタイルの衝突を防ぎます。
+ * 地図の表示幅が小さい場合は "i" アイコンに折りたたみます。
  */
 
+/**
+ * {@link CustomAttributionControl} の生成時に渡すオプションです。
+ */
 export interface CustomAttributionControlOptions {
+  /**
+   * 帰属表示をコンパクト表示にするかどうかを指定します。
+   * `true` を指定すると常に "i" アイコンに折りたたんだコンパクト表示になり、
+   * `false` を指定すると常に展開したまま表示します。
+   * 省略した場合は地図の表示幅に応じて自動的に切り替わります
+   * （幅が 640px 以下のときにコンパクト表示になります）。
+   */
   compact?: boolean;
+  /**
+   * ソース由来の帰属表示に加えて表示する、独自の帰属表示テキストです。
+   * 文字列または文字列の配列で指定します。
+   */
   customAttribution?: string | string[];
 }
 
@@ -160,6 +174,19 @@ const ATTRIBUTION_CSS = `
 }
 `;
 
+/**
+ * 帰属表示（アトリビューション）を表示する、Geolonia 向けにカスタムしたコントロールです。
+ *
+ * MapLibre 標準の `AttributionControl` をもとにしており、`IControl` を実装します。
+ * スタイルの衝突を防ぐためにコンテナを Shadow DOM で分離し、コントロール用の CSS を
+ * その内部に閉じ込めます。地図の表示幅が狭いとき（またはオプション指定時）は "i" アイコンに
+ * 折りたたむコンパクト表示に切り替わり、印刷時には自動的に展開表示へ切り替えます。
+ *
+ * @example
+ * ```ts
+ * map.addControl(new CustomAttributionControl(), "bottom-right");
+ * ```
+ */
 class CustomAttributionControl implements IControl {
   private options: CustomAttributionControlOptions;
   private _map: MapInternal | undefined;
@@ -172,6 +199,11 @@ class CustomAttributionControl implements IControl {
   private printQuery: MediaQueryList | undefined;
   private onMediaPrintChange: ((e: MediaQueryListEvent) => void) | undefined;
 
+  /**
+   * コントロールを生成します。
+   *
+   * @param options 帰属表示の挙動を指定するオプションです。省略した場合は空のオブジェクトが使われます。
+   */
   constructor(options: CustomAttributionControlOptions = {}) {
     this.options = options;
 
@@ -186,10 +218,25 @@ class CustomAttributionControl implements IControl {
     );
   }
 
+  /**
+   * このコントロールの既定の表示位置を返します。
+   *
+   * @returns 既定の表示位置である `"bottom-right"` を返します。
+   */
   getDefaultPosition(): ControlPosition {
     return "bottom-right";
   }
 
+  /**
+   * コントロールが地図に追加されるときに呼び出されます。
+   *
+   * Shadow DOM を持つコンテナ要素を生成し、その内部に帰属表示用の要素と CSS を組み立てます。
+   * あわせて帰属表示の内容を初期化し、地図の各種イベント（`styledata`、`sourcedata`、`terrain`、
+   * `resize`、`drag`）や印刷メディアクエリの変化を監視するリスナーを登録します。
+   *
+   * @param map このコントロールを追加する対象の地図です。
+   * @returns 地図に挿入するコントロールのルート要素を返します。
+   */
   onAdd(map: MaplibreMap): HTMLDivElement {
     this._map = map as MapInternal;
     this._compact = this.options.compact;
@@ -241,6 +288,12 @@ class CustomAttributionControl implements IControl {
     return this._container;
   }
 
+  /**
+   * コントロールが地図から取り除かれるときに呼び出されます。
+   *
+   * 生成したコンテナ要素を DOM から削除し、`onAdd` で登録した地図のイベントリスナーと
+   * 印刷メディアクエリのリスナーを解除したうえで、内部で保持している状態を破棄します。
+   */
   onRemove(): void {
     if (this._container) {
       DOM.remove(this._container);
