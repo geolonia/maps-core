@@ -1,0 +1,17 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "plugin": ["typedoc-plugin-markdown"],
+  "entryPoints": ["src/index.ts"],
+  "out": "api-docs",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "readme": "none",
+  "githubPages": false,
+  "disableSources": true,
+  "flattenOutputFiles": true,
+  "validation": {
+    "invalidLink": false,
+    "notExported": false
+  }
+}
