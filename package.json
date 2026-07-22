@@ -37,6 +37,8 @@
     "jsdom": "^29.0.1",
     "maplibre-gl": "5.7.0",
     "tsup": "^8",
+    "typedoc": "^0.28.20",
+    "typedoc-plugin-markdown": "^4.12.0",
     "typescript": "^5.8",
     "vite": "^8.0.16",
     "vitest": "^4.1.2"
@@ -53,7 +55,8 @@
     "dev": "vite --config vite.config.ts",
     "e2e": "playwright test",
     "lint": "biome check src/ test/ e2e/ example/",
-    "lint:fix": "biome check --write src/ test/ e2e/ example/"
+    "lint:fix": "biome check --write src/ test/ e2e/ example/",
+    "docs:api": "typedoc"
   },
   "license": "MIT",
   "repository": {

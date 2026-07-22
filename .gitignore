@@ -4,3 +4,4 @@ docs/ADR/
 test-results/
 playwright-report/
 coverage/
+api-docs/
