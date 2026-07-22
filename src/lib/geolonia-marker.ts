@@ -25,8 +25,6 @@ const DEFAULT_COLOR = "#E4402F";
  *
  * @example
  * ```typescript
- * import { GeoloniaMarker, GeoloniaMap } from "@geolonia/maps-core";
- *
  * const map = new GeoloniaMap({
  *   container: "#map",
  *   center: [139.7671, 35.6812],

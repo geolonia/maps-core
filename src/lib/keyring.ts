@@ -10,8 +10,6 @@
  *
  * @example
  * ```typescript
- * import { keyring } from "@geolonia/maps-core";
- *
  * keyring.setApiKey("YOUR-API-KEY");
  * ```
  */
@@ -146,8 +144,6 @@ class Keyring {
  *
  * @example
  * ```typescript
- * import { keyring } from "@geolonia/maps-core";
- *
  * keyring.setApiKey("YOUR-API-KEY");
  * ```
  */

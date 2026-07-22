@@ -22,8 +22,6 @@ const strokeColor = "#FFFFFF";
  *
  * @example
  * ```typescript
- * import { SimpleStyleVector } from "@geolonia/maps-core";
- *
  * new SimpleStyleVector(url).addTo(map);
  * ```
  */
@@ -51,8 +49,6 @@ class SimpleStyleVector {
    *
    * @example
    * ```typescript
-   * import { SimpleStyleVector } from "@geolonia/maps-core";
-   *
    * new SimpleStyleVector(url).addTo(map);
    * ```
    */

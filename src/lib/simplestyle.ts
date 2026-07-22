@@ -49,8 +49,6 @@ interface SimpleStyleOptions {
  *
  * @example
  * ```typescript
- * import { SimpleStyle } from "@geolonia/maps-core";
- *
  * new SimpleStyle(geojson).addTo(map);
  * ```
  */
@@ -145,8 +143,6 @@ export class SimpleStyle {
    *
    * @example
    * ```typescript
-   * import { SimpleStyle } from "@geolonia/maps-core";
-   *
    * new SimpleStyle(geojson).addTo(map);
    * ```
    */

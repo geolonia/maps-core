@@ -63,8 +63,6 @@ type Container = HTMLElement & {
  *
  * @example
  * ```typescript
- * import { GeoloniaMap } from "@geolonia/maps-core";
- *
  * const map = new GeoloniaMap({
  *   container: "#map",
  *   apiKey: "YOUR-API-KEY",
@@ -82,8 +80,6 @@ type Container = HTMLElement & {
  * 後方互換の書き方として、コンテナのセレクタ文字列だけを渡すこともできます。
  * この場合は `data-*` 属性から設定を読み込みます。
  * ```typescript
- * import { GeoloniaMap } from "@geolonia/maps-core";
- *
  * // <div id="map" data-zoom="14" data-center="139.7671, 35.6812"></div>
  * const map = new GeoloniaMap("#map");
  * ```
@@ -114,8 +110,6 @@ export default class GeoloniaMap extends maplibregl.Map {
    *
    * @example
    * ```typescript
-   * import { GeoloniaMap } from "@geolonia/maps-core";
-   *
    * const map = new GeoloniaMap({
    *   container: "#map",
    *   apiKey: "YOUR-API-KEY",
@@ -494,8 +488,6 @@ export default class GeoloniaMap extends maplibregl.Map {
    *
    * @example
    * ```typescript
-   * import { GeoloniaMap } from "@geolonia/maps-core";
-   *
    * const map = new GeoloniaMap({ container: "#map", apiKey: "YOUR-API-KEY" });
    * map.setStyle("geolonia/gsi");
    * ```
@@ -523,8 +515,6 @@ export default class GeoloniaMap extends maplibregl.Map {
    *
    * @example
    * ```typescript
-   * import { GeoloniaMap } from "@geolonia/maps-core";
-   *
    * const map = new GeoloniaMap({ container: "#map", apiKey: "YOUR-API-KEY" });
    * // 不要になったら破棄します
    * map.remove();
@@ -568,8 +558,6 @@ export default class GeoloniaMap extends maplibregl.Map {
    *
    * @example
    * ```typescript
-   * import { GeoloniaMap } from "@geolonia/maps-core";
-   *
    * const map = new GeoloniaMap({ container: "#map", apiKey: "YOUR-API-KEY" });
    * map.on("load", async () => {
    *   const image = await map.loadImage("https://example.com/marker.png");

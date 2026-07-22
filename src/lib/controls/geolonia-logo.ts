@@ -9,8 +9,6 @@ import type { ControlPosition, IControl } from "maplibre-gl";
  *
  * @example
  * ```ts
- * import { GeoloniaControl } from "@geolonia/maps-core";
- *
  * map.addControl(new GeoloniaControl(), "bottom-left");
  * ```
  */

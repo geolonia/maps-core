@@ -10,8 +10,6 @@ import type { ControlPosition, MapOptions } from "maplibre-gl";
  *
  * @example
  * ```typescript
- * import { GeoloniaMap } from "@geolonia/maps-core";
- *
  * const map = new GeoloniaMap({
  *   container: "#map",
  *   apiKey: "YOUR-API-KEY",
