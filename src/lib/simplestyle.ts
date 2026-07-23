@@ -20,14 +20,39 @@ const template: FeatureCollection = {
   features: [],
 };
 
+/**
+ * {@link SimpleStyle} の挙動を制御するオプションです。
+ */
 interface SimpleStyleOptions {
+  /** ソースおよびレイヤーの ID の接頭辞です。既定値は `"geolonia-simple-style"` です。 */
   id: string;
+  /** ポイントをクラスタリングするかどうかです。既定値は `true` です。 */
   cluster: boolean;
+  /** ヒートマップ表示を行うかどうかです。現時点では未実装で、既定値は `false` です。 */
   heatmap: boolean;
+  /** クラスターの円の色です。CSS カラー文字列で指定します。既定値は `"#ff0000"` です。 */
   clusterColor: string;
+  /** 上記以外の任意のオプションです。 */
   [key: string]: unknown;
 }
 
+/**
+ * simplestyle 仕様の GeoJSON を地図に表示するヘルパークラスです。
+ *
+ * ポリゴン、ライン、ポイントの各ジオメトリをそれぞれに適したレイヤーで描画し、
+ * `fill`、`stroke`、`marker-color`、`marker-size`、`title`、`description` などの
+ * simplestyle プロパティを解釈してスタイルへ反映します。ポイントについてはクラスタリング表示に対応します。
+ * ポリゴン、ライン、ポイントの各ジオメトリレイヤー上でクリックすると、`description` プロパティを持つ
+ * フィーチャーについてポップアップを表示します（ラベル用のシンボルレイヤーにはポップアップを登録しません）。
+ *
+ * GeoJSON は {@link FeatureCollection} を直接渡すほか、GeoJSON を返す URL 文字列を渡して非同期に取得させることもできます。
+ * `addTo`、`updateData`、`fitBounds`、`remove` は `this` を返すため、メソッドチェーンで記述できます。
+ *
+ * @example
+ * ```typescript
+ * new SimpleStyle(geojson).addTo(map);
+ * ```
+ */
 export class SimpleStyle {
   public _loadingPromise: Promise<unknown> | undefined;
   private callFitBounds = false;
@@ -41,6 +66,16 @@ export class SimpleStyle {
     handler: (...args: any[]) => void;
   }[] = [];
 
+  /**
+   * SimpleStyle を作成します。
+   *
+   * `geojson` に URL 文字列を渡した場合は、その URL から GeoJSON を非同期に取得します。
+   * 取得の完了は `_loadingPromise` で待つことができます。
+   *
+   * @param geojson 表示する GeoJSON です。{@link FeatureCollection} または GeoJSON を返す URL 文字列を指定します。
+   * @param options 表示オプションです。指定した項目のみが既定値を上書きします。既定値は
+   *   `id: "geolonia-simple-style"`、`cluster: true`、`heatmap: false`、`clusterColor: "#ff0000"` です。
+   */
   constructor(
     geojson: string | FeatureCollection,
     options?: Record<string, unknown>,
@@ -56,6 +91,16 @@ export class SimpleStyle {
     };
   }
 
+  /**
+   * 表示中のデータを新しい GeoJSON で差し替えます。
+   *
+   * フィーチャーをポイントとそれ以外（ポリゴン、ライン）に振り分け、
+   * それぞれ対応するソースの内容を更新します。レイヤー自体の追加は行わないため、
+   * あらかじめ {@link SimpleStyle.addTo | addTo} で地図に追加されている必要があります。
+   *
+   * @param geojson 差し替える {@link FeatureCollection} です。
+   * @returns メソッドチェーンのための `this` を返します。
+   */
   updateData(geojson: FeatureCollection) {
     this.setGeoJSON(geojson);
 
@@ -84,6 +129,24 @@ export class SimpleStyle {
     return this;
   }
 
+  /**
+   * 地図にソースとレイヤーを追加して GeoJSON を表示します。
+   *
+   * ポリゴンとラインのソース、ポイント用のソース（クラスタリング設定付き）を追加し、
+   * ポリゴンとラインのラベル用シンボルレイヤーを配置したうえで、
+   * {@link SimpleStyle.setPolygonGeometries | setPolygonGeometries}、
+   * {@link SimpleStyle.setLineGeometries | setLineGeometries}、
+   * {@link SimpleStyle.setPointGeometries | setPointGeometries}、
+   * {@link SimpleStyle.setCluster | setCluster} を呼び出して各ジオメトリのレイヤーを設定します。
+   *
+   * @param map 表示先の地図です。
+   * @returns メソッドチェーンのための `this` を返します。
+   *
+   * @example
+   * ```typescript
+   * new SimpleStyle(geojson).addTo(map);
+   * ```
+   */
   addTo(map: MaplibreMap) {
     this.map = map;
 
@@ -172,6 +235,17 @@ export class SimpleStyle {
     return this;
   }
 
+  /**
+   * データ全体の範囲に地図をフィットさせます。
+   *
+   * 現在の GeoJSON のフィーチャーからバウンディングボックスを算出し、そこへ地図を移動します。
+   * フィーチャーが存在しない場合は何もしません。データを URL から取得中に呼び出した場合は、
+   * フィット要求を保持しておき、取得完了後に自動でフィットします。
+   *
+   * @param options `map.fitBounds` に渡すオプションです。既定値は `duration: 3000`、`padding: 30` で、
+   *   指定した項目のみがこれらを上書きします。
+   * @returns メソッドチェーンのための `this` を返します。
+   */
   fitBounds(options = {}) {
     this.callFitBounds = true;
 
@@ -195,7 +269,12 @@ export class SimpleStyle {
   }
 
   /**
-   * Set polygon geometries.
+   * ポリゴンの塗りレイヤーを設定します。
+   *
+   * `$type` が `Polygon` のフィーチャーを対象に塗りレイヤーを追加し、
+   * `fill`、`fill-opacity`、`stroke`（輪郭色）の各 simplestyle プロパティを反映します。
+   * あわせて {@link SimpleStyle.setPopup | setPopup} でこのレイヤーにポップアップを設定します。
+   * 通常は {@link SimpleStyle.addTo | addTo} から呼び出されます。
    */
   setPolygonGeometries() {
     this.map.addLayer({
@@ -214,7 +293,12 @@ export class SimpleStyle {
   }
 
   /**
-   * Set line geometries.
+   * ラインのレイヤーを設定します。
+   *
+   * `$type` が `LineString` のフィーチャーを対象にラインレイヤーを追加し、
+   * `stroke-width`（線幅）、`stroke`（線色）、`stroke-opacity`（不透明度）の各 simplestyle プロパティを反映します。
+   * 線端と結合は丸めて描画します。あわせて {@link SimpleStyle.setPopup | setPopup} でこのレイヤーにポップアップを設定します。
+   * 通常は {@link SimpleStyle.addTo | addTo} から呼び出されます。
    */
   setLineGeometries() {
     this.map.addLayer({
@@ -237,7 +321,15 @@ export class SimpleStyle {
   }
 
   /**
-   * Setup point geometries.
+   * ポイントのレイヤーを設定します。
+   *
+   * クラスターに属さないポイントを対象に、2 種類のレイヤーを追加します。
+   * `marker-symbol` を持たないポイントには円レイヤーを、
+   * `marker-symbol` を持つポイントにはアイコンとラベルのシンボルレイヤーを使います。
+   * `marker-size`（`small`、`large`、その他）に応じて円の半径やラベルのオフセットを変え、
+   * `marker-color`、`stroke`、`title`、`text-color` などの simplestyle プロパティを反映します。
+   * あわせて円レイヤーとシンボルレイヤーの双方に {@link SimpleStyle.setPopup | setPopup} でポップアップを設定します。
+   * 通常は {@link SimpleStyle.addTo | addTo} から呼び出されます。
    */
   setPointGeometries() {
     this.map.addLayer({
@@ -300,6 +392,17 @@ export class SimpleStyle {
     this.setPopup(this.map, `${this.options.id}-symbol-points`);
   }
 
+  /**
+   * 指定したレイヤーにクリックでポップアップを表示するイベントハンドラーを設定します。
+   *
+   * クリックされたフィーチャーが `description` プロパティを持つ場合、その中心座標に
+   * サニタイズ済みの HTML を表示するポップアップを追加します。あわせてホバー時に
+   * カーソルを変えるハンドラーも設定します。登録したハンドラーは `_eventHandlers` に記録され、
+   * {@link SimpleStyle.remove | remove} でまとめて解除されます。
+   *
+   * @param map ポップアップを表示する地図です。
+   * @param source ハンドラーを設定する対象のレイヤー ID です。
+   */
   async setPopup(map: MaplibreMap, source: string) {
     const clickHandler = async (e: MapLayerMouseEvent) => {
       if (!e.features?.[0]) return;
@@ -340,7 +443,15 @@ export class SimpleStyle {
   }
 
   /**
-   * Setup cluster markers
+   * クラスタリング用のレイヤーを設定します。
+   *
+   * `point_count` を持つクラスターを対象に、クラスターを表す円レイヤーと、
+   * 件数（`point_count_abbreviated`）を表示するラベルのシンボルレイヤーを追加します。
+   * 円の色は `clusterColor` オプションを使います。クラスターをクリックすると、
+   * そのクラスターが展開するズームレベルまで地図を移動します。あわせてホバー時に
+   * カーソルを変えるハンドラーも設定します。登録したハンドラーは `_eventHandlers` に記録され、
+   * {@link SimpleStyle.remove | remove} でまとめて解除されます。通常は
+   * {@link SimpleStyle.addTo | addTo} から呼び出されます。
    */
   setCluster() {
     this.map.addLayer({
@@ -417,6 +528,15 @@ export class SimpleStyle {
     );
   }
 
+  /**
+   * 追加したソース、レイヤー、イベントハンドラーを地図から除去します。
+   *
+   * {@link SimpleStyle.setPopup | setPopup} や {@link SimpleStyle.setCluster | setCluster}
+   * で登録したイベントハンドラーをすべて解除し、ポリゴン、ライン、ポイント、クラスターの各レイヤーと、
+   * それらのソースを削除します。カーソルのスタイルも元に戻します。まだ地図に追加されていない場合は何もしません。
+   *
+   * @returns メソッドチェーンのための `this` を返します。
+   */
   remove() {
     if (!this.map) return this;
     const id = this.options.id;
@@ -452,6 +572,18 @@ export class SimpleStyle {
     return this;
   }
 
+  /**
+   * 内部で保持する GeoJSON を設定します。
+   *
+   * `geojson` が URL 文字列の場合は、いったん空のデータを設定したうえで、その URL から GeoJSON を
+   * 非同期に取得します。取得中の Promise は `_loadingPromise` に保持され、取得完了後に
+   * {@link SimpleStyle.updateData | updateData} で表示を更新します。フィット要求が保留されていれば
+   * あわせてフィットします。応答が 2xx 以外の場合は空のデータとして扱い、通信や JSON の解析で
+   * 例外が発生した場合はエラーをコンソールに出力します。
+   * `geojson` が {@link FeatureCollection} の場合は、そのまま内部データとして設定します。
+   *
+   * @param geojson 設定する {@link FeatureCollection} または GeoJSON を返す URL 文字列です。
+   */
   setGeoJSON(geojson: string | FeatureCollection) {
     if (typeof geojson === "string" && isURL(geojson)) {
       this.geojson = template;

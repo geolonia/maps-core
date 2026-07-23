@@ -43,16 +43,81 @@ type Container = HTMLElement & {
 };
 
 /**
- * Geolonia Map - extends MapLibre GL Map with Geolonia-specific features.
+ * MapLibre GL JS の `Map` を拡張し、Geolonia 固有の機能を追加した地図クラスです。
  *
- * Accepts a {@link GeoloniaMapOptions} object, or — for backward compatibility
- * with the old embed API — a CSS selector string or an HTMLElement, in which
- * case the container's `data-*` attributes are read into options.
+ * API キーによる認証、Geolonia のスタイルやタイルへの接続、PMTiles プロトコルの登録、
+ * デフォルトマーカーや各種コントロール、SimpleStyle による GeoJSON 表示、
+ * ジェスチャ操作、3D 表示などを、コンストラクタに渡す {@link GeoloniaMapOptions}
+ * だけで有効にできます。
+ *
+ * コンストラクタには {@link GeoloniaMapOptions} オブジェクトを渡します。
+ * ただし旧 embed API との後方互換のため、CSS セレクタ文字列や `HTMLElement`
+ * を直接渡すこともできます。その場合はコンテナ要素の `data-*` 属性が
+ * オプションとして読み込まれます。
+ *
+ * 同一のコンテナ要素に対して二重にインスタンスを生成しようとした場合は、
+ * 新たに生成せず、既存のインスタンスをそのまま返します（シングルトン）。
+ *
+ * `Map` を継承しているため、`addLayer`、`addSource`、`on`、`getZoom` など
+ * MapLibre GL JS の API はすべてそのまま利用できます。
+ *
+ * @example
+ * ```typescript
+ * const map = new GeoloniaMap({
+ *   container: "#map",
+ *   apiKey: "YOUR-API-KEY",
+ *   style: "geolonia/basic-v2",
+ *   center: [139.7671, 35.6812],
+ *   zoom: 14,
+ * });
+ *
+ * map.on("load", () => {
+ *   console.log("地図の読み込みが完了しました");
+ * });
+ * ```
+ *
+ * @example
+ * 後方互換の書き方として、コンテナのセレクタ文字列だけを渡すこともできます。
+ * この場合は `data-*` 属性から設定を読み込みます。
+ * ```typescript
+ * // <div id="map" data-zoom="14" data-center="139.7671, 35.6812"></div>
+ * const map = new GeoloniaMap("#map");
+ * ```
  */
 export default class GeoloniaMap extends maplibregl.Map {
   private geoloniaSourcesUrl!: URL;
   private __styleExtensionLoadRequired!: boolean;
 
+  /**
+   * 地図を生成します。
+   *
+   * `apiKey` や `stage` が指定されていればキーリングに設定し、スタイル
+   * （既定は `"geolonia/basic-v2"`）を実際の style.json の URL に解決してから
+   * MapLibre GL JS の `Map` を初期化します。あわせて Geolonia のロゴ、出典表示、
+   * ナビゲーションなどのコントロールを追加し、読み込み完了後にはローディング表示の
+   * 除去、デフォルトマーカーの配置、ジェスチャ操作やスタイル拡張の適用を行います。
+   *
+   * `arg` にコンテナを直接指定する後方互換の形式では、そのコンテナの `data-*`
+   * 属性から設定を読み込みます。指定したコンテナに既に地図が生成済みの場合は、
+   * 新規生成せず既存のインスタンスを返します。
+   *
+   * @param arg 地図の設定です。{@link GeoloniaMapOptions} オブジェクトのほか、
+   *   後方互換としてコンテナを指す CSS セレクタ文字列や `HTMLElement` も指定できます。
+   * @throws コンテナ要素が見つからない場合に `Error` を投げます。
+   * @throws Geolonia のスタイルを API キーなしで使おうとした場合に `Error` を投げます。
+   * @throws MapLibre GL JS の `Map` の初期化に失敗した場合、コンテナにエラー表示を
+   *   行ったうえで、その例外を再スローします。
+   *
+   * @example
+   * ```typescript
+   * const map = new GeoloniaMap({
+   *   container: "#map",
+   *   apiKey: "YOUR-API-KEY",
+   *   center: [139.7671, 35.6812],
+   *   zoom: 14,
+   * });
+   * ```
+   */
   // biome-ignore lint/correctness/noUnreachableSuper: intentional singleton pattern - returns existing map instance before super()
   constructor(arg: string | HTMLElement | GeoloniaMapOptions) {
     // Backward compatibility: accept a bare container (CSS selector string or
@@ -344,7 +409,7 @@ export default class GeoloniaMap extends maplibregl.Map {
             marker.togglePopup();
           }
         } else if (options.openPopup) {
-          // openPopup without content — just mark as clickable
+          // 内容が無い openPopup の場合はクリック可能としてマークするだけにする
         }
 
         marker.getElement().classList.add("geolonia-clickable-marker");
@@ -405,6 +470,28 @@ export default class GeoloniaMap extends maplibregl.Map {
     return this;
   }
 
+  /**
+   * 地図のスタイルを差し替えます。
+   *
+   * `style` が文字列の場合は、Geolonia のスタイル論理名（`"geolonia/basic-v2"`
+   * など）、style.json の URL、相対パスのいずれかとして解釈し、実際の URL に
+   * 解決してから適用します。解決の際の言語はブラウザ言語に従い、API キーは
+   * キーリングに設定済みの値を使います。`StyleSpecification` オブジェクトを
+   * 直接渡した場合はそのまま適用します。
+   *
+   * @param style 新しいスタイルです。スタイル論理名や URL などの文字列、または
+   *   `StyleSpecification` オブジェクトを指定します。
+   * @param options MapLibre GL JS に渡すスタイル差し替えオプションです。
+   *   既定は空のオブジェクトです。
+   * @returns メソッドチェーンのために自身を返します。
+   * @throws Geolonia のスタイルを API キーなしで使おうとした場合に `Error` を投げます。
+   *
+   * @example
+   * ```typescript
+   * const map = new GeoloniaMap({ container: "#map", apiKey: "YOUR-API-KEY" });
+   * map.setStyle("geolonia/gsi");
+   * ```
+   */
   setStyle(
     style: string | StyleSpecification,
     options: StyleSwapOptions & StyleOptions = {},
@@ -419,16 +506,65 @@ export default class GeoloniaMap extends maplibregl.Map {
     return this;
   }
 
+  /**
+   * 地図を破棄し、関連するリソースやイベントリスナーを解放します。
+   *
+   * MapLibre GL JS の破棄処理に加えて、コンテナ要素に保持している地図インスタンスへの
+   * 参照（`geoloniaMap`）も削除します。これにより、同じコンテナで再度
+   * {@link GeoloniaMap} を生成した際に、破棄済みのインスタンスが返されることを防ぎます。
+   *
+   * @example
+   * ```typescript
+   * const map = new GeoloniaMap({ container: "#map", apiKey: "YOUR-API-KEY" });
+   * // 不要になったら破棄します
+   * map.remove();
+   * ```
+   */
   remove(): void {
     const container = this.getContainer() as Container;
     super.remove.call(this);
     delete container.geoloniaMap;
   }
 
+  /**
+   * 画像を読み込み、結果をコールバックで受け取ります（後方互換のコールバック形式）。
+   *
+   * 読み込みに成功すると `callback(null, image, expiry)`、失敗すると
+   * `callback(error)` の形で呼び出されます。
+   *
+   * @param url 読み込む画像の URL です。
+   * @param callback 読み込み結果を受け取るコールバックです。
+   */
   loadImage(url: string, callback: GetImageCallback): void;
+  /**
+   * 画像を読み込み、`Promise` で結果を受け取ります。
+   *
+   * @param url 読み込む画像の URL です。
+   * @returns 読み込んだ画像を含むレスポンスに解決される `Promise` を返します。
+   */
   loadImage(
     url: string,
   ): Promise<GetResourceResponse<HTMLImageElement | ImageBitmap>>;
+  /**
+   * 画像を読み込みます。
+   *
+   * `callback` を渡した場合は後方互換のコールバック形式で結果を受け取り、戻り値は
+   * `undefined` になります。`callback` を省略した場合は `Promise` を返します。
+   *
+   * @param url 読み込む画像の URL です。
+   * @param callback 省略可能です。指定した場合はコールバック形式で結果を受け取ります。
+   * @returns `callback` を省略した場合は、読み込んだ画像を含むレスポンスに解決される
+   *   `Promise` を返します。`callback` を指定した場合は `undefined` を返します。
+   *
+   * @example
+   * ```typescript
+   * const map = new GeoloniaMap({ container: "#map", apiKey: "YOUR-API-KEY" });
+   * map.on("load", async () => {
+   *   const image = await map.loadImage("https://example.com/marker.png");
+   *   map.addImage("custom-marker", image.data);
+   * });
+   * ```
+   */
   loadImage(
     url: string,
     callback?: GetImageCallback,
