@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
+
+const pkg = JSON.parse(readFileSync("./package.json", "utf8"));
 
 export default defineConfig({
   build: {
@@ -14,5 +17,6 @@ export default defineConfig({
   },
   define: {
     global: "globalThis",
+    __PACKAGE_VERSION__: JSON.stringify(pkg.version),
   },
 });
