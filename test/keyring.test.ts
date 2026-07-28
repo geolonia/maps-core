@@ -8,8 +8,14 @@ describe("keyring", () => {
 
   it("should have default values", () => {
     expect(keyring.apiKey).toBe("");
-    expect(keyring.stage).toBe("dev");
+    // 既定は本番。dev だと stage を渡し忘れた npm 利用者が
+    // tileserver-dev / api.geolonia.com/dev を黙って叩いてしまう。
+    expect(keyring.stage).toBe("v1");
     expect(keyring.isGeoloniaStyle).toBe(true);
+  });
+
+  it("should not default to the dev stage", () => {
+    expect(keyring.stage).not.toBe("dev");
   });
 
   it("should set and get apiKey", () => {
@@ -33,7 +39,7 @@ describe("keyring", () => {
     keyring.isGeoloniaStyle = false;
     keyring.reset();
     expect(keyring.apiKey).toBe("");
-    expect(keyring.stage).toBe("dev");
+    expect(keyring.stage).toBe("v1");
     expect(keyring.isGeoloniaStyle).toBe(true);
   });
 

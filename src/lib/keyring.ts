@@ -1,4 +1,20 @@
 /**
+ * ステージの既定値。
+ *
+ * かつては `"dev"` だった。stage が `"dev"` のとき SDK は
+ * `tileserver.geolonia.com` を `tileserver-dev.geolonia.com` へ書き換え、
+ * API も `https://api.geolonia.com/dev` を向く（`GeoloniaMap` を参照）。
+ *
+ * CDN 版の embed はスクリプトタグから stage を読んで設定するが、npm 経由で
+ * SDK を直接使う場合はその材料がない。既定が `"dev"` だと、stage を渡し忘れた
+ * 利用者が黙って dev 環境を叩いてしまう。既定は本番であるべきなので `"v1"` にする。
+ *
+ * dev を使いたい場合は {@link Keyring.setStage} か `GeoloniaMap` の
+ * `stage` オプションで明示的に指定する。
+ */
+const DEFAULT_STAGE = "v1";
+
+/**
  * API キー、ステージ、現在のスタイルが Geolonia スタイルかどうかを保持するクラスです。
  *
  * これらの値は SDK 全体で共有され、地図タイルやスタイルの取得時に参照されます。
@@ -15,7 +31,7 @@
  */
 class Keyring {
   #apiKey = "";
-  #stage = "dev";
+  #stage = DEFAULT_STAGE;
   #isGeoloniaStyle = true;
 
   /**
@@ -32,7 +48,7 @@ class Keyring {
   /**
    * 現在設定されているステージを返します。
    *
-   * 初期値は `"dev"` です。
+   * 初期値は `"v1"`（本番）です。{@link DEFAULT_STAGE} を参照してください。
    *
    * @returns ステージを表す文字列を返します。
    */
@@ -79,11 +95,11 @@ class Keyring {
   /**
    * API キー、ステージ、Geolonia スタイル判定をすべて初期状態に戻します。
    *
-   * API キーは空文字列、ステージは `"dev"`、Geolonia スタイル判定は `true` にリセットされます。
+   * API キーは空文字列、ステージは `"v1"`、Geolonia スタイル判定は `true` にリセットされます。
    */
   reset() {
     this.#apiKey = "";
-    this.#stage = "dev";
+    this.#stage = DEFAULT_STAGE;
     this.#isGeoloniaStyle = true;
   }
 
