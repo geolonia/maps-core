@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { keyring } from "../src/lib/keyring";
 
 describe("keyring", () => {
@@ -6,16 +6,13 @@ describe("keyring", () => {
     keyring.reset();
   });
 
-  it("should have default values", () => {
+  // beforeEach で reset() を呼んでいるので、これが見ているのは
+  // コンストラクタの初期値ではなく reset() 後の状態。
+  // 初期値そのものは下の "module defaults" で確認する。
+  it("should have default values after reset", () => {
     expect(keyring.apiKey).toBe("");
-    // 既定は本番。dev だと stage を渡し忘れた npm 利用者が
-    // tileserver-dev / api.geolonia.com/dev を黙って叩いてしまう。
     expect(keyring.stage).toBe("v1");
     expect(keyring.isGeoloniaStyle).toBe(true);
-  });
-
-  it("should not default to the dev stage", () => {
-    expect(keyring.stage).not.toBe("dev");
   });
 
   it("should set and get apiKey", () => {
@@ -88,5 +85,19 @@ describe("keyring", () => {
         keyring.isGeoloniaStyleCheck("pmtiles://example.com/tiles.pmtiles"),
       ).toBe(false);
     });
+  });
+});
+
+// シングルトンを reset() せずに読み込み直し、コンストラクタの初期値を見る。
+// Keyring クラスは export していないので、モジュールを再評価して確認する。
+describe("keyring module defaults", () => {
+  it("defaults stage to the production stage without any reset", async () => {
+    vi.resetModules();
+    const fresh = await import("../src/lib/keyring");
+    // 既定が "dev" だと、stage を渡し忘れた npm 利用者が
+    // tileserver-dev / api.geolonia.com/dev を黙って叩いてしまう。
+    expect(fresh.keyring.stage).toBe("v1");
+    expect(fresh.keyring.apiKey).toBe("");
+    expect(fresh.keyring.isGeoloniaStyle).toBe(true);
   });
 });

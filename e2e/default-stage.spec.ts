@@ -41,19 +41,37 @@ test.describe("default stage (no stage option)", () => {
   });
 
   test("does not rewrite tile hosts to tileserver-dev", async ({ page }) => {
+    // dev ホストが 0 件であることだけを見ると、そもそもタイルサーバへ
+    // 一度もリクエストしていない場合にも通ってしまう。本番ホストへの
+    // リクエストが実際に起きたことを合わせて確認する。
+    const prodHosts: string[] = [];
     const devHosts: string[] = [];
     page.on("request", (req) => {
       const host = new URL(req.url()).host;
-      if (host.endsWith("-dev.geolonia.com") && host.startsWith("tileserver")) {
-        devHosts.push(host);
+      if (host === "tileserver.geolonia.com") prodHosts.push(req.url());
+      if (host === "tileserver-dev.geolonia.com") devHosts.push(req.url());
+    });
+
+    // タイルサーバの応答そのものを見る。collectConsoleErrors は
+    // "Failed to load resource" を除外するので、リソース取得の失敗を
+    // コンソール経由では検知できない。
+    const failed: string[] = [];
+    page.on("response", (res) => {
+      const host = new URL(res.url()).host;
+      if (host.startsWith("tileserver") && res.status() >= 400) {
+        failed.push(`${res.status()} ${res.url()}`);
       }
     });
 
     const errors = collectConsoleErrors(page);
     await page.goto("/geolonia-style.html");
     await waitForMapLoad(page);
+    await expect
+      .poll(() => prodHosts.length, { timeout: 10_000 })
+      .toBeGreaterThan(0);
 
     expect(devHosts).toHaveLength(0);
+    expect(failed).toHaveLength(0);
     expect(errors).toHaveLength(0);
   });
 });
