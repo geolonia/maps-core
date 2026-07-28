@@ -6,7 +6,7 @@ export { GeoloniaControl } from "./lib/controls/geolonia-logo";
 export { default as GeoloniaMap } from "./lib/geolonia-map";
 export { default as GeoloniaMarker } from "./lib/geolonia-marker";
 // Configuration
-export { keyring } from "./lib/keyring";
+export { DEFAULT_STAGE, keyring } from "./lib/keyring";
 export { SimpleStyle } from "./lib/simplestyle";
 export { default as SimpleStyleVector } from "./lib/simplestyle-vector";
 

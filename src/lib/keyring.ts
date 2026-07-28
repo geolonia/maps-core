@@ -1,18 +1,31 @@
 /**
- * ステージの既定値。
+ * ステージの既定値です。本番環境を表す `"v1"` です。
  *
- * かつては `"dev"` だった。stage が `"dev"` のとき SDK は
- * `tileserver.geolonia.com` を `tileserver-dev.geolonia.com` へ書き換え、
- * API も `https://api.geolonia.com/dev` を向く（`GeoloniaMap` を参照）。
+ * ステージは、SDK がタイルや API をどの環境から取得するかを決める値です。
+ * `stage` を指定しなかった場合は、この値が使われます。
  *
- * CDN 版の embed はスクリプトタグから stage を読んで設定するが、npm 経由で
- * SDK を直接使う場合はその材料がない。既定が `"dev"` だと、stage を渡し忘れた
- * 利用者が黙って dev 環境を叩いてしまう。既定は本番であるべきなので `"v1"` にする。
+ * - `"v1"`（既定）: 本番環境。`tileserver.geolonia.com` と `https://api.geolonia.com/v1` を使用します。
+ * - `"dev"`: 開発環境。`tileserver-dev.geolonia.com` と `https://api.geolonia.com/dev` を使用します。
  *
- * dev を使いたい場合は {@link Keyring.setStage} か `GeoloniaMap` の
- * `stage` オプションで明示的に指定する。
+ * 通常は指定する必要がありません。開発環境を使う場合のみ、`GeoloniaMap` の
+ * `stage` オプションか {@link Keyring.setStage} で明示的に切り替えてください。
+ *
+ * `@geolonia/maps-react` や `@geolonia/maps-suite` のようなラッパーが、
+ * 自身の既定として参照することを想定して公開しています。値をハードコードせず
+ * この定数を使うことで、SDK 全体で既定のステージが揃います。
+ *
+ * @example
+ * ```typescript
+ * import { DEFAULT_STAGE, GeoloniaMap } from "@geolonia/maps-core";
+ *
+ * new GeoloniaMap({
+ *   container: "#map",
+ *   apiKey: "YOUR-API-KEY",
+ *   stage: DEFAULT_STAGE,
+ * });
+ * ```
  */
-const DEFAULT_STAGE = "v1";
+export const DEFAULT_STAGE = "v1";
 
 /**
  * API キー、ステージ、現在のスタイルが Geolonia スタイルかどうかを保持するクラスです。
@@ -48,7 +61,7 @@ class Keyring {
   /**
    * 現在設定されているステージを返します。
    *
-   * 初期値は `"v1"`（本番）です。{@link DEFAULT_STAGE} を参照してください。
+   * 初期値は {@link DEFAULT_STAGE}（`"v1"`）です。
    *
    * @returns ステージを表す文字列を返します。
    */
@@ -95,7 +108,7 @@ class Keyring {
   /**
    * API キー、ステージ、Geolonia スタイル判定をすべて初期状態に戻します。
    *
-   * API キーは空文字列、ステージは `"v1"`、Geolonia スタイル判定は `true` にリセットされます。
+   * API キーは空文字列、ステージは {@link DEFAULT_STAGE}、Geolonia スタイル判定は `true` にリセットされます。
    */
   reset() {
     this.#apiKey = "";
