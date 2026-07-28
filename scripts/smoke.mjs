@@ -5,7 +5,7 @@ const m = await import(new URL("../dist/npm/index.js", import.meta.url));
 
 const requiredClasses = ["GeoloniaMap", "GeoloniaMarker", "CustomAttributionControl", "GeoloniaControl", "SimpleStyle", "SimpleStyleVector"];
 const requiredFunctions = ["getLang", "getStyle", "isGeoloniaTilesHost"];
-const requiredValues = ["keyring", "coreVersion"];
+const requiredValues = ["keyring", "coreVersion", "DEFAULT_STAGE"];
 
 const missing = [];
 for (const name of requiredClasses) {
