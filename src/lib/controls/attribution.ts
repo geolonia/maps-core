@@ -34,23 +34,33 @@ export interface CustomAttributionControlOptions {
 }
 
 /**
+ * 帰属表示の収集に必要な、ソースごとのタイル管理オブジェクトの最小形です。
+ * maplibre-gl の `SourceCache` / `TileManager` のいずれにも当てはまります。
+ */
+interface AttributionSourceEntry {
+  used: boolean;
+  usedForTerrain: boolean;
+  getSource(): { attribution?: string };
+}
+
+/**
  * MapLibre Map with internal properties used by this control.
  * These are internal APIs not in the public MapLibre type.
  * We use a type alias (not interface extends) to avoid conflicts
  * with MapLibre's `style` property type.
+ *
+ * `sourceCaches` は maplibre-gl 5.11.0 で `tileManagers` に改名されました。
+ * どちらの版でも動くように、両方を optional として宣言します。
+ * optional にしておくことで、参照側でフォールバックを省くと型エラーになります。
  */
 type MapInternal = MaplibreMap & {
   _getUIString(key: string): string;
   style: MaplibreMap["style"] & {
     stylesheet?: { owner: string; id: string };
-    sourceCaches: Record<
-      string,
-      {
-        used: boolean;
-        usedForTerrain: boolean;
-        getSource(): { attribution?: string };
-      }
-    >;
+    /** maplibre-gl 5.11.0 以降のプロパティ名です。 */
+    tileManagers?: Record<string, AttributionSourceEntry>;
+    /** maplibre-gl 5.11.0 未満のプロパティ名です。 */
+    sourceCaches?: Record<string, AttributionSourceEntry>;
   };
 };
 
@@ -365,11 +375,14 @@ class CustomAttributionControl implements IControl {
       }
     }
 
-    const sourceCaches = this._map.style.sourceCaches;
-    for (const id in sourceCaches) {
-      const sourceCache = sourceCaches[id];
-      if (sourceCache.used || sourceCache.usedForTerrain) {
-        const source = sourceCache.getSource();
+    // maplibre-gl 5.11.0 で `sourceCaches` が `tileManagers` に改名されたため、
+    // どちらの版でも帰属表示を収集できるようにフォールバックします。
+    const tileManagers =
+      this._map.style.tileManagers ?? this._map.style.sourceCaches ?? {};
+    for (const id in tileManagers) {
+      const tileManager = tileManagers[id];
+      if (tileManager.used || tileManager.usedForTerrain) {
+        const source = tileManager.getSource();
         if (
           source.attribution &&
           attributions.indexOf(source.attribution) < 0

@@ -35,6 +35,13 @@ afterAll(() => {
 });
 
 /**
+ * maplibre-gl は 5.11.0 で `style.sourceCaches` を `style.tileManagers` に改名した。
+ * どちらの版でも帰属表示が壊れないことを確かめるため、両方の名前でテストする。
+ */
+const SOURCE_CONTAINER_KEYS = ["tileManagers", "sourceCaches"] as const;
+type SourceContainerKey = (typeof SOURCE_CONTAINER_KEYS)[number];
+
+/**
  * Extend MockMap with internal properties required by CustomAttributionControl.
  */
 function createAttributionMap(
@@ -44,6 +51,11 @@ function createAttributionMap(
       string,
       { used: boolean; usedForTerrain: boolean; attribution?: string }
     >;
+    /**
+     * ソース一覧を保持する `style` のプロパティ名。
+     * 省略した場合は maplibre-gl 5.11.0 以降の `tileManagers` を使う。
+     */
+    sourceContainerKey?: SourceContainerKey;
   } = {},
 ) {
   const map = new MockMap();
@@ -58,7 +70,7 @@ function createAttributionMap(
   (map as unknown as Record<string, unknown>)._getUIString = (key: string) =>
     `ui:${key}`;
 
-  // Internal style property with sourceCaches
+  // Internal style property holding the per-source tile managers
   const caches: Record<string, unknown> = {};
   for (const [id, sc] of Object.entries(opts.sourceCaches ?? {})) {
     caches[id] = {
@@ -68,7 +80,7 @@ function createAttributionMap(
     };
   }
   (map as unknown as Record<string, unknown>).style = {
-    sourceCaches: caches,
+    [opts.sourceContainerKey ?? "tileManagers"]: caches,
   };
 
   return map;
@@ -231,30 +243,86 @@ describe("CustomAttributionControl", () => {
       expect(inner?.innerHTML).toBe("© A");
     });
 
-    it("should collect attributions from source caches", () => {
-      const map = createAttributionMap({
-        sourceCaches: {
+    // maplibre-gl 5.11.0 の `sourceCaches` → `tileManagers` 改名で
+    // 帰属表示が空になった不具合の回帰テスト。
+    for (const key of SOURCE_CONTAINER_KEYS) {
+      describe(`with style.${key}`, () => {
+        const sourceCaches = {
           src1: { used: true, usedForTerrain: false, attribution: "© Source1" },
-          src2: {
-            used: false,
-            usedForTerrain: true,
-            attribution: "© Source2",
-          },
-          src3: {
-            used: false,
-            usedForTerrain: false,
-            attribution: "© Unused",
-          },
-        },
+          src2: { used: false, usedForTerrain: true, attribution: "© Source2" },
+          src3: { used: false, usedForTerrain: false, attribution: "© Unused" },
+        };
+
+        it("should collect attributions from used sources", () => {
+          const map = createAttributionMap({
+            sourceContainerKey: key,
+            sourceCaches,
+          });
+          const ctrl = new CustomAttributionControl();
+          const container = ctrl.onAdd(map as never);
+          const inner = container.shadowRoot?.querySelector(
+            ".maplibregl-ctrl-attrib-inner",
+          );
+          expect(inner?.innerHTML).toContain("© Source1");
+          expect(inner?.innerHTML).toContain("© Source2");
+          expect(inner?.innerHTML).not.toContain("© Unused");
+        });
+
+        it("should render non-empty attribution text", () => {
+          const map = createAttributionMap({
+            sourceContainerKey: key,
+            sourceCaches,
+          });
+          const ctrl = new CustomAttributionControl();
+          const container = ctrl.onAdd(map as never);
+          const inner = container.shadowRoot?.querySelector(
+            ".maplibregl-ctrl-attrib-inner",
+          );
+          expect(inner?.textContent?.trim().length).toBeGreaterThan(0);
+        });
+
+        it("should not mark the control as empty", () => {
+          const map = createAttributionMap({
+            sourceContainerKey: key,
+            sourceCaches,
+          });
+          const ctrl = new CustomAttributionControl();
+          const container = ctrl.onAdd(map as never);
+          const details = container.shadowRoot?.querySelector("details");
+          expect(details?.classList.contains("maplibregl-attrib-empty")).toBe(
+            false,
+          );
+        });
+
+        it("should combine custom attribution with source attributions", () => {
+          const map = createAttributionMap({
+            sourceContainerKey: key,
+            sourceCaches,
+          });
+          const ctrl = new CustomAttributionControl({
+            customAttribution: "© Geolonia",
+          });
+          const container = ctrl.onAdd(map as never);
+          const inner = container.shadowRoot?.querySelector(
+            ".maplibregl-ctrl-attrib-inner",
+          );
+          expect(inner?.innerHTML).toContain("© Geolonia");
+          expect(inner?.innerHTML).toContain("© Source1");
+        });
       });
-      const ctrl = new CustomAttributionControl();
+    }
+
+    it("should tolerate a style without any source container", () => {
+      const map = createAttributionMap();
+      (map as unknown as Record<string, unknown>).style = {};
+      const ctrl = new CustomAttributionControl({
+        customAttribution: "© Geolonia",
+      });
       const container = ctrl.onAdd(map as never);
       const inner = container.shadowRoot?.querySelector(
         ".maplibregl-ctrl-attrib-inner",
       );
-      expect(inner?.innerHTML).toContain("© Source1");
-      expect(inner?.innerHTML).toContain("© Source2");
-      expect(inner?.innerHTML).not.toContain("© Unused");
+      expect(inner?.innerHTML).toBe("© Geolonia");
     });
 
     it("should add maplibregl-attrib-empty class when no attributions", () => {

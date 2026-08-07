@@ -30,14 +30,18 @@ test.describe("GeoJSON / SimpleStyle", () => {
     await waitForMapLoad(page);
 
     expect(await hasSource(page, "geolonia-simple-style-points")).toBe(true);
-    const featureCount = await page.evaluate(() => {
+    // GeoJSONSource の内部プロパティ `_data` は maplibre-gl のバージョンで形が変わるため、
+    // 公開 API の `getData()` を使う。
+    const featureCount = await page.evaluate(async () => {
       const map = (window as unknown as Record<string, unknown>).map as {
         getSource: (
           id: string,
-        ) => { _data?: { features?: unknown[] } } | undefined;
+        ) => { getData?: () => Promise<{ features?: unknown[] }> } | undefined;
       };
       const src = map.getSource("geolonia-simple-style-points");
-      return src?._data?.features?.length ?? 0;
+      if (!src?.getData) return 0;
+      const data = await src.getData();
+      return data?.features?.length ?? 0;
     });
     expect(featureCount).toBe(3);
   });
