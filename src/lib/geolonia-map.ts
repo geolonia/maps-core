@@ -278,6 +278,7 @@ export default class GeoloniaMap extends maplibregl.Map {
       "clusterColor",
       "simpleVector",
       "3d",
+      "errorMessage",
     ] as const) {
       delete (mapOptions as Record<string, unknown>)[key];
     }
@@ -285,7 +286,10 @@ export default class GeoloniaMap extends maplibregl.Map {
     try {
       super(mapOptions);
     } catch (error) {
-      handleErrorMode(container);
+      // 初期化に失敗した以上ローディングは終わらないので、先に消す。
+      // 消さないと `errorMessage: false` のとき「読み込み中」のまま見えてしまう。
+      container.querySelector(".loading-geolonia-map")?.remove();
+      handleErrorMode(container, { message: options.errorMessage });
       throw error;
     }
 
