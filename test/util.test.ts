@@ -230,12 +230,79 @@ describe("handleErrorMode", () => {
     );
     expect(errorContainer).not.toBeNull();
 
-    const h2 = errorContainer?.querySelector("h2");
-    expect(h2?.textContent).toBe("Geolonia Maps");
-
     const desc = errorContainer?.querySelector(
       ".geolonia__error-message-description",
     );
     expect(desc).not.toBeNull();
+  });
+
+  it("should tell the visitor what to try", () => {
+    const container = document.createElement("div");
+    handleErrorMode(container);
+
+    expect(
+      container.querySelector(".geolonia__error-message-title")?.textContent,
+    ).toBe("地図を表示できませんでした");
+    // Restart the browser, restart the device, try another browser,
+    // update the graphics driver.
+    expect(
+      container.querySelectorAll(".geolonia__error-message-steps li").length,
+    ).toBe(4);
+    expect(
+      container.querySelector(".geolonia__error-message-contact"),
+    ).not.toBeNull();
+  });
+
+  it("should render the short variant too, so CSS can pick one by container size", () => {
+    const container = document.createElement("div");
+    handleErrorMode(container);
+
+    expect(
+      container.querySelector(".geolonia__error-message-brief"),
+    ).not.toBeNull();
+  });
+
+  it("should not tell the visitor to open the developer tools", () => {
+    const container = document.createElement("div");
+    handleErrorMode(container);
+
+    expect(container.textContent).not.toContain("開発者ツール");
+  });
+
+  it("should replace the message with the given one", () => {
+    const container = document.createElement("div");
+    handleErrorMode(container, {
+      message: "地図を表示できませんでした。0120-000-000 までご連絡ください。",
+    });
+
+    expect(
+      container.querySelector(".geolonia__error-message-description")
+        ?.textContent,
+    ).toBe("地図を表示できませんでした。0120-000-000 までご連絡ください。");
+    expect(
+      container.querySelector(".geolonia__error-message-steps"),
+    ).toBeNull();
+  });
+
+  it("should render the given message as text, not as HTML", () => {
+    const container = document.createElement("div");
+    handleErrorMode(container, {
+      message: '<img src=x onerror="alert(1)">お問い合わせください',
+    });
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toContain(
+      '<img src=x onerror="alert(1)">お問い合わせください',
+    );
+  });
+
+  it("should render nothing when disabled", () => {
+    for (const message of ["off", "OFF", false] as const) {
+      const container = document.createElement("div");
+      handleErrorMode(container, { message });
+
+      expect(container.querySelector(".geolonia__error-container")).toBeNull();
+      expect(container.children.length).toBe(0);
+    }
   });
 });

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebGL error E2E</title>
+  <style>
+    body { font-family: sans-serif; margin: 1rem; }
+    .example { margin-bottom: 1.5rem; }
+    .map { border: 1px solid #ccc; }
+    #map-large { width: 640px; height: 400px; }
+    #map-medium { width: 360px; height: 240px; }
+    #map-small { width: 220px; height: 130px; }
+    #map-custom { width: 640px; height: 240px; }
+    #map-off { width: 640px; height: 160px; }
+  </style>
+  <script>
+    // Emulate a device without WebGL, so map initialization always fails.
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, ...args) {
+      if (typeof type === "string" && type.indexOf("webgl") === 0) {
+        return null;
+      }
+      return originalGetContext.call(this, type, ...args);
+    };
+  </script>
+</head>
+<body>
+  <div class="example">
+    <h2>Large map (default message, with steps)</h2>
+    <div id="map-large" class="map"></div>
+  </div>
+
+  <div class="example">
+    <h2>Medium map (default message, shortened)</h2>
+    <div id="map-medium" class="map"></div>
+  </div>
+
+  <div class="example">
+    <h2>Small map (headline only)</h2>
+    <div id="map-small" class="map"></div>
+  </div>
+
+  <div class="example">
+    <h2>Replaced message (errorMessage: string)</h2>
+    <div id="map-custom" class="map"></div>
+  </div>
+
+  <div class="example">
+    <h2>No error display (errorMessage: false)</h2>
+    <div id="map-off" class="map"></div>
+  </div>
+
+  <script type="module" src="/webgl-error.ts"></script>
+</body>
+</html>

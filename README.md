@@ -75,7 +75,26 @@ const map = new GeoloniaMap({
   clusterColor: '#ff0000',
   simpleVector: 'my-tileset',   // Vector tile URL or tileset ID
   '3d': false,
+  errorMessage: undefined,      // Message shown when the map fails to initialize
 });
+```
+
+#### `errorMessage`
+
+When the map cannot be initialized (typically because WebGL is unavailable on the
+device), the container is replaced with a message telling the visitor what to try:
+restart the browser, restart the device, try another browser, update the graphics
+driver, and contact the site owner if it still fails. The message is shortened, and
+finally reduced to the headline alone, as the map container gets smaller.
+
+Pass `errorMessage` to take that over:
+
+```typescript
+// Replace the wording. The value is rendered as plain text, not as HTML.
+new GeoloniaMap({ container: '#map', errorMessage: 'Sorry, the map is unavailable.' });
+
+// Show nothing at all, e.g. when the page renders its own fallback.
+new GeoloniaMap({ container: '#map', errorMessage: false });
 ```
 
 ### `GeoloniaMarker`
