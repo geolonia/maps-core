@@ -10,7 +10,40 @@ Designed to be side-effect-free and DOM-independent, serving as the shared found
 npm install @geolonia/maps-core maplibre-gl
 ```
 
-`maplibre-gl` is a peer dependency.
+`maplibre-gl` is a peer dependency. v6 or later is required.
+
+This package is ESM-only, following MapLibre GL JS v6. There is no `require()`
+entry point. If you need a script-tag build, use the UMD bundle attached to each
+[GitHub Release](https://github.com/geolonia/maps-core/releases) — it is
+self-contained and needs no worker setup.
+
+### Worker setup
+
+MapLibre GL JS v6 ships ESM-only and loads its worker from a real URL resolved
+against `import.meta.url`. Most bundlers do not carry that file over on their
+own, so the map silently never finishes loading unless you point MapLibre at
+the worker yourself. Do this once, before the first map is created.
+
+```typescript
+// Vite
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+import { setWorkerUrl } from 'maplibre-gl';
+
+setWorkerUrl(workerUrl);
+```
+
+```typescript
+// webpack 5+
+import { setWorkerUrl } from 'maplibre-gl';
+
+setWorkerUrl(
+  new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url).toString(),
+);
+```
+
+See [the MapLibre docs](https://maplibre.org/maplibre-gl-js/docs/) for esbuild,
+Rollup and Turbopack. No setup is needed when loading MapLibre from a CDN as an
+ES module.
 
 ## Usage
 

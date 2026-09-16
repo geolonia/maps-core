@@ -2,14 +2,12 @@
   "name": "@geolonia/maps-core",
   "version": "0.5.1",
   "type": "module",
-  "main": "dist/npm/index.cjs",
   "module": "dist/npm/index.js",
   "types": "dist/npm/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/npm/index.d.ts",
-      "import": "./dist/npm/index.js",
-      "require": "./dist/npm/index.cjs"
+      "import": "./dist/npm/index.js"
     },
     "./css": "./src/assets/style.css"
   },
@@ -26,7 +24,7 @@
     "tinycolor2": "^1.4.1"
   },
   "peerDependencies": {
-    "maplibre-gl": "^5.0.0"
+    "maplibre-gl": "^6.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
@@ -34,8 +32,9 @@
     "@types/sanitize-html": "^2.16.1",
     "@types/tinycolor2": "^1.4.6",
     "@vitest/coverage-v8": "^4.1.2",
+    "esbuild": "^0.27.7",
     "jsdom": "^29.0.1",
-    "maplibre-gl": "5.24.0",
+    "maplibre-gl": "6.10.0",
     "tsup": "^8",
     "typedoc": "^0.28.20",
     "typedoc-plugin-markdown": "^4.12.0",

@@ -14,8 +14,14 @@ The release job in `.github/workflows/ci.yml` triggers on tags matching `v*`.
 
 | Artifact | Output | Distribution |
 |---|---|---|
-| ESM/CJS/DTS | `dist/npm/` | npm registry (~31 KB) |
-| UMD bundle | `dist/umd/maps-core.umd.cjs` | GitHub Releases (~1.3 MB) |
+| ESM/DTS | `dist/npm/` | npm registry (~31 KB) |
+| UMD bundle | `dist/umd/maps-core.umd.cjs` | GitHub Releases (~1.8 MB) |
+
+The package is ESM-only. MapLibre GL JS v6 dropped its CommonJS build, so a
+`require()` entry could not resolve `maplibre-gl` at runtime and was removed.
+
+The UMD bundle embeds the MapLibre worker so it stays a single drop-in file;
+see `vite.umd.config.ts`. That accounts for its size over the npm build.
 
 ### npm authentication
 

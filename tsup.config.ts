@@ -5,8 +5,10 @@ const pkg = JSON.parse(readFileSync("./package.json", "utf8"));
 
 export default defineConfig({
   entry: ["src/index.ts"],
-  format: ["esm", "cjs"],
+  format: ["esm"],
   dts: true,
+  // ESM-only へ移行したので、過去の CJS 成果物を残さない。
+  clean: true,
   external: ["maplibre-gl"],
   outDir: "dist/npm",
   define: {

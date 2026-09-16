@@ -223,6 +223,12 @@ export function handleErrorMode(
     return;
   }
 
+  // エラー表示はコンテナいっぱいに敷く絶対配置なので、地図コンテナ自身が位置の
+  // 基準になっている必要がある。maplibre-gl v5 は WebGL の取得に失敗する前に
+  // `.maplibregl-map`（position: relative）を付けていたためそれに乗れたが、v6 は
+  // WebGL2 の取得に失敗した時点で抜けるのでクラスが付かない。基準は自前で作る。
+  container.classList.add("geolonia__error-host");
+
   const errorContainer = document.createElement("div");
   errorContainer.classList.add("geolonia__error-container");
 
