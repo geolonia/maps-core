@@ -10,7 +10,7 @@ Designed to be side-effect-free and DOM-independent, serving as the shared found
 npm install @geolonia/maps-core maplibre-gl
 ```
 
-`maplibre-gl` is a peer dependency. v6 or later is required.
+`maplibre-gl` is a peer dependency. v6.x is required (`^6.0.0`).
 
 This package is ESM-only, following MapLibre GL JS v6. There is no `require()`
 entry point. If you need a script-tag build, use the UMD bundle attached to each
@@ -175,7 +175,7 @@ keyring.setStage('v1');
 
 ```bash
 npm install
-npm run build     # ESM + CJS + DTS
+npm run build     # ESM + DTS
 npm run test      # Vitest unit tests
 npm run e2e       # Playwright E2E tests
 npm run lint      # Biome
