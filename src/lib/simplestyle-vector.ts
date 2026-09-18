@@ -1,9 +1,10 @@
 import turfCenter from "@turf/center";
-import maplibregl, {
-  type MapLayerMouseEvent,
-  type Map as MaplibreMap,
-  type MapSourceDataEvent,
+import type {
+  MapLayerMouseEvent,
+  Map as MaplibreMap,
+  MapSourceDataEvent,
 } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { sanitizeDescription } from "./util";
 
 const textColor = "#000000";

@@ -1,10 +1,11 @@
-import maplibregl, {
-  type ControlPosition,
-  type GetResourceResponse,
-  type StyleOptions,
-  type StyleSpecification,
-  type StyleSwapOptions,
+import type {
+  ControlPosition,
+  GetResourceResponse,
+  StyleOptions,
+  StyleSpecification,
+  StyleSwapOptions,
 } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
 import CustomAttributionControl from "./controls/attribution";
 import { GeoloniaControl } from "./controls/geolonia-logo";

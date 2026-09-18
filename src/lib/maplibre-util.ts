@@ -1,4 +1,5 @@
-import maplibregl, { type Point } from "maplibre-gl";
+import type { Point } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 
 /**
  * DOM utility class extracted from maplibre-gl-js.

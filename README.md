@@ -10,7 +10,93 @@ Designed to be side-effect-free and DOM-independent, serving as the shared found
 npm install @geolonia/maps-core maplibre-gl
 ```
 
-`maplibre-gl` is a peer dependency.
+`maplibre-gl` is a peer dependency. v6.x is required (`^6.0.0`).
+
+This package is ESM-only, following MapLibre GL JS v6. There is no `require()`
+entry point. If you need a script-tag build, use the UMD bundle attached to each
+[GitHub Release](https://github.com/geolonia/maps-core/releases) — it is
+self-contained and needs no worker setup. It does run its worker from a Blob
+URL, so a page with a Content-Security-Policy needs `worker-src blob:`.
+
+### Worker setup
+
+MapLibre GL JS v6 ships ESM-only and loads its worker from a real URL resolved
+against `import.meta.url`. Most bundlers do not carry that file over on their
+own, so the map silently never finishes loading unless you point MapLibre at
+the worker yourself. Do this once, before the first map is created.
+
+Two files are involved, not one: `maplibre-gl-worker.mjs` is a small shim that
+imports `./maplibre-gl-shared.mjs` as a sibling. That splits the setups in two.
+Run the worker through the bundler's own worker pipeline and it comes out as a
+self-contained chunk, with nothing else to place. Copy or serve the shim
+verbatim instead, and the sibling has to sit next to it in the output — miss it
+and the worker dies on its first import, with no exception and no console error.
+
+Vite has such a pipeline, and `?worker&url` is what routes the file through it:
+
+```typescript
+// Vite
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+import { setWorkerUrl } from 'maplibre-gl';
+
+setWorkerUrl(workerUrl);
+```
+
+Plain `?url` is not enough — it emits the shim verbatim, which puts you in the
+second case without the sibling.
+
+webpack is in that second case: copy both files into the output and point at the
+copy. Note that `new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url)`
+does *not* work — webpack emits the shim on its own, leaving the sibling import
+to 404.
+
+```bash
+npm install --save-dev copy-webpack-plugin
+```
+
+```js
+// webpack.config.js
+const CopyPlugin = require('copy-webpack-plugin');
+
+module.exports = {
+  plugins: [
+    new CopyPlugin({
+      patterns: [
+        {
+          from: require.resolve('maplibre-gl/dist/maplibre-gl-worker.mjs'),
+          to: 'maplibre-gl-worker.mjs',
+        },
+        {
+          from: require.resolve('maplibre-gl/dist/maplibre-gl-shared.mjs'),
+          to: 'maplibre-gl-shared.mjs',
+        },
+      ],
+    }),
+  ],
+};
+```
+
+```typescript
+import { setWorkerUrl } from 'maplibre-gl';
+
+setWorkerUrl('maplibre-gl-worker.mjs');
+```
+
+For esbuild, Rollup and Turbopack, see
+[the MapLibre docs](https://maplibre.org/maplibre-gl-js/docs/) — and work out
+which of the two cases above your setup lands in.
+
+Loading MapLibre from a CDN as an ES module needs no setup: the worker URL is
+derived from the module's own URL. Cross-origin, MapLibre starts that worker
+from a same-origin Blob URL, so the page needs `worker-src blob:`. If your CSP
+cannot allow that, host the two worker files yourself and name the worker
+explicitly before creating a map:
+
+```typescript
+import { setWorkerUrl } from 'maplibre-gl';
+
+setWorkerUrl('/path/to/maplibre-gl-worker.mjs');
+```
 
 ## Usage
 
@@ -142,7 +228,7 @@ keyring.setStage('v1');
 
 ```bash
 npm install
-npm run build     # ESM + CJS + DTS
+npm run build     # ESM + DTS
 npm run test      # Vitest unit tests
 npm run e2e       # Playwright E2E tests
 npm run lint      # Biome

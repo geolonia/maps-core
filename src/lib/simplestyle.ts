@@ -1,11 +1,12 @@
 import bbox from "@turf/bbox";
 import turfCenter from "@turf/center";
-import maplibregl, {
-  type GeoJSONSource,
-  type MapLayerEventType,
-  type MapLayerMouseEvent,
-  type Map as MaplibreMap,
+import type {
+  GeoJSONSource,
+  MapLayerEventType,
+  MapLayerMouseEvent,
+  Map as MaplibreMap,
 } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { isURL, sanitizeDescription } from "./util";
 
 type FeatureCollection = GeoJSON.FeatureCollection;

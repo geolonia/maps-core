@@ -11,7 +11,7 @@ const declared = new Set([
 ]);
 const builtins = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)]);
 
-const files = ["../dist/npm/index.js", "../dist/npm/index.cjs"];
+const files = ["../dist/npm/index.js"];
 const re = /(?:from|require\()\s*["']([^"'][^"']*)["']/g;
 
 const toPkgName = (spec) =>

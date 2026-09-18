@@ -112,6 +112,12 @@
 }
 
 /* Style for error message */
+
+/* エラー表示の絶対配置が地図コンテナ基準になるようにする。 */
+.geolonia__error-host {
+  position: relative;
+}
+
 /*
  * 文言は「手順を書き切った版」と「短縮版」の両方が DOM にあり、
  * どちらを見せるかは地図コンテナの広さで切り替える。
