@@ -24,6 +24,11 @@ against `import.meta.url`. Most bundlers do not carry that file over on their
 own, so the map silently never finishes loading unless you point MapLibre at
 the worker yourself. Do this once, before the first map is created.
 
+Two files are involved, not one: `maplibre-gl-worker.mjs` is a small shim that
+imports `./maplibre-gl-shared.mjs` as a sibling. Whatever you do, both files
+have to end up next to each other in your output, or the worker dies on its
+first import — with no exception and no console error.
+
 ```typescript
 // Vite
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
@@ -32,18 +37,42 @@ import { setWorkerUrl } from 'maplibre-gl';
 setWorkerUrl(workerUrl);
 ```
 
-```typescript
-// webpack 5+
-import { setWorkerUrl } from 'maplibre-gl';
+For webpack, copy both files into the output and point at the copy. Note that
+`new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url)` does *not*
+work: webpack emits the shim on its own, leaving the sibling import to 404.
 
-setWorkerUrl(
-  new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url).toString(),
-);
+```js
+// webpack.config.js
+const CopyPlugin = require('copy-webpack-plugin');
+
+module.exports = {
+  plugins: [
+    new CopyPlugin({
+      patterns: [
+        {
+          from: require.resolve('maplibre-gl/dist/maplibre-gl-worker.mjs'),
+          to: 'maplibre-gl-worker.mjs',
+        },
+        {
+          from: require.resolve('maplibre-gl/dist/maplibre-gl-shared.mjs'),
+          to: 'maplibre-gl-shared.mjs',
+        },
+      ],
+    }),
+  ],
+};
 ```
 
-See [the MapLibre docs](https://maplibre.org/maplibre-gl-js/docs/) for esbuild,
-Rollup and Turbopack. No setup is needed when loading MapLibre from a CDN as an
-ES module.
+```typescript
+import { setWorkerUrl } from 'maplibre-gl';
+
+setWorkerUrl('maplibre-gl-worker.mjs');
+```
+
+For esbuild, Rollup and Turbopack, see
+[the MapLibre docs](https://maplibre.org/maplibre-gl-js/docs/) — and apply the
+same rule about keeping the two files together. No setup is needed when loading
+MapLibre from a CDN as an ES module.
 
 ## Usage
 
