@@ -15,7 +15,8 @@ npm install @geolonia/maps-core maplibre-gl
 This package is ESM-only, following MapLibre GL JS v6. There is no `require()`
 entry point. If you need a script-tag build, use the UMD bundle attached to each
 [GitHub Release](https://github.com/geolonia/maps-core/releases) — it is
-self-contained and needs no worker setup.
+self-contained and needs no worker setup. It does run its worker from a Blob
+URL, so a page with a Content-Security-Policy needs `worker-src blob:`.
 
 ### Worker setup
 
