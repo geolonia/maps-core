@@ -26,9 +26,13 @@ own, so the map silently never finishes loading unless you point MapLibre at
 the worker yourself. Do this once, before the first map is created.
 
 Two files are involved, not one: `maplibre-gl-worker.mjs` is a small shim that
-imports `./maplibre-gl-shared.mjs` as a sibling. Whatever you do, both files
-have to end up next to each other in your output, or the worker dies on its
-first import — with no exception and no console error.
+imports `./maplibre-gl-shared.mjs` as a sibling. That splits the setups in two.
+Run the worker through the bundler's own worker pipeline and it comes out as a
+self-contained chunk, with nothing else to place. Copy or serve the shim
+verbatim instead, and the sibling has to sit next to it in the output — miss it
+and the worker dies on its first import, with no exception and no console error.
+
+Vite has such a pipeline, and `?worker&url` is what routes the file through it:
 
 ```typescript
 // Vite
@@ -38,9 +42,17 @@ import { setWorkerUrl } from 'maplibre-gl';
 setWorkerUrl(workerUrl);
 ```
 
-For webpack, copy both files into the output and point at the copy. Note that
-`new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url)` does *not*
-work: webpack emits the shim on its own, leaving the sibling import to 404.
+Plain `?url` is not enough — it emits the shim verbatim, which puts you in the
+second case without the sibling.
+
+webpack is in that second case: copy both files into the output and point at the
+copy. Note that `new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url)`
+does *not* work — webpack emits the shim on its own, leaving the sibling import
+to 404.
+
+```bash
+npm install --save-dev copy-webpack-plugin
+```
 
 ```js
 // webpack.config.js
@@ -71,9 +83,20 @@ setWorkerUrl('maplibre-gl-worker.mjs');
 ```
 
 For esbuild, Rollup and Turbopack, see
-[the MapLibre docs](https://maplibre.org/maplibre-gl-js/docs/) — and apply the
-same rule about keeping the two files together. No setup is needed when loading
-MapLibre from a CDN as an ES module.
+[the MapLibre docs](https://maplibre.org/maplibre-gl-js/docs/) — and work out
+which of the two cases above your setup lands in.
+
+Loading MapLibre from a CDN as an ES module needs no setup: the worker URL is
+derived from the module's own URL. Cross-origin, MapLibre starts that worker
+from a same-origin Blob URL, so the page needs `worker-src blob:`. If your CSP
+cannot allow that, host the two worker files yourself and name the worker
+explicitly before creating a map:
+
+```typescript
+import { setWorkerUrl } from 'maplibre-gl';
+
+setWorkerUrl('/path/to/maplibre-gl-worker.mjs');
+```
 
 ## Usage
 
