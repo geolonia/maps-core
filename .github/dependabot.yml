@@ -1,0 +1,27 @@
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      # vitest と @vitest/* は必ず同じ PR で同時に動かす。
+      #
+      # @vitest/coverage-v8 は vitest を patch まで厳密一致で peer 宣言しており
+      # （coverage-v8@5.0.1 → vitest 5.0.1）、片方だけ動くと npm ci が ERESOLVE で
+      # 落ちる。セキュリティ更新は脆弱なパッケージしか対象にせず、グループ化は
+      # 更新対象の判定を変えないため、その経路では相方が上がらない。日常的に
+      # バージョン更新で揃えておくことで、勧告が来た時点でずれている確率を下げる。
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+      # 残りは種別ごとにまとめ、PR 数を抑える。
+      dev-dependencies:
+        dependency-type: "development"
+        exclude-patterns:
+          - "vitest"
+          - "@vitest/*"
+      production-dependencies:
+        dependency-type: "production"
