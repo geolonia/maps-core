@@ -17,10 +17,10 @@
   ],
   "dependencies": {
     "@geolonia/maplibre-gesture-handling": "^3.0.0",
-    "@turf/bbox": "^7.3.4",
-    "@turf/center": "^7.3.4",
-    "pmtiles": "^4.4.0",
-    "sanitize-html": "^2.17.4",
+    "@turf/bbox": "^7.4.0",
+    "@turf/center": "^7.4.0",
+    "pmtiles": "^4.5.0",
+    "sanitize-html": "^2.17.7",
     "tinycolor2": "^1.4.1"
   },
   "peerDependencies": {
