@@ -1,6 +1,6 @@
 {
   "name": "@geolonia/maps-core",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "type": "module",
   "module": "dist/npm/index.js",
   "types": "dist/npm/index.d.ts",
