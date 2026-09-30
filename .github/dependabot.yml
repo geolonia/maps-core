@@ -5,6 +5,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # typedoc 0.28 は typescript を 6.0.x まで peer 宣言しており、typescript 7 と
+      # 同居できない。dev-dependencies グループに typescript 7 が混ざると npm ci が
+      # ERESOLVE で落ち、他の更新も巻き添えで止まる。6.x までは typedoc と同居できる
+      # ので止めない。typedoc が typescript 7 に対応したら、この ignore を外す。
+      - dependency-name: "typescript"
+        versions: [">=7.0.0"]
     groups:
       # vitest と @vitest/* は必ず同じ PR で同時に動かす。
       #
