@@ -20,7 +20,7 @@
     "@turf/bbox": "^7.4.0",
     "@turf/center": "^7.4.0",
     "pmtiles": "^4.5.0",
-    "sanitize-html": "^2.17.7",
+    "sanitize-html": "^2.18.0",
     "tinycolor2": "^1.4.1"
   },
   "peerDependencies": {
@@ -29,7 +29,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
     "@playwright/test": "^1.63.0",
-    "@types/sanitize-html": "^2.16.1",
+    "@types/sanitize-html": "^2.16.2",
     "@types/tinycolor2": "^1.4.6",
     "@vitest/coverage-v8": "^5.0.1",
     "esbuild": "^0.28.2",
