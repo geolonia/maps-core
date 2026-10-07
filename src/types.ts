@@ -28,7 +28,7 @@ export type GeoloniaMapOptions = MapOptions & {
   apiKey?: string;
   /**
    * API のステージ（`'dev'` / `'v1'` など）。API エンドポイントの選択に使う。
-   * @defaultValue `'dev'`
+   * @defaultValue `'v1'`
    */
   stage?: string;
   /**
