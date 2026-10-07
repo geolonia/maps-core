@@ -28,7 +28,8 @@ export type GeoloniaMapOptions = MapOptions & {
   apiKey?: string;
   /**
    * API のステージ（`'dev'` / `'v1'` など）。API エンドポイントの選択に使う。
-   * @defaultValue `'dev'`
+   * 省略時は共有キーリングの現在のステージを使う。別の地図が `stage` を指定してキーリングを変更済みの場合は、その値になる。
+   * @defaultValue `'v1'`（キーリングの初期値）
    */
   stage?: string;
   /**
