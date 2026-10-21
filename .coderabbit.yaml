@@ -17,6 +17,11 @@ reviews:
   # PR 作成時・push 時の自動レビュー
   auto_review:
     enabled: true
+    # Dependabot の PR は自動レビューしない。Dependabot は draft で PR を作れず、
+    # CodeRabbit は CI の結果を待たないため、CI が落ちる PR にもレビューの枠を
+    # 使ってしまう。CI が通った PR だけ、必要に応じて `@coderabbitai review` で依頼する。
+    ignore_usernames:
+      - "dependabot[bot]"
   # 変更サマリの自動生成 (レビュー本体より軽く、PR の把握に有用)
   high_level_summary: true
   # レビュー結果を GitHub の review state に反映する。既定は false。
