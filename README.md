@@ -183,6 +183,29 @@ new GeoloniaMap({ container: '#map', errorMessage: 'Sorry, the map is unavailabl
 new GeoloniaMap({ container: '#map', errorMessage: false });
 ```
 
+#### `transformRequest`
+
+Works like MapLibre's `transformRequest`, and is also called for the requests that maps-core rewrites itself: Geolonia sources (`api.geolonia.com` and the Geolonia tile hosts) and Geolonia sprites. For those, the function receives the URL after maps-core has added `key` and `sessionId`, so the parameters are kept as long as you build on the URL you are given.
+
+- Return a `RequestParameters` object to use it as is.
+- Return `undefined` to keep the request maps-core built.
+- A `Promise` may be returned. If it resolves to `undefined`, the request maps-core built is used.
+
+```typescript
+new GeoloniaMap({
+  container: '#map',
+  transformRequest: (url, resourceType) => {
+    // Load another tileset from the Geolonia tile server
+    if (resourceType === 'Source' && url.includes('tileserver.geolonia.com/oneself/')) {
+      return { url: url.replace('/oneself/', '/my-tileset/') };
+    }
+    return undefined;
+  },
+});
+```
+
+Replacing the function later with `map.setTransformRequest()` also removes the maps-core rewriting, including `key` and `sessionId`.
+
 ### `GeoloniaMarker`
 
 Extends `maplibregl.Marker` with Geolonia's default marker style.
