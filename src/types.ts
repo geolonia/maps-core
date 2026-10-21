@@ -1,4 +1,8 @@
-import type { ControlPosition, MapOptions } from "maplibre-gl";
+import type {
+  ControlPosition,
+  MapOptions,
+  RequestTransformFunction,
+} from "maplibre-gl";
 
 /**
  * {@link GeoloniaMap} のコンストラクタに渡すオプション。
@@ -38,6 +42,18 @@ export type GeoloniaMapOptions = MapOptions & {
    * @defaultValue `'geolonia/basic-v2'`
    */
   style?: string;
+  /**
+   * リクエストを送る直前に URL やヘッダーを書き換える関数。MapLibre の `transformRequest` と同じ形。
+   *
+   * Geolonia のソース（`api.geolonia.com` と Geolonia のタイルホスト）とスプライトのリクエストでは、
+   * maps-core が `key` や `sessionId` を付けた後の URL が渡される。
+   * `undefined` を返すと maps-core の変換結果がそのまま使われる。
+   * Promise を返してもよい。解決値が `undefined` のときも maps-core の変換結果が使われる。
+   *
+   * `map.setTransformRequest()` で差し替えると maps-core の変換も外れる。後から変えるときは、
+   * maps-core が付ける `key` や `sessionId` を自分で付ける必要がある。
+   */
+  transformRequest?: RequestTransformFunction | null;
   /**
    * ラベルの言語。`'ja'` / `'en'` / `'auto'`（ブラウザ言語に従う）。
    * `'auto'` または未指定のときは `getLang()` の結果（`'ja'` または `'en'`）になる。
