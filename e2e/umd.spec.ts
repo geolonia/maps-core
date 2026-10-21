@@ -73,6 +73,9 @@ const PAGE = `<!DOCTYPE html>
 </html>`;
 
 test.describe("UMD bundle", () => {
+  // worker の起動まわりの間欠的な失敗をリトライで隠さない
+  test.describe.configure({ retries: 0 });
+
   test.beforeAll(() => {
     if (!existsSync(UMD_PATH)) {
       throw new Error(
@@ -100,6 +103,9 @@ test.describe("UMD bundle", () => {
     page,
   }) => {
     const errors = collectConsoleErrors(page);
+    // 埋め込んだ worker は Blob URL から起動される (src/umd.ts)
+    const workerUrls: string[] = [];
+    page.on("worker", (worker) => workerUrls.push(worker.url()));
     await page.goto("/__umd__/index.html");
     await waitForMapLoad(page);
 
@@ -126,6 +132,7 @@ test.describe("UMD bundle", () => {
           map.triggerRepaint();
         }),
     );
+    expect(workerUrls.some((url) => url.startsWith("blob:"))).toBe(true);
     expect(count).toBeGreaterThan(0);
     expect(errors).toHaveLength(0);
   });
