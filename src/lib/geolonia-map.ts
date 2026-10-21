@@ -26,6 +26,7 @@ function ensurePMTiles(): void {
 import type { GeoloniaMapOptions } from "../types";
 import { keyring } from "./keyring";
 import { normalizeConstructorArg } from "./legacy-options";
+import { createTransformRequest } from "./transform-request";
 import {
   type GetImageCallback,
   getLang,
@@ -33,7 +34,6 @@ import {
   getStyle,
   handleErrorMode,
   handleRestrictedMode,
-  isGeoloniaTilesHost,
   loadImageCompatibility,
   parseControlOption,
   parseSimpleVector,
@@ -178,62 +178,13 @@ export default class GeoloniaMap extends maplibregl.Map {
     sourcesUrl.searchParams.set("key", apiKey);
     sourcesUrl.searchParams.set("sessionId", sessionId);
 
-    const userTransformRequest = options.transformRequest;
-    const transformRequest = (
-      url: string,
-      resourceType?: maplibregl.ResourceType,
-    ) => {
-      if (
-        resourceType === "Source" &&
-        url.startsWith("https://api.geolonia.com")
-      ) {
-        return { url: sourcesUrl.toString() };
-      }
-
-      let transformedUrl = url;
-      if (url.startsWith("geolonia://")) {
-        const tilesMatch = url.match(
-          /^geolonia:\/\/tiles\/(?<username>.+)\/(?<customtileId>.+)/,
-        );
-        if (tilesMatch?.groups) {
-          transformedUrl = `https://tileserver.geolonia.com/customtiles/${tilesMatch.groups.customtileId}/tiles.json`;
-        }
-      }
-
-      const transformedUrlObj = new URL(transformedUrl);
-      const geoloniaTilesHost = isGeoloniaTilesHost(transformedUrlObj);
-
-      if (resourceType === "Source" && geoloniaTilesHost) {
-        if (
-          stage === "dev" &&
-          transformedUrlObj.hostname === "tileserver.geolonia.com"
-        ) {
-          transformedUrlObj.hostname = "tileserver-dev.geolonia.com";
-        }
-        transformedUrlObj.searchParams.set("sessionId", sessionId);
-        transformedUrlObj.searchParams.set("key", apiKey);
-        return { url: transformedUrlObj.toString() };
-      }
-
-      if (
-        (resourceType === "SpriteJSON" || resourceType === "SpriteImage") &&
-        transformedUrl.match(
-          /^https:\/\/api\.geolonia\.com\/(dev|v1)\/sprites\//,
-        )
-      ) {
-        const pathParts = transformedUrlObj.pathname.split("/");
-        pathParts[1] = stage;
-        transformedUrlObj.pathname = pathParts.join("/");
-        transformedUrlObj.searchParams.set("key", apiKey);
-        return { url: transformedUrlObj.toString() };
-      }
-
-      if (typeof userTransformRequest === "function") {
-        return userTransformRequest(transformedUrl, resourceType);
-      }
-
-      return undefined;
-    };
+    const transformRequest = createTransformRequest({
+      apiKey,
+      stage,
+      sessionId,
+      sourcesUrl: sourcesUrl.toString(),
+      userTransformRequest: options.transformRequest,
+    });
 
     // Loading UI
     let loading: HTMLDivElement | undefined;
