@@ -253,6 +253,7 @@ keyring.setStage('v1');
 npm install
 npm run build     # ESM + DTS
 npm run test      # Vitest unit tests
+npm run build:umd # UMD bundle (dist/umd/), required by e2e/umd.spec.ts
 npm run e2e       # Playwright E2E tests
 npm run lint      # Biome
 npm run dev       # Vite dev server (example/)

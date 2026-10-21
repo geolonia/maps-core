@@ -42,6 +42,11 @@ jobs:
           node-version-file: '.node-version'
           cache: 'npm'
       - run: npm ci
+      # e2e/umd.spec.ts は build ジョブが作った UMD バンドルを読み込む
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
       - run: npm run e2e
