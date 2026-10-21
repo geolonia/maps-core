@@ -74,6 +74,14 @@ function transformGeoloniaRequest(
   return { url: transformedUrl };
 }
 
+function isThenable<T>(value: unknown): value is PromiseLike<T> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
+}
+
 /**
  * GeoloniaMap が MapLibre に渡す `transformRequest` を作る。
  *
@@ -96,9 +104,10 @@ export function createTransformRequest(
     }
 
     const userResult = userTransformRequest(core.url, resourceType);
-    if (userResult instanceof Promise) {
-      // 解決値が undefined だと MapLibre は URL を取り出せないので、ここで補う
-      return userResult.then(
+    if (isThenable(userResult)) {
+      // 解決値が undefined だと MapLibre は URL を取り出せないので、ここで補う。
+      // 別 realm の Promise など instanceof Promise にならないものも Promise として扱う
+      return Promise.resolve(userResult).then(
         (resolved) => resolved ?? core.request ?? { url: core.url },
       );
     }

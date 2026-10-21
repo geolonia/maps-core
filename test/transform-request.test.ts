@@ -203,6 +203,21 @@ describe("createTransformRequest: user transformRequest on Geolonia requests", (
     ).resolves.toEqual({ url: "https://example.com/tiles/0/0/0.pbf" });
   });
 
+  it("falls back to the maps-core result when a thenable resolves to undefined", async () => {
+    // 別 realm の Promise や polyfill など、instanceof Promise にならない thenable
+    const thenable = {
+      // biome-ignore lint/suspicious/noThenProperty: thenable を再現するため
+      then: (resolve: (value: undefined) => void) => resolve(undefined),
+    };
+    const transform = create({
+      userTransformRequest: (() =>
+        thenable) as unknown as TransformRequestContext["userTransformRequest"],
+    });
+    await expect(transform(TILESERVER_URL, type("Source"))).resolves.toEqual({
+      url: TILESERVER_TRANSFORMED,
+    });
+  });
+
   it("propagates a rejected Promise from the user function", async () => {
     const transform = create({
       userTransformRequest: async () => {
