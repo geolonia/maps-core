@@ -26,12 +26,13 @@ describe("sanitizeDescription", () => {
   });
 });
 
-// sanitize-html 2.18 で挙動が変わった点と、2.18 のセキュリティ修正が
-// この設定でも効いていることを確かめる。description は GeoJSON の
-// properties から来るので、地図の利用者が書いた HTML がそのまま入る。
-describe("sanitizeDescription (sanitize-html 2.18)", () => {
+// description は GeoJSON の properties から来るので、地図の利用者が書いた
+// HTML がそのまま入る。
+
+// sanitize-html 2.18 で挙動が変わった点。2.17.7 に戻すと最初の 2 件が落ちる。
+describe("sanitizeDescription: iframe (sanitize-html 2.18)", () => {
   it("keeps the fallback markup of a discarded iframe, sanitized", async () => {
-    // 2.17.6 と 2.17.7 では中身がエスケープされて文字として残っていた。
+    // 2.17.7 以前は中身がエスケープされて文字として残っていた。
     const input =
       '<iframe src="https://example.com"><b>代替</b>テキスト</iframe>';
     expect(await sanitizeDescription(input)).toBe("<b>代替</b>テキスト");
@@ -45,9 +46,15 @@ describe("sanitizeDescription (sanitize-html 2.18)", () => {
   it("does not throw on deeply nested unclosed iframes", async () => {
     // 2.18.0 では入れ子の数だけ再帰して RangeError になった (GHSA-c9rx-x947-fp3h)。
     const input = `${"<iframe>".repeat(2000)}x`;
-    await expect(sanitizeDescription(input)).resolves.toContain("x");
+    const result = await sanitizeDescription(input);
+    expect(result).toContain("x");
+    expect(result).not.toContain("<iframe");
   });
+});
 
+// 許可していないタグや属性が取り除かれること。どの版でも同じ結果になる。
+// 2.18 のセキュリティ修正の対象になった入力も含めている。
+describe("sanitizeDescription: dangerous markup", () => {
   it("strips meta refresh", async () => {
     const input =
       '<meta http-equiv="refresh" content="0;url=javascript:alert(1)">本文';
