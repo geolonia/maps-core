@@ -269,8 +269,10 @@ export default class GeoloniaMap extends maplibregl.Map {
 
     const nav = parseControlOption(options.navigationControl ?? true);
     if (nav.enabled) {
+      // visualizePitch でコンパスが傾きも表し、クリックで向きと傾きの両方を
+      // 戻すようになる。傾けた地図を真上から見る状態へ戻す手段になる。
       this.addControl(
-        new maplibregl.NavigationControl(),
+        new maplibregl.NavigationControl({ visualizePitch: true }),
         nav.position as ControlPosition,
       );
     }

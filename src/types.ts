@@ -87,6 +87,7 @@ export type GeoloniaMapOptions = MapOptions & {
   /**
    * ズームと回転のコントロール。`true` / `false`、または表示位置
    * （`'top-right'`、`'bottom-left'` など）を指定する。
+   * コンパスは地図の傾きも表し、クリックすると向きと傾きの両方を戻す。
    * @defaultValue `true`
    */
   navigationControl?: boolean | ControlPosition;
