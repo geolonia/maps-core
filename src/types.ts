@@ -125,6 +125,24 @@ export type GeoloniaMapOptions = MapOptions & {
    * @defaultValue `'#ff0000'`
    */
   clusterColor?: string;
+  /**
+   * `geojson` のポリゴンを、プロパティの値で塗り分ける（コロプレス）。
+   * プロパティ名の文字列、または {@link ChoroplethOptions} を指定する。
+   * 地物の simplestyle の `fill` より優先する。
+   */
+  choropleth?: string | ChoroplethOptions;
+  /**
+   * `geojson` のポイントをヒートマップで描く。`true` で重みなし、
+   * プロパティ名の文字列でその値を重みにする。{@link HeatmapOptions} も指定できる。
+   * 指定するとクラスタリングとポイントのマーカーは表示しない。
+   */
+  heatmap?: boolean | string | HeatmapOptions;
+  /**
+   * `geojson` のポイントの円の大きさと色を、プロパティの値で変える。
+   * 指定するとクラスタリングは行わず、`marker-symbol` を持つポイントも円で描く（アイコンとタイトルは表示しない）。
+   * 地物の simplestyle の `marker-color` より優先する。
+   */
+  circle?: CircleOptions;
   /** SimpleStyle Vector で表示するベクトルタイルの URL または論理名。 */
   simpleVector?: string;
   /**
@@ -139,4 +157,47 @@ export type GeoloniaMapOptions = MapOptions & {
    * 未指定のときは、原因と利用者が試せる復旧手順を示す既定の案内を表示する。
    */
   errorMessage?: string | false;
+};
+
+/**
+ * {@link GeoloniaMapOptions.choropleth} の詳細な指定。
+ */
+export type ChoroplethOptions = {
+  /** 塗り分けに使うプロパティ名。値が数値の地物だけを塗り分ける。 */
+  property: string;
+  /**
+   * 値の小さい側から大きい側へ並べた色。値の範囲に等間隔で割り当て、間は補間する。
+   * @defaultValue `['#FFF2CC', '#FFAB40', '#EA5C0D', '#B3261E']`
+   */
+  colors?: string[];
+  /** 色を割り当てる値の範囲 `[最小, 最大]`。省略するとデータの最小値と最大値を使う。 */
+  range?: [number, number];
+};
+
+/**
+ * {@link GeoloniaMapOptions.heatmap} の詳細な指定。
+ */
+export type HeatmapOptions = {
+  /** 重みに使うプロパティ名。データの最小値を 0、最大値を 1 として扱う。省略するとすべて同じ重み。 */
+  weight?: string;
+  /**
+   * 密度の低い側から高い側へ並べた色。密度 0 は透明になる。
+   * @defaultValue `['#FABF3D', '#FFAB40', '#EA5C0D', '#B3261E']`
+   */
+  colors?: string[];
+};
+
+/**
+ * {@link GeoloniaMapOptions.circle} の指定。
+ */
+export type CircleOptions = {
+  /** 円の大きさに使うプロパティ名。データの範囲を半径 3 から 11 ピクセルに対応させる。 */
+  size?: string;
+  /**
+   * 円の色に使うプロパティ名。値がすべて数値なら連続した色に、
+   * そうでなければ値ごとに別の色にする。
+   */
+  color?: string;
+  /** `color` に使う色。数値なら小さい側から大きい側へ、カテゴリなら出現順に割り当てる。 */
+  colors?: string[];
 };

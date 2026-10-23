@@ -228,6 +228,9 @@ export default class GeoloniaMap extends maplibregl.Map {
       "geojson",
       "cluster",
       "clusterColor",
+      "choropleth",
+      "heatmap",
+      "circle",
       "simpleVector",
       "3d",
       "errorMessage",
@@ -388,6 +391,9 @@ export default class GeoloniaMap extends maplibregl.Map {
         const ss = new SimpleStyle(options.geojson, {
           cluster: options.cluster !== false,
           clusterColor: options.clusterColor || "#ff0000",
+          choropleth: options.choropleth,
+          heatmap: options.heatmap,
+          circle: options.circle,
         });
         ss.addTo(this);
 

@@ -1,12 +1,27 @@
 import bbox from "@turf/bbox";
 import turfCenter from "@turf/center";
 import type {
+  ExpressionSpecification,
   GeoJSONSource,
   MapLayerEventType,
   MapLayerMouseEvent,
   Map as MaplibreMap,
 } from "maplibre-gl";
 import * as maplibregl from "maplibre-gl";
+import type {
+  ChoroplethOptions,
+  CircleOptions,
+  HeatmapOptions,
+} from "../types";
+import {
+  choroplethColor,
+  circleColor,
+  circleRadius,
+  heatmapColor,
+  heatmapWeight,
+  normalizeChoropleth,
+  normalizeHeatmap,
+} from "./data-driven";
 import { isURL, sanitizeDescription } from "./util";
 
 type FeatureCollection = GeoJSON.FeatureCollection;
@@ -15,6 +30,25 @@ const textColor = "#000000";
 const textHaloColor = "#FFFFFF";
 const backgroundColor = "rgba(255, 0, 0, 0.4)";
 const strokeColor = "#FFFFFF";
+
+const polygonFillColor: ExpressionSpecification = [
+  "string",
+  ["get", "fill"],
+  backgroundColor,
+];
+const pointRadius: ExpressionSpecification = [
+  "case",
+  ["==", "small", ["get", "marker-size"]],
+  7,
+  ["==", "large", ["get", "marker-size"]],
+  13,
+  9,
+];
+const pointColor: ExpressionSpecification = [
+  "string",
+  ["get", "marker-color"],
+  backgroundColor,
+];
 
 const template: FeatureCollection = {
   type: "FeatureCollection",
@@ -29,10 +63,23 @@ interface SimpleStyleOptions {
   id: string;
   /** ポイントをクラスタリングするかどうかです。既定値は `true` です。 */
   cluster: boolean;
-  /** ヒートマップ表示を行うかどうかです。現時点では未実装で、既定値は `false` です。 */
-  heatmap: boolean;
   /** クラスターの円の色です。CSS カラー文字列で指定します。既定値は `"#ff0000"` です。 */
   clusterColor: string;
+  /**
+   * ポリゴンをプロパティの値で塗り分けます（コロプレス）。プロパティ名、または
+   * {@link ChoroplethOptions} を指定します。地物の `fill` より優先します。
+   */
+  choropleth?: string | ChoroplethOptions;
+  /**
+   * ポイントをヒートマップで描きます。`true` で重みなし、プロパティ名でその値を重みにします。
+   * 指定するとクラスタリングとポイントのマーカーは表示しません。既定値は `false` です。
+   */
+  heatmap?: boolean | string | HeatmapOptions;
+  /**
+   * ポイントの円の大きさと色をプロパティの値で変えます。指定するとクラスタリングは行わず、
+   * `marker-symbol` を持つポイントも円で描きます。地物の `marker-color` より優先します。
+   */
+  circle?: CircleOptions;
   /** 上記以外の任意のオプションです。 */
   [key: string]: unknown;
 }
@@ -60,6 +107,10 @@ export class SimpleStyle {
   private geojson!: FeatureCollection;
   private map!: MaplibreMap;
   private options: SimpleStyleOptions;
+
+  private get heatmap(): HeatmapOptions | undefined {
+    return normalizeHeatmap(this.options.heatmap);
+  }
   private _eventHandlers: {
     event: keyof MapLayerEventType;
     layer: string;
@@ -86,7 +137,7 @@ export class SimpleStyle {
     this.options = {
       id: "geolonia-simple-style",
       cluster: true,
-      heatmap: false, // TODO: It should support heatmap.
+      heatmap: false,
       clusterColor: "#ff0000",
       ...options,
     };
@@ -126,6 +177,8 @@ export class SimpleStyle {
         features: points,
       },
     );
+
+    this.applyDataDrivenPaint();
 
     return this;
   }
@@ -178,7 +231,7 @@ export class SimpleStyle {
         type: "FeatureCollection",
         features: points,
       },
-      cluster: this.options.cluster,
+      cluster: this.options.cluster && !this.heatmap && !this.options.circle,
       clusterMaxZoom: 14,
       clusterRadius: 50,
     });
@@ -230,8 +283,13 @@ export class SimpleStyle {
       },
     });
 
-    this.setPointGeometries();
-    this.setCluster();
+    if (this.heatmap) {
+      this.setHeatmap();
+    } else {
+      this.setPointGeometries();
+      this.setCluster();
+    }
+    this.applyDataDrivenPaint();
 
     return this;
   }
@@ -284,8 +342,12 @@ export class SimpleStyle {
       source: this.options.id,
       filter: ["==", "$type", "Polygon"],
       paint: {
-        "fill-color": ["string", ["get", "fill"], backgroundColor],
-        "fill-opacity": ["number", ["get", "fill-opacity"], 1.0],
+        "fill-color": polygonFillColor,
+        "fill-opacity": [
+          "number",
+          ["get", "fill-opacity"],
+          this.options.choropleth ? 0.7 : 1.0,
+        ],
         "fill-outline-color": ["string", ["get", "stroke"], strokeColor],
       },
     });
@@ -330,30 +392,31 @@ export class SimpleStyle {
    * `marker-size`（`small`、`large`、その他）に応じて円の半径やラベルのオフセットを変え、
    * `marker-color`、`stroke`、`title`、`text-color` などの simplestyle プロパティを反映します。
    * あわせて円レイヤーとシンボルレイヤーの双方に {@link SimpleStyle.setPopup | setPopup} でポップアップを設定します。
+   * `circle` オプションを指定したときは、`marker-symbol` の有無にかかわらずすべてのポイントを円で描き、
+   * シンボルレイヤーは追加しません。
    * 通常は {@link SimpleStyle.addTo | addTo} から呼び出されます。
    */
   setPointGeometries() {
+    const circleOnly = !!this.options.circle;
     this.map.addLayer({
       id: `${this.options.id}-circle-points`,
       type: "circle",
       source: `${this.options.id}-points`,
-      filter: ["all", ["!has", "point_count"], ["!has", "marker-symbol"]],
+      filter: circleOnly
+        ? ["!has", "point_count"]
+        : ["all", ["!has", "point_count"], ["!has", "marker-symbol"]],
       paint: {
-        "circle-radius": [
-          "case",
-          ["==", "small", ["get", "marker-size"]],
-          7,
-          ["==", "large", ["get", "marker-size"]],
-          13,
-          9,
-        ],
-        "circle-color": ["string", ["get", "marker-color"], backgroundColor],
+        "circle-radius": pointRadius,
+        "circle-color": pointColor,
         "circle-opacity": ["number", ["get", "fill-opacity"], 1.0],
         "circle-stroke-width": ["number", ["get", "stroke-width"], 1],
         "circle-stroke-color": ["string", ["get", "stroke"], strokeColor],
         "circle-stroke-opacity": ["number", ["get", "stroke-opacity"], 1.0],
       },
     });
+    this.setPopup(this.map, `${this.options.id}-circle-points`);
+
+    if (circleOnly) return;
 
     this.map.addLayer({
       id: `${this.options.id}-symbol-points`,
@@ -389,8 +452,79 @@ export class SimpleStyle {
       },
     });
 
-    this.setPopup(this.map, `${this.options.id}-circle-points`);
     this.setPopup(this.map, `${this.options.id}-symbol-points`);
+  }
+
+  /**
+   * ポイントのヒートマップレイヤーを設定します。
+   *
+   * `heatmap` オプションを指定したときに、ポイントのマーカーとクラスターの代わりに使います。
+   * 重みは {@link SimpleStyle.applyDataDrivenPaint | applyDataDrivenPaint} がデータに合わせて設定します。
+   * 通常は {@link SimpleStyle.addTo | addTo} から呼び出されます。
+   */
+  setHeatmap() {
+    this.map.addLayer({
+      id: `${this.options.id}-heatmap`,
+      type: "heatmap",
+      source: `${this.options.id}-points`,
+      paint: {
+        "heatmap-weight": 1,
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 9, 1, 14, 3],
+        "heatmap-radius": 22,
+        "heatmap-opacity": 0.85,
+        "heatmap-color": heatmapColor(this.heatmap ?? {}),
+      },
+    });
+  }
+
+  /**
+   * `choropleth`、`heatmap`、`circle` オプションの式を、現在のデータに合わせて設定します。
+   *
+   * 値の範囲やカテゴリはデータから求めるため、{@link SimpleStyle.addTo | addTo} と
+   * {@link SimpleStyle.updateData | updateData} のたびに呼び出します。
+   */
+  applyDataDrivenPaint() {
+    if (!this.map) return;
+    const id = this.options.id;
+    const features = this.geojson.features;
+    const set = (
+      layer: string,
+      name: Parameters<MaplibreMap["setPaintProperty"]>[1],
+      value: Parameters<MaplibreMap["setPaintProperty"]>[2],
+    ) => {
+      if (this.map.getLayer(layer)) {
+        this.map.setPaintProperty(layer, name, value);
+      }
+    };
+
+    const choropleth = normalizeChoropleth(this.options.choropleth);
+    if (choropleth) {
+      set(
+        `${id}-polygon`,
+        "fill-color",
+        choroplethColor(choropleth, features, polygonFillColor),
+      );
+    }
+    if (this.heatmap) {
+      set(
+        `${id}-heatmap`,
+        "heatmap-weight",
+        heatmapWeight(this.heatmap, features),
+      );
+    }
+    const circle = this.options.circle;
+    if (circle) {
+      set(
+        `${id}-circle-points`,
+        "circle-radius",
+        circleRadius(circle, features, pointRadius),
+      );
+      set(
+        `${id}-circle-points`,
+        "circle-color",
+        circleColor(circle, features, pointColor),
+      );
+    }
   }
 
   /**
@@ -556,6 +690,7 @@ export class SimpleStyle {
       `${id}-linestring`,
       `${id}-clusters`,
       `${id}-cluster-count`,
+      `${id}-heatmap`,
     ];
     for (const layerId of layerIds) {
       if (this.map.getLayer(layerId)) {

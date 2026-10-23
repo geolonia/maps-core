@@ -159,6 +159,9 @@ const map = new GeoloniaMap({
   geojson: 'https://example.com/data.geojson',
   cluster: true,
   clusterColor: '#ff0000',
+  choropleth: 'value',          // Color polygons by a property (see below)
+  heatmap: 'weight',            // Draw points as a heatmap (see below)
+  circle: { size: 'weight', color: 'category' }, // Size and color points (see below)
   simpleVector: 'my-tileset',   // Vector tile URL or tileset ID
   '3d': false,
   errorMessage: undefined,      // Message shown when the map fails to initialize
@@ -182,6 +185,32 @@ new GeoloniaMap({ container: '#map', errorMessage: 'Sorry, the map is unavailabl
 // Show nothing at all, e.g. when the page renders its own fallback.
 new GeoloniaMap({ container: '#map', errorMessage: false });
 ```
+
+#### `choropleth`, `heatmap` and `circle`
+
+Style the `geojson` data by the values of its properties, without writing MapLibre expressions.
+
+```typescript
+// Color polygons by `value`. The range defaults to the min and max of the data.
+new GeoloniaMap({ container: '#map', geojson, choropleth: 'value' });
+new GeoloniaMap({
+  container: '#map',
+  geojson,
+  choropleth: { property: 'value', colors: ['#FFF2CC', '#B3261E'], range: [0, 100] },
+});
+
+// Draw points as a heatmap. `true` weights every point equally.
+new GeoloniaMap({ container: '#map', geojson, heatmap: 'weight' });
+
+// Size points by `weight` and color them by `category`.
+// Numeric values get a color ramp, other values one color per category.
+new GeoloniaMap({ container: '#map', geojson, circle: { size: 'weight', color: 'category' } });
+```
+
+- These options take precedence over simplestyle properties such as `fill` and `marker-color`. Features without a numeric value fall back to the simplestyle look.
+- `heatmap` and `circle` turn clustering off. `heatmap` also hides the point markers. `circle` draws every point as a circle, including points with `marker-symbol`, and hides the icons and titles.
+- The range and categories are computed again when the GeoJSON is loaded from a URL or replaced with `updateData()`.
+- `colors` is optional. The defaults are Geolonia's orange ramp and a categorical palette.
 
 #### `transformRequest`
 
@@ -226,6 +255,7 @@ GeoJSON visualization based on [simplestyle-spec](https://github.com/mapbox/simp
 import { SimpleStyle } from '@geolonia/maps-core';
 
 const ss = new SimpleStyle(geojson, { cluster: true });
+// Also accepts `choropleth`, `heatmap` and `circle` (see GeoloniaMap options)
 ss.addTo(map).fitBounds();
 ```
 

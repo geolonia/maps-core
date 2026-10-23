@@ -14,7 +14,12 @@ export { default as SimpleStyleVector } from "./lib/simplestyle-vector";
 export { getLang, getStyle, isGeoloniaTilesHost } from "./lib/util";
 
 // Types
-export type { GeoloniaMapOptions } from "./types";
+export type {
+  ChoroplethOptions,
+  CircleOptions,
+  GeoloniaMapOptions,
+  HeatmapOptions,
+} from "./types";
 
 // Version
 export { VERSION as coreVersion } from "./version";

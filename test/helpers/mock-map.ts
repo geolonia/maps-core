@@ -47,6 +47,15 @@ export class MockMap {
     return this.layers.find((l) => l.id === id);
   }
 
+  setPaintProperty(id: string, name: string, value: unknown) {
+    const layer = this.getLayer(id);
+    if (!layer) return;
+    layer.paint = {
+      ...(layer.paint as Record<string, unknown>),
+      [name]: value,
+    };
+  }
+
   removeLayer(id: string) {
     this.layers = this.layers.filter((l) => l.id !== id);
   }
@@ -154,6 +163,7 @@ export function createMockMap(): MockMap {
   vi.spyOn(map, "addLayer");
   vi.spyOn(map, "getSource");
   vi.spyOn(map, "getLayer");
+  vi.spyOn(map, "setPaintProperty");
   vi.spyOn(map, "removeLayer");
   vi.spyOn(map, "removeSource");
   vi.spyOn(map, "on");
