@@ -107,4 +107,47 @@ test.describe("GeoJSON / SimpleStyle", () => {
     // An error should have been logged for the failed GeoJSON load
     expect(errors.some((e) => e.includes("Failed to load GeoJSON"))).toBe(true);
   });
+
+  for (const [viz, layer, property] of [
+    ["choropleth", "geolonia-simple-style-polygon", "fill-color"],
+    ["heatmap", "geolonia-simple-style-heatmap", "heatmap-weight"],
+    ["circle", "geolonia-simple-style-circle-points", "circle-color"],
+  ] as const) {
+    test(`should accept the ${viz} expressions in MapLibre`, async ({
+      page,
+    }) => {
+      await page.goto(`/geojson.html?viz=${viz}`);
+      await waitForMapLoad(page);
+
+      expect(await hasLayer(page, layer)).toBe(true);
+      // GeoJSON を URL から読み込んだ後に、式がデータに合わせて設定されること
+      // （既定の simplestyle の式のままではないこと）
+      await expect
+        .poll(
+          async () =>
+            JSON.stringify(
+              await page.evaluate(
+                ([layer, property]) => {
+                  const map = (window as unknown as Record<string, unknown>)
+                    .map as {
+                    getPaintProperty: (
+                      layer: string,
+                      property: string,
+                    ) => unknown;
+                  };
+                  return map.getPaintProperty(layer, property);
+                },
+                [layer, property] as const,
+              ),
+            ),
+          { timeout: 5000 },
+        )
+        .toMatch(/"(value|weight|category)"/);
+      // 不正な式は MapLibre が拒否して error イベントで報告する
+      const mapErrors = await page.evaluate(
+        () => (window as unknown as Record<string, unknown>).mapErrors,
+      );
+      expect(mapErrors).toEqual([]);
+    });
+  }
 });
