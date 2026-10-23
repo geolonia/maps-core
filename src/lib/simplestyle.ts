@@ -108,9 +108,7 @@ export class SimpleStyle {
   private map!: MaplibreMap;
   private options: SimpleStyleOptions;
 
-  private get heatmap(): HeatmapOptions | undefined {
-    return normalizeHeatmap(this.options.heatmap);
-  }
+  private heatmap: HeatmapOptions | undefined;
   private _eventHandlers: {
     event: keyof MapLayerEventType;
     layer: string;
@@ -141,6 +139,7 @@ export class SimpleStyle {
       clusterColor: "#ff0000",
       ...options,
     };
+    this.heatmap = normalizeHeatmap(this.options.heatmap);
   }
 
   /**

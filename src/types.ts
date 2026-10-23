@@ -128,7 +128,8 @@ export type GeoloniaMapOptions = MapOptions & {
   /**
    * `geojson` のポリゴンを、プロパティの値で塗り分ける（コロプレス）。
    * プロパティ名の文字列、または {@link ChoroplethOptions} を指定する。
-   * 地物の simplestyle の `fill` より優先する。
+   * 地物の simplestyle の `fill` より優先する。地物に `fill-opacity` がないときの不透明度は、
+   * 背景の地図が透けるよう 1 ではなく 0.7 にする。
    */
   choropleth?: string | ChoroplethOptions;
   /**
@@ -195,7 +196,8 @@ export type CircleOptions = {
   size?: string;
   /**
    * 円の色に使うプロパティ名。値がすべて数値なら連続した色に、
-   * そうでなければ値ごとに別の色にする。
+   * そうでなければ値ごとに別の色にする。`"12"` のような数字の文字列もカテゴリとして扱う。
+   * オブジェクトや配列の値は色分けしない。
    */
   color?: string;
   /** `color` に使う色。数値なら小さい側から大きい側へ、カテゴリなら出現順に割り当てる。 */

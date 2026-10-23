@@ -33,6 +33,11 @@ export const CATEGORICAL_COLORS = [
 /** `circle.size` を指定したときの円の半径の範囲（ピクセル）です。 */
 const CIRCLE_RADIUS_RANGE: [number, number] = [3, 11];
 
+/** `colors` が指定されていなければ、または空なら `defaults` を返します。 */
+function colorsOr(colors: string[] | undefined, defaults: string[]): string[] {
+  return colors?.length ? colors : defaults;
+}
+
 /** `choropleth` オプションを {@link ChoroplethOptions} にそろえます。 */
 export function normalizeChoropleth(
   option: string | ChoroplethOptions | undefined,
@@ -125,7 +130,7 @@ export function choroplethColor(
   return sequentialColor(
     option.property,
     features,
-    option.colors ?? SEQUENTIAL_COLORS,
+    colorsOr(option.colors, SEQUENTIAL_COLORS),
     fallback,
     option.range,
   );
@@ -148,7 +153,7 @@ export function heatmapWeight(
 
 /** ヒートマップの密度に対する色の式です。 */
 export function heatmapColor(option: HeatmapOptions): ExpressionSpecification {
-  const colors = option.colors ?? HEATMAP_COLORS;
+  const colors = colorsOr(option.colors, HEATMAP_COLORS);
   const stops = colors.flatMap((c, i) => [(i + 1) / colors.length, c]);
   return [
     "interpolate",
@@ -190,19 +195,20 @@ export function circleColor(
 
   const values = features
     .map((f) => f.properties?.[property])
-    .filter((v) => v !== undefined && v !== null);
+    // オブジェクトや配列は MapLibre の to-string と JS の String() で文字列が変わるので、カテゴリにしない
+    .filter((v) => ["string", "number", "boolean"].includes(typeof v));
   if (values.length === 0) return fallback;
 
   if (values.every((v) => typeof v === "number")) {
     return sequentialColor(
       property,
       features,
-      option.colors ?? SEQUENTIAL_COLORS,
+      colorsOr(option.colors, SEQUENTIAL_COLORS),
       fallback,
     );
   }
 
-  const colors = option.colors ?? CATEGORICAL_COLORS;
+  const colors = colorsOr(option.colors, CATEGORICAL_COLORS);
   const categories = [...new Set(values.map(String))];
   return [
     "match",

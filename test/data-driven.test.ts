@@ -252,3 +252,37 @@ describe("circleColor", () => {
     ]);
   });
 });
+
+describe("empty colors", () => {
+  it("falls back to the default colors", () => {
+    const features = [feature({ v: 0 }), feature({ v: 1 })];
+    expect(
+      choroplethColor({ property: "v", colors: [] }, features, "red"),
+    ).toEqual(choroplethColor({ property: "v" }, features, "red"));
+    expect(heatmapColor({ colors: [] })).toEqual(heatmapColor({}));
+    const cats = [feature({ c: "a" })];
+    expect(circleColor({ color: "c", colors: [] }, cats, "red")).toEqual(
+      circleColor({ color: "c" }, cats, "red"),
+    );
+  });
+});
+
+describe("circleColor with non-primitive values", () => {
+  it("ignores objects and arrays as categories", () => {
+    const features = [
+      feature({ c: "a" }),
+      feature({ c: { x: 1 } }),
+      feature({ c: [1] }),
+      feature({ c: true }),
+    ];
+    expect(circleColor({ color: "c" }, features, "red")).toEqual([
+      "match",
+      ["to-string", ["get", "c"]],
+      "a",
+      CATEGORICAL_COLORS[0],
+      "true",
+      CATEGORICAL_COLORS[1],
+      "red",
+    ]);
+  });
+});

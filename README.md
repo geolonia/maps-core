@@ -211,6 +211,8 @@ new GeoloniaMap({ container: '#map', geojson, circle: { size: 'weight', color: '
 - `heatmap` and `circle` turn clustering off. `heatmap` also hides the point markers. `circle` draws every point as a circle, including points with `marker-symbol`, and hides the icons and titles.
 - The range and categories are computed again when the GeoJSON is loaded from a URL or replaced with `updateData()`.
 - `colors` is optional. The defaults are Geolonia's orange ramp and a categorical palette.
+- With `choropleth`, polygons without a `fill-opacity` property are drawn at 0.7 opacity instead of 1, so that the base map shows through.
+- With `circle.color`, a property is treated as numeric only when every value is a number. Numeric strings such as `"12"` count as categories. Objects and arrays are not colored.
 
 #### `transformRequest`
 
