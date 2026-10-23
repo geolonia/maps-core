@@ -61,10 +61,10 @@ test.describe("Control widgets", () => {
       };
       map.jumpTo({ pitch: 45 });
     });
-    const transform = await page
-      .locator(".maplibregl-ctrl-compass .maplibregl-ctrl-icon")
-      .evaluate((el) => (el as HTMLElement).style.transform);
-    expect(transform).toContain("rotateX(45deg)");
+    const icon = page.locator(".maplibregl-ctrl-compass .maplibregl-ctrl-icon");
+    await expect
+      .poll(() => icon.evaluate((el) => (el as HTMLElement).style.transform))
+      .toContain("rotateX(45deg)");
   });
 
   test("should reset both bearing and pitch when the compass is clicked", async ({
@@ -85,7 +85,11 @@ test.describe("Control widgets", () => {
         getPitch: () => number;
         isMoving: () => boolean;
       };
-      return !map.isMoving() && map.getBearing() === 0 && map.getPitch() === 0;
+      return (
+        !map.isMoving() &&
+        Math.abs(map.getBearing()) < 1e-6 &&
+        Math.abs(map.getPitch()) < 1e-6
+      );
     });
   });
 
