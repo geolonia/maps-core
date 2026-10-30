@@ -7,14 +7,17 @@ describe("SimpleStyle.fitBounds の型", () => {
     expectTypeOf<SimpleStyle["fitBounds"]>()
       .parameter(0)
       .toEqualTypeOf<FitBoundsOptions | undefined>();
+    expectTypeOf<SimpleStyle["fitBounds"]>().toBeCallableWith({
+      padding: 10,
+      duration: 0,
+    });
   });
 
   it("FitBoundsOptions に無いプロパティは型エラーになる", () => {
-    const fit = (ss: SimpleStyle) => {
+    // 呼び出さない関数の中に書き、型検査だけを行う
+    const _call = (ss: SimpleStyle) =>
       // @ts-expect-error FitBoundsOptions に無いプロパティ
       ss.fitBounds({ notAnOption: 1 });
-      ss.fitBounds({ padding: 10, duration: 0 });
-    };
-    expectTypeOf(fit).toBeFunction();
+    expectTypeOf(_call).returns.toEqualTypeOf<SimpleStyle>();
   });
 });
