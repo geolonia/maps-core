@@ -2,6 +2,7 @@ import bbox from "@turf/bbox";
 import turfCenter from "@turf/center";
 import type {
   ExpressionSpecification,
+  FitBoundsOptions,
   GeoJSONSource,
   MapLayerEventType,
   MapLayerMouseEvent,
@@ -304,7 +305,7 @@ export class SimpleStyle {
    *   指定した項目のみがこれらを上書きします。
    * @returns メソッドチェーンのための `this` を返します。
    */
-  fitBounds(options = {}) {
+  fitBounds(options: FitBoundsOptions = {}) {
     this.callFitBounds = true;
 
     const _options = {
