@@ -322,6 +322,10 @@ describe("normalizeExtrusion", () => {
   it("returns undefined when not specified", () => {
     expect(normalizeExtrusion(undefined)).toBeUndefined();
     expect(normalizeExtrusion("")).toBeUndefined();
+    // 型のない呼び出し元から height なしで渡されたとき
+    expect(
+      normalizeExtrusion({ color: "x" } as unknown as { height: string }),
+    ).toBeUndefined();
   });
 });
 
@@ -388,9 +392,38 @@ describe("extrusionHeight", () => {
     ).toEqual([
       "case",
       ["==", ["typeof", ["get", "v"]], "number"],
-      ["*", ["get", "v"], 0.5],
+      ["max", 0, ["*", ["get", "v"], 0.5]],
       0,
     ]);
+  });
+
+  it("draws negative scaled heights flat", () => {
+    const expr = extrusionHeight({ property: "v", heightScale: -1 }, [
+      feature({ v: 10 }),
+    ]) as unknown[];
+    expect(expr[2]).toEqual(["max", 0, ["*", ["get", "v"], -1]]);
+  });
+
+  it("ignores an explicit range whose minimum is not below the maximum", () => {
+    const features = [feature({ v: 10 }), feature({ v: 40 })];
+    for (const range of [
+      [10, 10],
+      [40, 0],
+    ] as [number, number][]) {
+      const expr = extrusionHeight(
+        { property: "v", maxHeight: 100, range },
+        features,
+      ) as unknown[];
+      expect(expr[2]).toEqual([
+        "interpolate",
+        ["linear"],
+        ["get", "v"],
+        0,
+        0,
+        40,
+        100,
+      ]);
+    }
   });
 
   it("is flat when there is no numeric value or the range is empty", () => {

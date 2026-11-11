@@ -71,6 +71,8 @@ export function normalizeExtrusion(
   if (typeof option === "string") {
     return { height: { property: option }, color: { property: option } };
   }
+  // 型のない呼び出し元から height なしで渡されても、地図の初期化を止めない
+  if (!option.height) return undefined;
   const height =
     typeof option.height === "string"
       ? { property: option.height }
@@ -261,6 +263,8 @@ export function circleColor(
 /**
  * 立体の高さ（メートル）の式です。`heightScale` があれば「値 × `heightScale`」に、
  * なければ値の範囲を 0 から `maxHeight` に割り当てます。値が数値でない地物は 0 にします。
+ * `fill-extrusion-height` は負の値を取れないので、負になる高さは 0 にします。
+ * `range` の最小が最大以上のときは、指定がないものとしてデータから範囲を求めます。
  */
 export function extrusionHeight(
   option: ExtrusionHeightOptions,
@@ -270,12 +274,16 @@ export function extrusionHeight(
   if (option.heightScale !== undefined) {
     return whenNumber(
       property,
-      ["*", ["get", property], option.heightScale] as ExpressionSpecification,
+      [
+        "max",
+        0,
+        ["*", ["get", property], option.heightScale],
+      ] as ExpressionSpecification,
       0,
     );
   }
   let range = option.range;
-  if (!range) {
+  if (!range || !(range[0] < range[1])) {
     const data = numericRange(features, property);
     // 柱の高さが値に比例するよう、値が 0 以上なら 0 から数える
     range = data && [Math.min(0, data[0]), data[1]];

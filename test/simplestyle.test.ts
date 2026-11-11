@@ -577,4 +577,22 @@ describe("SimpleStyle data-driven options", () => {
     ss.remove();
     expect(map.layers.length).toBe(0);
   });
+
+  it("should use heightScale instead of maxHeight", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    new SimpleStyle(
+      { type: "FeatureCollection", features: [square(10), square(20)] },
+      {
+        extrusion: {
+          height: { property: "value", heightScale: 2, maxHeight: 100 },
+        },
+      },
+    ).addTo(map);
+
+    const height = paintOf(map, "polygon-extrusion")[
+      "fill-extrusion-height"
+    ] as unknown[];
+    expect(height[2]).toEqual(["max", 0, ["*", ["get", "value"], 2]]);
+  });
 });
