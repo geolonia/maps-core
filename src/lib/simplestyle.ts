@@ -12,15 +12,19 @@ import * as maplibregl from "maplibre-gl";
 import type {
   ChoroplethOptions,
   CircleOptions,
+  ExtrusionOptions,
   HeatmapOptions,
 } from "../types";
 import {
   choroplethColor,
   circleColor,
   circleRadius,
+  extrusionColor,
+  extrusionHeight,
   heatmapColor,
   heatmapWeight,
   normalizeChoropleth,
+  normalizeExtrusion,
   normalizeHeatmap,
 } from "./data-driven";
 import { isURL, sanitizeDescription } from "./util";
@@ -81,6 +85,11 @@ interface SimpleStyleOptions {
    * `marker-symbol` を持つポイントも円で描きます。地物の `marker-color` より優先します。
    */
   circle?: CircleOptions;
+  /**
+   * ポリゴンをプロパティの値に応じた高さで立体的に描きます。プロパティ名、または
+   * {@link ExtrusionOptions} を指定します。地物の `fill` と `choropleth` より優先します。
+   */
+  extrusion?: string | ExtrusionOptions;
   /** 上記以外の任意のオプションです。 */
   [key: string]: unknown;
 }
@@ -336,6 +345,10 @@ export class SimpleStyle {
    * 通常は {@link SimpleStyle.addTo | addTo} から呼び出されます。
    */
   setPolygonGeometries() {
+    if (this.options.extrusion) {
+      this.setPolygonExtrusion();
+      return;
+    }
     this.map.addLayer({
       id: `${this.options.id}-polygon`,
       type: "fill",
@@ -353,6 +366,31 @@ export class SimpleStyle {
     });
 
     this.setPopup(this.map, `${this.options.id}-polygon`);
+  }
+
+  /**
+   * ポリゴンを立体的に描くレイヤーを設定します。
+   *
+   * `extrusion` オプションを指定したときに、ポリゴンの塗りレイヤーの代わりに使います。
+   * 高さと色は {@link SimpleStyle.applyDataDrivenPaint | applyDataDrivenPaint} がデータに合わせて設定します。
+   * あわせて {@link SimpleStyle.setPopup | setPopup} でこのレイヤーにポップアップを設定します。
+   * 通常は {@link SimpleStyle.setPolygonGeometries | setPolygonGeometries} から呼び出されます。
+   */
+  setPolygonExtrusion() {
+    this.map.addLayer({
+      id: `${this.options.id}-polygon-extrusion`,
+      type: "fill-extrusion",
+      source: this.options.id,
+      filter: ["==", "$type", "Polygon"],
+      paint: {
+        "fill-extrusion-color": polygonFillColor,
+        "fill-extrusion-height": 0,
+        "fill-extrusion-base": 0,
+        "fill-extrusion-opacity": 0.9,
+      },
+    });
+
+    this.setPopup(this.map, `${this.options.id}-polygon-extrusion`);
   }
 
   /**
@@ -478,7 +516,7 @@ export class SimpleStyle {
   }
 
   /**
-   * `choropleth`、`heatmap`、`circle` オプションの式を、現在のデータに合わせて設定します。
+   * `choropleth`、`heatmap`、`circle`、`extrusion` オプションの式を、現在のデータに合わせて設定します。
    *
    * 値の範囲やカテゴリはデータから求めるため、{@link SimpleStyle.addTo | addTo} と
    * {@link SimpleStyle.updateData | updateData} のたびに呼び出します。
@@ -503,6 +541,19 @@ export class SimpleStyle {
         `${id}-polygon`,
         "fill-color",
         choroplethColor(choropleth, features, polygonFillColor),
+      );
+    }
+    const extrusion = normalizeExtrusion(this.options.extrusion);
+    if (extrusion) {
+      set(
+        `${id}-polygon-extrusion`,
+        "fill-extrusion-height",
+        extrusionHeight(extrusion.height, features),
+      );
+      set(
+        `${id}-polygon-extrusion`,
+        "fill-extrusion-color",
+        extrusionColor(extrusion.color, features, polygonFillColor),
       );
     }
     if (this.heatmap) {
@@ -687,6 +738,7 @@ export class SimpleStyle {
       `${id}-circle-points`,
       `${id}-symbol-points`,
       `${id}-polygon`,
+      `${id}-polygon-extrusion`,
       `${id}-linestring`,
       `${id}-clusters`,
       `${id}-cluster-count`,

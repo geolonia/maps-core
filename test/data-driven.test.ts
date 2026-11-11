@@ -4,9 +4,13 @@ import {
   choroplethColor,
   circleColor,
   circleRadius,
+  DEFAULT_EXTRUSION_MAX_HEIGHT,
+  extrusionColor,
+  extrusionHeight,
   heatmapColor,
   heatmapWeight,
   normalizeChoropleth,
+  normalizeExtrusion,
   normalizeHeatmap,
   numericRange,
   SEQUENTIAL_COLORS,
@@ -283,6 +287,151 @@ describe("circleColor with non-primitive values", () => {
       "true",
       CATEGORICAL_COLORS[1],
       "red",
+    ]);
+  });
+});
+
+describe("normalizeExtrusion", () => {
+  it("uses a string for both the height and the color", () => {
+    expect(normalizeExtrusion("population")).toEqual({
+      height: { property: "population" },
+      color: { property: "population" },
+    });
+  });
+
+  it("colors by the height property when color is omitted", () => {
+    expect(
+      normalizeExtrusion({
+        height: { property: "population", maxHeight: 500 },
+      }),
+    ).toEqual({
+      height: { property: "population", maxHeight: 500 },
+      color: { property: "population" },
+    });
+  });
+
+  it("accepts property names for height and color", () => {
+    expect(
+      normalizeExtrusion({ height: "population", color: "aged_ratio" }),
+    ).toEqual({
+      height: { property: "population" },
+      color: { property: "aged_ratio" },
+    });
+  });
+
+  it("returns undefined when not specified", () => {
+    expect(normalizeExtrusion(undefined)).toBeUndefined();
+    expect(normalizeExtrusion("")).toBeUndefined();
+  });
+});
+
+describe("extrusionHeight", () => {
+  it("scales from 0 to the data maximum up to the default max height", () => {
+    expect(
+      extrusionHeight({ property: "v" }, [
+        feature({ v: 10 }),
+        feature({ v: 40 }),
+      ]),
+    ).toEqual([
+      "case",
+      ["==", ["typeof", ["get", "v"]], "number"],
+      [
+        "interpolate",
+        ["linear"],
+        ["get", "v"],
+        0,
+        0,
+        40,
+        DEFAULT_EXTRUSION_MAX_HEIGHT,
+      ],
+      0,
+    ]);
+  });
+
+  it("starts from the data minimum when it is negative", () => {
+    const expr = extrusionHeight({ property: "v", maxHeight: 100 }, [
+      feature({ v: -10 }),
+      feature({ v: 30 }),
+    ]) as unknown[];
+    expect(expr[2]).toEqual([
+      "interpolate",
+      ["linear"],
+      ["get", "v"],
+      -10,
+      0,
+      30,
+      100,
+    ]);
+  });
+
+  it("prefers an explicit range", () => {
+    const expr = extrusionHeight(
+      { property: "v", maxHeight: 100, range: [5, 50] },
+      [feature({ v: 10 })],
+    ) as unknown[];
+    expect(expr[2]).toEqual([
+      "interpolate",
+      ["linear"],
+      ["get", "v"],
+      5,
+      0,
+      50,
+      100,
+    ]);
+  });
+
+  it("multiplies the value by heightScale, ignoring maxHeight", () => {
+    expect(
+      extrusionHeight({ property: "v", heightScale: 0.5, maxHeight: 100 }, [
+        feature({ v: 10 }),
+      ]),
+    ).toEqual([
+      "case",
+      ["==", ["typeof", ["get", "v"]], "number"],
+      ["*", ["get", "v"], 0.5],
+      0,
+    ]);
+  });
+
+  it("is flat when there is no numeric value or the range is empty", () => {
+    expect(extrusionHeight({ property: "v" }, [feature({ v: "x" })])).toBe(0);
+    expect(extrusionHeight({ property: "v" }, [feature({ v: 0 })])).toBe(0);
+  });
+});
+
+describe("extrusionColor", () => {
+  it("interpolates numeric values over the explicit range", () => {
+    const expr = extrusionColor(
+      { property: "r", colors: ["#fff", "#000"], range: [0, 0.4] },
+      [feature({ r: 0.1 })],
+      "#f00",
+    ) as unknown[];
+    expect(expr[2]).toEqual([
+      "interpolate",
+      ["linear"],
+      ["get", "r"],
+      0,
+      "#fff",
+      0.4,
+      "#000",
+    ]);
+    expect(expr[3]).toBe("#f00");
+  });
+
+  it("maps string values to categorical colors", () => {
+    const expr = extrusionColor(
+      { property: "kind" },
+      [feature({ kind: "住宅" }), feature({ kind: "商業" })],
+      "#f00",
+    ) as unknown[];
+    expect(expr).toEqual([
+      "match",
+      ["to-string", ["get", "kind"]],
+      "住宅",
+      CATEGORICAL_COLORS[0],
+      "商業",
+      CATEGORICAL_COLORS[1],
+      "#f00",
     ]);
   });
 });

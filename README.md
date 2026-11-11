@@ -162,6 +162,7 @@ const map = new GeoloniaMap({
   choropleth: 'value',          // Color polygons by a property (see below)
   heatmap: 'weight',            // Draw points as a heatmap (see below)
   circle: { size: 'weight', color: 'category' }, // Size and color points (see below)
+  extrusion: 'population',      // Extrude polygons by a property (see below)
   simpleVector: 'my-tileset',   // Vector tile URL or tileset ID
   '3d': false,
   errorMessage: undefined,      // Message shown when the map fails to initialize
@@ -213,6 +214,37 @@ new GeoloniaMap({ container: '#map', geojson, circle: { size: 'weight', color: '
 - `colors` is optional. The defaults are Geolonia's orange ramp and a categorical palette.
 - With `choropleth`, polygons without a `fill-opacity` property are drawn at 0.7 opacity instead of 1, so that the base map shows through.
 - With `circle.color`, a property is treated as numeric only when every value is a number. Numeric strings such as `"12"` count as categories. Objects and arrays are not colored.
+
+#### `extrusion`
+
+Draw the `geojson` polygons as 3D columns whose height follows a property. Set `pitch` as well, since the columns look flat from straight above.
+
+```typescript
+// Height and color both follow `population`.
+new GeoloniaMap({ container: '#map', geojson, pitch: 60, extrusion: 'population' });
+
+// Height follows `population`, color follows `aged_ratio`.
+new GeoloniaMap({ container: '#map', geojson, pitch: 60, extrusion: { height: 'population', color: 'aged_ratio' } });
+
+// Fine-grained settings.
+new GeoloniaMap({
+  container: '#map',
+  geojson,
+  pitch: 60,
+  extrusion: {
+    height: { property: 'population', heightScale: 0.1 }, // 0.1 m per unit
+    color: { property: 'aged_ratio', colors: ['#FFF2CC', '#B3261E'], range: [0, 0.4] },
+  },
+});
+```
+
+- Height is set in one of two ways:
+  - `maxHeight` (meters, default `3000`): the range is mapped proportionally to 0 to `maxHeight`, so the columns fit whatever the values are. The range defaults to 0 to the maximum of the data, or to the minimum and maximum when the minimum is negative. This is the default.
+  - `heightScale`: meters per unit of the value. The height does not depend on the data range, so maps with different grid sizes or years can be compared at the same scale. When `heightScale` is set, `maxHeight` is ignored.
+- `color` defaults to the height property. Like `circle.color`, numeric values get a color ramp and other values one color per category.
+- `extrusion` takes precedence over `choropleth` and the simplestyle `fill`. The flat polygon fill is not drawn.
+- Polygons without a numeric height value are drawn flat.
+- The range is computed again when the GeoJSON is loaded from a URL or replaced with `updateData()`.
 
 #### `transformRequest`
 

@@ -231,6 +231,7 @@ export default class GeoloniaMap extends maplibregl.Map {
       "choropleth",
       "heatmap",
       "circle",
+      "extrusion",
       "simpleVector",
       "3d",
       "errorMessage",
@@ -396,6 +397,7 @@ export default class GeoloniaMap extends maplibregl.Map {
           choropleth: options.choropleth,
           heatmap: options.heatmap,
           circle: options.circle,
+          extrusion: options.extrusion,
         });
         ss.addTo(this);
 

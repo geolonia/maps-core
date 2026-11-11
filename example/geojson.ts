@@ -53,7 +53,7 @@ if (source === "url") {
   options.geojson = inlineGeoJSON;
 }
 
-// Data-driven styles: ?viz=choropleth | heatmap | circle
+// Data-driven styles: ?viz=choropleth | heatmap | circle | extrusion
 // sample-mesh.geojson (255 polygons with `value`) and sample-spots.geojson
 // (400 points with `weight`, `category` and simplestyle `marker-*`) are
 // synthetic data generated with a seeded PRNG, not real facilities or statistics.
@@ -72,6 +72,10 @@ if (viz === "choropleth") {
 } else if (viz === "circle") {
   options.geojson = "/sample-spots.geojson";
   options.circle = { size: "weight", color: "category" };
+} else if (viz === "extrusion") {
+  options.geojson = "/sample-mesh.geojson";
+  options.extrusion = "value";
+  options.pitch = 60;
 }
 
 if (params.has("cluster")) {
