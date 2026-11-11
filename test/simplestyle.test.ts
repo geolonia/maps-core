@@ -595,4 +595,19 @@ describe("SimpleStyle data-driven options", () => {
     ] as unknown[];
     expect(height[2]).toEqual(["max", 0, ["*", ["get", "value"], 2]]);
   });
+
+  it("should keep the flat polygon layer when extrusion has no height", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    new SimpleStyle(
+      { type: "FeatureCollection", features: [square(1)] },
+      // 型のない呼び出し元から height なしで渡されたとき
+      { extrusion: { color: "value" } },
+    ).addTo(map);
+
+    expect(map.getLayer("geolonia-simple-style-polygon")).toBeDefined();
+    expect(
+      map.getLayer("geolonia-simple-style-polygon-extrusion"),
+    ).toBeUndefined();
+  });
 });

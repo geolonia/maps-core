@@ -119,6 +119,7 @@ export class SimpleStyle {
   private options: SimpleStyleOptions;
 
   private heatmap: HeatmapOptions | undefined;
+  private extrusion: ReturnType<typeof normalizeExtrusion>;
   private _eventHandlers: {
     event: keyof MapLayerEventType;
     layer: string;
@@ -150,6 +151,7 @@ export class SimpleStyle {
       ...options,
     };
     this.heatmap = normalizeHeatmap(this.options.heatmap);
+    this.extrusion = normalizeExtrusion(this.options.extrusion);
   }
 
   /**
@@ -345,7 +347,7 @@ export class SimpleStyle {
    * 通常は {@link SimpleStyle.addTo | addTo} から呼び出されます。
    */
   setPolygonGeometries() {
-    if (this.options.extrusion) {
+    if (this.extrusion) {
       this.setPolygonExtrusion();
       return;
     }
@@ -543,7 +545,7 @@ export class SimpleStyle {
         choroplethColor(choropleth, features, polygonFillColor),
       );
     }
-    const extrusion = normalizeExtrusion(this.options.extrusion);
+    const extrusion = this.extrusion;
     if (extrusion) {
       set(
         `${id}-polygon-extrusion`,
