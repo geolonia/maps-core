@@ -213,26 +213,68 @@ describe("maskGeometry with shared boundaries", () => {
     ]);
   });
 
-  it("cuts an area out of the hole when its vertex touches a hole edge with rounding", () => {
-    // 頂点を共有しない T 字の接点。座標を小数 6 桁に丸めたので、穴の辺からわずかにずれている
-    const hole: Ring = [
+  // 斜めの辺を持つ穴（菱形）。丸めで外側にずれる接点は、斜めの辺でしか起きない
+  const diamond: Ring = [
+    [0.5, 0.1],
+    [0.9, 0.5],
+    [0.5, 0.9],
+    [0.1, 0.5],
+    [0.5, 0.1],
+  ];
+  // 菱形の右下の辺（(0.5, 0.1)〜(0.9, 0.5)）の中点 (0.7, 0.3) から、外側（右下）へ距離 d だけずらした点
+  const outside = (d: number): [number, number] => [
+    0.7 + d / Math.SQRT2,
+    0.3 - d / Math.SQRT2,
+  ];
+
+  it("cuts an area out of the hole when its vertex is just outside a hole edge by rounding", () => {
+    const enclosed: Ring = [
+      outside(1.4e-6),
+      [0.5, 0.5],
+      [0.5, 0.3],
+      outside(1.4e-6),
+    ];
+    expect(
+      maskGeometry([[square(0, 0), diamond], [enclosed]]).coordinates,
+    ).toEqual([
+      [WORLD, square(0, 0)],
+      [diamond, enclosed],
+    ]);
+  });
+
+  it("keeps an area out of the hole when its vertex is beyond the tolerance", () => {
+    const crossing: Ring = [
+      outside(1e-4),
+      [0.5, 0.5],
+      [0.5, 0.3],
+      outside(1e-4),
+    ];
+    expect(
+      maskGeometry([[square(0, 0), diamond], [crossing]]).coordinates,
+    ).toEqual([[WORLD, square(0, 0), crossing], [diamond]]);
+  });
+
+  it("keeps an area filling the notch of a concave hole out of the hole", () => {
+    // U 字形の穴と、U の切れ込み（穴の外）を埋める三角形。三角形の頂点はすべて穴の線の上にある
+    const u: Ring = [
       [0.2, 0.2],
       [0.8, 0.2],
       [0.8, 0.8],
+      [0.6, 0.8],
+      [0.5, 0.4],
+      [0.4, 0.8],
       [0.2, 0.8],
       [0.2, 0.2],
     ];
-    const enclosed: Ring = [
-      [0.2000004, 0.5],
-      [0.5, 0.2000003],
-      [0.6, 0.6],
-      [0.2000004, 0.5],
+    const notch: Ring = [
+      [0.6, 0.8],
+      [0.5, 0.4],
+      [0.4, 0.8],
+      [0.6, 0.8],
     ];
-    expect(
-      maskGeometry([[square(0, 0), hole], [enclosed]]).coordinates,
-    ).toEqual([
-      [WORLD, square(0, 0)],
-      [hole, enclosed],
+    expect(maskGeometry([[square(0, 0), u], [notch]]).coordinates).toEqual([
+      [WORLD, square(0, 0), notch],
+      [u],
     ]);
   });
 
@@ -855,5 +897,43 @@ describe("Mask", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("stays on the current map when the target map already has a mask", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const other = new MockMap();
+    new Mask({ geojson: polygon(square(5, 5)) }).addTo(asMap(other));
+    const mask = new Mask({ geojson: polygon(square(0, 0)) }).addTo(asMap(map));
+
+    mask.addTo(asMap(other));
+
+    expect(error).toHaveBeenCalled();
+    expect(map.getLayer("geolonia-mask")).toBeDefined();
+    mask.remove();
+    expect(map.getLayer("geolonia-mask")).toBeUndefined();
+    expect(other.getLayer("geolonia-mask")).toBeDefined();
+  });
+
+  it("refuses to re-add on the same map when another mask took the ID after a style change", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const old = new Mask({ geojson: polygon(square(0, 0)) }).addTo(asMap(map));
+    map.layers = [];
+    map.sources = {};
+    new Mask({ geojson: polygon(square(5, 5)) }).addTo(asMap(map));
+
+    expect(() => old.addTo(asMap(map))).not.toThrow();
+    expect(error).toHaveBeenCalled();
+    expect(
+      (sourceData(map, "geolonia-mask") as GeoJSON.Feature).geometry,
+    ).toEqual(maskGeometry([[square(5, 5)]]));
+  });
+
+  it("treats an empty or null beforeId as not specified", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    new Mask({ geojson: polygon(square(0, 0)), beforeId: "" }).addTo(
+      asMap(map),
+    );
+    expect(error).not.toHaveBeenCalled();
+    expect(map.getLayersOrder()).toEqual(["geolonia-mask"]);
   });
 });

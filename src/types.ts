@@ -158,7 +158,7 @@ export type GeoloniaMapOptions = MapOptions & {
    * 指定した範囲（市区町村の境界など）の外側を暗くする。境界の GeoJSON の URL、または {@link MaskOptions} を指定する。
    * マスクは既定では背景の地図のすべてのレイヤーの上に入れるので、範囲の外は地名のラベルも含めて暗くなる。
    * `geojson` と `simpleVector` の地物はマスクの上に表示する。入れる位置は {@link MaskOptions.beforeId} で変えられる。
-   * `center`、`geojson`、`simpleVector` が未指定のときは、境界の範囲に自動的にフィットする。
+   * `center`、`bounds`、`geojson`、`simpleVector` が未指定のときは、境界の範囲に自動的にフィットする。
    */
   mask?: string | MaskOptions;
   /**
@@ -280,6 +280,7 @@ export type MaskOptions = {
    * Polygon と MultiPolygon の面を（GeometryCollection の中のものも）すべてくり抜き、それ以外のジオメトリは無視する。
    * URL の取得は 30 秒で打ち切り、`console.error` に出す。
    * 面の穴（境界に囲まれた別の地域）は暗くし、その穴の中にある面（湖の中の島など）はくり抜く。
+   * 穴の中にある面かどうかは、頂点がすべて穴の内側か線の上（約 0.2 メートル以内）にあるかで判定するので、隣り合う面は頂点を共有するか、座標を小数 6 桁以上の精度にする。
    * 面が重なっていると正しくくり抜けないので、重ならない面を渡す。経度 ±180 度をまたぐ面と、経度緯度の範囲の外の座標を含む面には対応しない。
    * MapLibre は 1 つの面のリングを 1 タイルあたり 500 本までしか塗らないので、1 タイルに約 500 を超える面が入ると、小さい面がくり抜かれないことがある。
    */

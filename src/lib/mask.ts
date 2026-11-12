@@ -113,7 +113,16 @@ function onRing(point: GeoJSON.Position, ring: Ring): boolean {
  * すべての頂点が内側か線の上にあるとき、収まるとみなします（`outer` と同じ座標のリングも収まる）。
  */
 function ringWithin(inner: Ring, outer: Ring): boolean {
-  return inner.every((point) => onRing(point, outer) || inRing(point, outer));
+  const within = (point: GeoJSON.Position) =>
+    onRing(point, outer) || inRing(point, outer);
+  if (!inner.every(within)) return false;
+  // 頂点がすべて線の上でも、凹んだリングの切れ込み（外側）を埋める面がある。辺の中点も確かめる
+  for (let i = 0; i < inner.length - 1; i++) {
+    const [x1, y1] = inner[i];
+    const [x2, y2] = inner[i + 1];
+    if (!within([(x1 + x2) / 2, (y1 + y2) / 2])) return false;
+  }
+  return true;
 }
 
 /** 外接矩形 `a` が外接矩形 `b` に収まるかどうかです。 */
@@ -309,19 +318,26 @@ export class Mask {
    * @returns メソッドチェーンのための `this` を返します。
    */
   addTo(map: MaplibreMap) {
-    if (this.map) this.remove();
     if (!this.options) {
       console.error("[Geolonia] The mask option has no geojson.");
       return this;
     }
     // 同じ ID のソースかレイヤーが 1 つでも先にあると、追加に失敗したうえ、後の remove で他人のものを消してしまう
-    const ids = [MASK_ID, `${MASK_ID}-outline`];
-    if (ids.some((id) => map.getSource(id) || map.getLayer(id))) {
+    const occupied = () =>
+      [MASK_ID, `${MASK_ID}-outline`].some(
+        (id) => map.getSource(id) || map.getLayer(id),
+      );
+    const refuse = () => {
       console.error(
         "[Geolonia] A mask (or a source or layer with the same ID) has already been added to this map. Only one mask is supported per map.",
       );
       return this;
-    }
+    };
+    // 追加済みのこの Mask を別の地図に移すとき、移動先で断るなら移動元から取り除かない
+    if (this.map && this.map !== map && occupied()) return refuse();
+    if (this.map) this.remove();
+    // 同じ地図でも、スタイルの差し替えの後に別の Mask が追加されていることがある
+    if (occupied()) return refuse();
     const { geojson } = this.options;
     const url = typeof geojson === "string" ? isURL(geojson) : undefined;
     if (url === false) {
@@ -358,6 +374,7 @@ export class Mask {
 
   /**
    * 境界の範囲に地図をフィットさせます。GeoJSON を取得中に呼び出したときは、取得後にフィットします。
+   * {@link Mask.addTo | addTo} の後に呼び出します。地図に追加する前に呼び出しても何もしません。
    *
    * @param options `map.fitBounds` に渡すオプションです。既定値は `duration: 3000`、`padding: 30` です。
    * @returns メソッドチェーンのための `this` を返します。
@@ -557,7 +574,8 @@ function layerAboveMask(
   map: MaplibreMap,
   beforeId: string | undefined,
 ): string | undefined {
-  if (beforeId !== undefined) {
+  // 型のない呼び出し元（data-* 属性など）の空文字と null は、指定なしとして扱う
+  if (beforeId !== undefined && beforeId !== null && beforeId !== "") {
     if (map.getLayer(beforeId)) return beforeId;
     console.error(
       "[Geolonia] The mask beforeId layer does not exist. The default position is used:",

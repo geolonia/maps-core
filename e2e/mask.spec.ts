@@ -124,18 +124,42 @@ test.describe("mask", () => {
     // 既定の表示範囲に入る、境界の穴の中の地点（範囲の外なので塗られる）
     await expect.poll(() => isMasked(page, [139.72, 35.695])).toBe(true);
 
-    // スタイルを差し替えると、styledata で作り直したマスクがまた外側を塗る
-    await page.evaluate(() =>
-      (
-        window as unknown as { map: { setStyle: (s: string) => void } }
-      ).map.setStyle("/sample-basic-style.json?v=2"),
+    // スタイルを差し替え、新しいスタイルが読み込まれて描画が落ち着くまで待つ。
+    // 差し替えの途中は古いスタイルとマスクが残るので、待たずに確かめると作り直しを確かめられない
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const w = window as unknown as {
+            map: {
+              getSource: (id: string) => unknown;
+              setStyle: (s: string) => void;
+              once: (e: string, f: () => void) => void;
+            };
+            oldMaskSource: unknown;
+          };
+          w.oldMaskSource = w.map.getSource("geolonia-mask");
+          w.map.once("style.load", () => w.map.once("idle", () => resolve()));
+          // 相対パスにクエリを付けると Geolonia の論理名と判定されるので、絶対 URL で渡す
+          w.map.setStyle(
+            new URL("/sample-basic-style.json?v=2", location.href).href,
+          );
+        }),
     );
+
+    // 新しいスタイルに作り直したマスク（前とは別のソース）が、また外側を塗る
     await expect
-      .poll(() => hasLayer(page, "geolonia-mask"), { timeout: 10000 })
+      .poll(() =>
+        page.evaluate(() => {
+          const w = window as unknown as {
+            map: { getSource: (id: string) => unknown };
+            oldMaskSource: unknown;
+          };
+          const source = w.map.getSource("geolonia-mask");
+          return source !== undefined && source !== w.oldMaskSource;
+        }),
+      )
       .toBe(true);
-    await expect
-      .poll(() => isMasked(page, [139.72, 35.695]), { timeout: 10000 })
-      .toBe(true);
+    await expect.poll(() => isMasked(page, [139.72, 35.695])).toBe(true);
     expect(await mapErrorsOf(page)).toEqual([]);
     expect(errors).toEqual([]);
   });
