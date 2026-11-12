@@ -95,7 +95,7 @@ export default class GeoloniaMap extends maplibregl.Map {
   private loadingElement: HTMLDivElement | undefined;
   /**
    * {@link GeoloniaMap.remove | remove} を呼んだかどうかです。2 回目の呼び出しで片付けを繰り返さないために使います。
-   * コンストラクタは `super()` を try の中で呼ぶので、tsconfig の target が ES2020（useDefineForClassFields が false）の今は、
+   * コンストラクタは `super()` を try の中で呼ぶので、tsconfig の target が ES2022 未満（今は ES2020）のあいだは、useDefineForClassFields の設定によらず
    * 初期値つきのフィールドを置けない（TS2401）。宣言だけにして、
    * 未設定（`undefined`）を「まだ呼んでいない」として扱う。
    */

@@ -148,9 +148,12 @@ test.describe("Loader animation", () => {
       container.appendChild(foreign);
       const other = {};
       container.geoloniaMap = other;
+      // 自分の表示と別の地図の表示の 2 つがあること
+      const before = container.querySelectorAll(".loading-geolonia-map").length;
 
       w.map.remove();
       return {
+        before,
         loaders: container.querySelectorAll(".loading-geolonia-map").length,
         foreign: !!container.querySelector("#foreign-loader"),
         registration: container.geoloniaMap === other,
@@ -158,7 +161,12 @@ test.describe("Loader animation", () => {
     });
     // 自分の表示だけを外し、別の地図の表示と登録は残す。
     // 止めたスタイルの取得は、地図の破棄で中止されるので進めない
-    expect(kept).toEqual({ loaders: 1, foreign: true, registration: true });
+    expect(kept).toEqual({
+      before: 2,
+      loaders: 1,
+      foreign: true,
+      registration: true,
+    });
     expect(errors).toEqual([]);
     expect(await mapErrorsOf(page)).toEqual([]);
   });
