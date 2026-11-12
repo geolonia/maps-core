@@ -112,8 +112,18 @@ test.describe("GeoJSON / SimpleStyle", () => {
     ["choropleth", "geolonia-simple-style-polygon", "fill-color"],
     ["heatmap", "geolonia-simple-style-heatmap", "heatmap-weight"],
     ["circle", "geolonia-simple-style-circle-points", "circle-color"],
+    [
+      "extrusion",
+      "geolonia-simple-style-polygon-extrusion",
+      "fill-extrusion-height",
+    ],
+    [
+      "extrusion",
+      "geolonia-simple-style-polygon-extrusion",
+      "fill-extrusion-color",
+    ],
   ] as const) {
-    test(`should accept the ${viz} expressions in MapLibre`, async ({
+    test(`should accept the ${viz} ${property} expression in MapLibre`, async ({
       page,
     }) => {
       await page.goto(`/geojson.html?viz=${viz}`);

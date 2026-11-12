@@ -145,6 +145,13 @@ export type GeoloniaMapOptions = MapOptions & {
    * 地物の simplestyle の `marker-color` より優先する。
    */
   circle?: CircleOptions;
+  /**
+   * `geojson` のポリゴンを、プロパティの値に応じた高さで立体的に描く。
+   * プロパティ名の文字列を渡すと、そのプロパティで高さと色の両方を決める。
+   * 高さと色を別のプロパティにするときは {@link ExtrusionOptions} を指定する。
+   * 地物の simplestyle の `fill` と `choropleth` より優先する。立体に見せるには `pitch` も指定する。
+   */
+  extrusion?: string | ExtrusionOptions;
   /** SimpleStyle Vector で表示するベクトルタイルの URL または論理名。 */
   simpleVector?: string;
   /**
@@ -203,4 +210,55 @@ export type CircleOptions = {
   color?: string;
   /** `color` に使う色。数値なら小さい側から大きい側へ、カテゴリなら出現順に割り当てる。 */
   colors?: string[];
+};
+
+/**
+ * {@link GeoloniaMapOptions.extrusion} の詳細な指定。
+ */
+export type ExtrusionOptions = {
+  /** 高さに使うプロパティ名、または {@link ExtrusionHeightOptions}。 */
+  height: string | ExtrusionHeightOptions;
+  /** 色に使うプロパティ名、または {@link ExtrusionColorOptions}。省略すると `height` と同じプロパティで色分けする。 */
+  color?: string | ExtrusionColorOptions;
+};
+
+/**
+ * {@link ExtrusionOptions.height} の詳細な指定。
+ * 高さは `heightScale` を指定すれば「値 × `heightScale`」、指定しなければ `range` を 0 から `maxHeight` に比例して割り当てる。
+ * 値が数値でない地物の高さは 0 にする。
+ */
+export type ExtrusionHeightOptions = {
+  /** 高さに使うプロパティ名。 */
+  property: string;
+  /**
+   * `range` の最大値に割り当てる高さ（メートル）。`heightScale` を指定したときは使わない。
+   * @defaultValue `3000`
+   */
+  maxHeight?: number;
+  /**
+   * 値 1 あたりの高さ（メートル）。データの範囲によらず高さが決まるので、複数の地図で同じ値を同じ高さにして比べられる。
+   * 「値 × `heightScale`」が負になる地物の高さは 0 にする。
+   */
+  heightScale?: number;
+  /**
+   * 高さ 0 から `maxHeight` に割り当てる値の範囲 `[最小, 最大]`。
+   * 省略したとき、または最小が最大以上のときは、データの最小値が 0 以上なら `[0, 最大値]`、負なら `[最小値, 最大値]` を使う。
+   */
+  range?: [number, number];
+};
+
+/**
+ * {@link ExtrusionOptions.color} の詳細な指定。
+ * 値がすべて数値なら連続した色に、そうでなければ値ごとのカテゴリの色にする（{@link CircleOptions.color} と同じ）。
+ */
+export type ExtrusionColorOptions = {
+  /** 色に使うプロパティ名。 */
+  property: string;
+  /**
+   * 色。数値なら小さい側から大きい側へ並べて値の範囲に等間隔で割り当て、カテゴリなら出現順に割り当てる。
+   * @defaultValue 数値は `['#FFF2CC', '#FFAB40', '#EA5C0D', '#B3261E']`
+   */
+  colors?: string[];
+  /** 数値の色を割り当てる値の範囲 `[最小, 最大]`。省略するとデータの最小値と最大値を使う。 */
+  range?: [number, number];
 };

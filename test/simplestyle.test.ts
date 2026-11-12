@@ -501,4 +501,113 @@ describe("SimpleStyle data-driven options", () => {
     // 400 点のタイトルとアイコンが円に重ならないよう、シンボルは描かない
     expect(map.getLayer("geolonia-simple-style-symbol-points")).toBeUndefined();
   });
+
+  it("should extrude polygons by height and color them by another property", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    const withRatio = (value: number, ratio: number) => {
+      const f = square(value);
+      f.properties = { ...f.properties, ratio };
+      return f;
+    };
+    new SimpleStyle(
+      {
+        type: "FeatureCollection",
+        features: [withRatio(0, 0.1), withRatio(100, 0.3)],
+      },
+      { extrusion: { height: "value", color: "ratio" }, choropleth: "value" },
+    ).addTo(map);
+
+    const layer = map.getLayer("geolonia-simple-style-polygon-extrusion") as {
+      type: string;
+      paint: Record<string, unknown>;
+    };
+    expect(layer.type).toBe("fill-extrusion");
+    expect(JSON.stringify(layer.paint["fill-extrusion-height"])).toContain(
+      '["get","value"]',
+    );
+    const color = layer.paint["fill-extrusion-color"] as unknown[];
+    expect(color[0]).toBe("case");
+    expect(JSON.stringify(color[2])).toContain('["get","ratio"]');
+    // 平らな塗りを重ねると立体の下に透けて見えるので、塗りのレイヤーは追加しない
+    expect(map.getLayer("geolonia-simple-style-polygon")).toBeUndefined();
+  });
+
+  it("should recompute the extrusion height when the data is updated", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    const ss = new SimpleStyle(
+      { type: "FeatureCollection", features: [] },
+      { extrusion: { height: { property: "value", maxHeight: 100 } } },
+    ).addTo(map);
+
+    ss.updateData({
+      type: "FeatureCollection",
+      features: [square(10), square(20)] as GeoJSON.Feature[],
+    });
+
+    const height = paintOf(map, "polygon-extrusion")[
+      "fill-extrusion-height"
+    ] as unknown[];
+    expect(height[2]).toEqual([
+      "interpolate",
+      ["linear"],
+      ["get", "value"],
+      0,
+      0,
+      20,
+      100,
+    ]);
+  });
+
+  it("should register the popup on the extrusion layer and remove it", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    const onSpy = vi.spyOn(map, "on");
+    const ss = new SimpleStyle(
+      { type: "FeatureCollection", features: [square(1)] },
+      { extrusion: "value" },
+    ).addTo(map);
+
+    const clickLayers = onSpy.mock.calls
+      .filter((call) => call[0] === "click" && typeof call[2] === "function")
+      .map(([, layer]) => layer);
+    expect(clickLayers).toContain("geolonia-simple-style-polygon-extrusion");
+    expect(clickLayers).not.toContain("geolonia-simple-style-polygon");
+    ss.remove();
+    expect(map.layers.length).toBe(0);
+  });
+
+  it("should use heightScale instead of maxHeight", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    new SimpleStyle(
+      { type: "FeatureCollection", features: [square(10), square(20)] },
+      {
+        extrusion: {
+          height: { property: "value", heightScale: 2, maxHeight: 100 },
+        },
+      },
+    ).addTo(map);
+
+    const height = paintOf(map, "polygon-extrusion")[
+      "fill-extrusion-height"
+    ] as unknown[];
+    expect(height[2]).toEqual(["max", 0, ["*", ["get", "value"], 2]]);
+  });
+
+  it("should keep the flat polygon layer when extrusion has no height", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    new SimpleStyle(
+      { type: "FeatureCollection", features: [square(1)] },
+      // 型のない呼び出し元から height なしで渡されたとき
+      { extrusion: { color: "value" } },
+    ).addTo(map);
+
+    expect(map.getLayer("geolonia-simple-style-polygon")).toBeDefined();
+    expect(
+      map.getLayer("geolonia-simple-style-polygon-extrusion"),
+    ).toBeUndefined();
+  });
 });
