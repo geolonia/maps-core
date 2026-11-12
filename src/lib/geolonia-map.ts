@@ -397,7 +397,9 @@ export default class GeoloniaMap extends maplibregl.Map {
       }
 
       const maskOptions = normalizeMask(options.mask);
-      // setStyle の transformStyle でマスクが新しいスタイルに写されたときは、作り直さない
+      // マスクのソースが新しいスタイルに残っているとき（setStyle の transformStyle で写されたとき、
+      // MapLibre がコンテキストの復元などでスナップショットからスタイルを作り直したとき）は、作り直さない。
+      // 前の Mask は地図に追加されたままなので、取得中の GeoJSON もそちらが書き込む
       if (maskOptions && !this.getSource(MASK_ID)) {
         // マスクの指定が不正でも、後に続く geojson と 3D の処理は止めない
         try {

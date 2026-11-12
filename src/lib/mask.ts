@@ -302,6 +302,13 @@ export function normalizeMask(
  * new Mask({ geojson: "./boundary.geojson", outline: true }).addTo(map);
  * ```
  */
+/**
+ * 地図ごとに、いま追加されている Mask です。ソースやレイヤーの所有は、ソースのオブジェクトではなくこれで照合します。
+ * MapLibre はコンテキストの復元や Worker の再起動のときにスタイルを丸ごと作り直し、ソースのオブジェクトが替わるが、
+ * 追加されている Mask は替わらないためです。スタイルの差し替えの後に別の Mask を追加すると、古い Mask は所有を失います。
+ */
+const attached = new WeakMap<MaplibreMap, Mask>();
+
 export class Mask {
   /** URL から GeoJSON を取得しているときの Promise です。 */
   public _loadingPromise: Promise<void> | undefined;
@@ -309,13 +316,8 @@ export class Mask {
   private polygons: Ring[][] | undefined;
   private map: MaplibreMap | undefined;
   private fitBoundsOptions: FitBoundsOptions | undefined;
-  /**
-   * addTo で追加したソースです。スタイルの差し替えの後に別の Mask が同じ ID のソースを追加しても、
-   * そちらに書き込んだり消したりしないよう、同じオブジェクトのときだけ扱います。
-   */
-  private source: unknown;
-  /** addTo で追加した境界線のソースです。境界線を引かないときは `undefined` です。 */
-  private outlineSource: unknown;
+  /** 境界線のソースとレイヤーを、この Mask が追加して使っているかどうかです。 */
+  private outlineActive = false;
   /** 取得中の GeoJSON の取得を止めます。remove で呼びます。 */
   private abortLoading: (() => void) | undefined;
   /** addTo と remove のたびに増やします。古い取得の結果を捨てるのに使います。 */
@@ -379,18 +381,16 @@ export class Mask {
       this.map = undefined;
       throw error;
     }
-    this.source = map.getSource(MASK_ID);
-    this.outlineSource = this.options.outline
-      ? map.getSource(`${MASK_ID}-outline`)
-      : undefined;
+    attached.set(map, this);
+    this.outlineActive = !!this.options.outline;
     if (!map.getLayer(MASK_ID)) {
       // MapLibre は不正な paint の値（解釈できない色など）のレイヤーを追加せず、error イベントで知らせるだけなので、
       // ここで気づいて取り除く。GeoloniaMap は error を購読しているので、コンソールには出ない
       console.error("[Geolonia] Failed to add the mask layer. Check `color`.");
       this.removeLayers(map);
+      attached.delete(map);
       this.map = undefined;
-      this.source = undefined;
-      this.outlineSource = undefined;
+      this.outlineActive = false;
       return this;
     }
     if (this.options.outline && !map.getLayer(`${MASK_ID}-outline`)) {
@@ -399,7 +399,7 @@ export class Mask {
         "[Geolonia] Failed to add the mask outline layer. Check `outline.color` and `outline.width`.",
       );
       if (this.ownsOutline(map)) map.removeSource(`${MASK_ID}-outline`);
-      this.outlineSource = undefined;
+      this.outlineActive = false;
     }
 
     if (url) {
@@ -438,17 +438,18 @@ export class Mask {
     this.map = undefined;
     this.polygons = undefined;
     this.fitBoundsOptions = undefined;
-    const owned = !!map && this.owns(map);
-    // スタイルが差し替えられて、同じ ID のソースが別の Mask のものになっていたら消さない
-    if (map && owned) this.removeLayers(map);
-    this.source = undefined;
-    this.outlineSource = undefined;
+    // スタイルの差し替えの後に別の Mask が追加されていたら、そちらのものなので消さない
+    if (map && attached.get(map) === this) {
+      this.removeLayers(map);
+      attached.delete(map);
+    }
+    this.outlineActive = false;
     return this;
   }
 
   /**
-   * マスクのレイヤーとソースを地図から取り除きます。この Mask が追加したソースのときだけ呼びます。
-   * 境界線は、この Mask が追加した境界線のソースが残っているときだけ取り除きます
+   * マスクのレイヤーとソースを地図から取り除きます。この Mask が地図に追加されているときだけ呼びます。
+   * 境界線は、この Mask が境界線を使っているときだけ取り除きます
    * （境界線を引かない設定で、利用者が同じ ID のものを追加していても消さない）。
    */
   private removeLayers(map: MaplibreMap) {
@@ -470,11 +471,12 @@ export class Mask {
     }
   }
 
-  /** 地図の `geolonia-mask-outline` のソースが、この Mask が追加したものかどうかです。 */
+  /** 地図の `geolonia-mask-outline` のソースを、この Mask が使っているかどうかです。 */
   private ownsOutline(map: MaplibreMap): boolean {
     return (
-      this.outlineSource !== undefined &&
-      map.getSource(`${MASK_ID}-outline`) === this.outlineSource
+      this.outlineActive &&
+      attached.get(map) === this &&
+      map.getSource(`${MASK_ID}-outline`) !== undefined
     );
   }
 
@@ -508,9 +510,12 @@ export class Mask {
     this.setPolygons(data);
   }
 
-  /** 地図の `geolonia-mask` のソースが、この Mask が追加したものかどうかです。 */
+  /**
+   * この Mask が地図に追加されていて、`geolonia-mask` のソースがあるかどうかです。
+   * 地図を破棄したときやスタイルを差し替えたときは、getSource が undefined を返すので偽になります。
+   */
   private owns(map: MaplibreMap): boolean {
-    return this.source !== undefined && map.getSource(MASK_ID) === this.source;
+    return attached.get(map) === this && map.getSource(MASK_ID) !== undefined;
   }
 
   /** 空のソースとレイヤーを追加します。 */
@@ -598,8 +603,11 @@ export class Mask {
       properties: {},
       geometry: maskGeometry(polygons),
     });
-    if (this.ownsOutline(map)) {
-      (map.getSource(`${MASK_ID}-outline`) as GeoJSONSource).setData({
+    const outline = map.getSource(`${MASK_ID}-outline`) as
+      | GeoJSONSource
+      | undefined;
+    if (this.ownsOutline(map) && typeof outline?.setData === "function") {
+      outline.setData({
         type: "Feature",
         properties: {},
         geometry: { type: "MultiPolygon", coordinates: polygons },

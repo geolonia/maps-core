@@ -1076,4 +1076,41 @@ describe("Mask", () => {
     expect(map.getLayer("geolonia-mask")).toBeDefined();
     expect(map.getSource("geolonia-mask-outline")).toBeUndefined();
   });
+
+  it("keeps working after MapLibre rebuilds the style with new source objects", async () => {
+    let resolve: (r: Response) => void = () => {};
+    vi.spyOn(window, "fetch").mockImplementation(
+      () =>
+        new Promise<Response>((r) => {
+          resolve = r;
+        }),
+    );
+    const mask = new Mask({
+      geojson: "https://example.com/boundary.geojson",
+      outline: true,
+    }).addTo(asMap(map));
+
+    // コンテキストの復元や Worker の再起動では、MapLibre がスナップショットからスタイルを作り直し、
+    // 同じ ID の別のソースのオブジェクトになる
+    map.sources = Object.fromEntries(
+      Object.entries(map.sources).map(([id, source]) => [
+        id,
+        { ...(source as object) },
+      ]),
+    );
+
+    resolve(new Response(JSON.stringify(polygon(square(0, 0)))));
+    await mask._loadingPromise;
+    expect(
+      (sourceData(map, "geolonia-mask") as GeoJSON.Feature).geometry,
+    ).toEqual(maskGeometry([[square(0, 0)]]));
+    expect(
+      (sourceData(map, "geolonia-mask-outline") as GeoJSON.Feature).geometry,
+    ).toEqual({ type: "MultiPolygon", coordinates: [[square(0, 0)]] });
+
+    mask.remove();
+    expect(map.getLayersOrder()).toEqual([]);
+    expect(map.getSource("geolonia-mask")).toBeUndefined();
+    expect(map.getSource("geolonia-mask-outline")).toBeUndefined();
+  });
 });
