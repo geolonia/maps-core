@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import {
   Color,
   latest,
@@ -567,6 +568,12 @@ describe("colors as a color map", () => {
 
 describe("color map keys that a plain match cannot take", () => {
   /**
+   * 各テストのフォールバックの色です。circle-color の既定値（#000000）と違う色にしてあります。
+   * 式の評価に失敗すると MapLibre は既定値を返すので、フォールバックに落ちたことと区別するためです。
+   */
+  const FALLBACK = "#123456";
+
+  /**
    * MapLibre が色の式として受け付けるかを確かめ、地物を評価した色を返します。
    * devDependencies の @maplibre/maplibre-gl-style-spec は、maplibre-gl が依存するのと同じ版にそろえてあります。
    */
@@ -581,8 +588,6 @@ describe("color map keys that a plain match cannot take", () => {
     }
     return String(parsed.value.evaluate({ zoom: 0 }, { type: 1, properties }));
   };
-  // フォールバックには circle-color の既定値（#000000）と違う色を使う。
-  // 評価に失敗すると MapLibre は既定値を返すので、フォールバックと区別できるようにするため
   /** 式を評価した色と比べるため、色の文字列を MapLibre の Color の文字列（`rgba(...)`）にします。 */
   const css = (color: string) => String(Color.parse(color));
 
@@ -590,18 +595,18 @@ describe("color map keys that a plain match cannot take", () => {
     const expr = circleColor(
       { color: "v", colors: { 1: "#ff0000" } },
       [],
-      "#123456",
+      FALLBACK,
     );
     expect(evaluate(expr, { v: 1 })).toBe(css("#ff0000"));
     expect(evaluate(expr, { v: "1" })).toBe(css("#ff0000"));
-    expect(evaluate(expr, { v: 2 })).toBe(css("#123456"));
+    expect(evaluate(expr, { v: 2 })).toBe(css(FALLBACK));
   });
 
   it("rejects a color that MapLibre cannot parse", () => {
     const expr = circleColor(
       { color: "k", colors: { a: "notacolor" } },
       [],
-      "#123456",
+      FALLBACK,
     );
     expect(() => evaluate(expr, { k: "a" })).toThrow();
   });
@@ -617,18 +622,18 @@ describe("color map keys that a plain match cannot take", () => {
         } as unknown as Record<string, string>,
       },
       [],
-      "#123456",
+      FALLBACK,
     );
     expect(evaluate(expr, { k: "constructor" })).toBe(css("#ff0000"));
     expect(evaluate(expr, { k: "toString" })).toBe(css("#00ff00"));
     expect(evaluate(expr, { k: "a" })).toBe(css("#ffffff"));
-    expect(evaluate(expr, { k: "b" })).toBe(css("#123456"));
+    expect(evaluate(expr, { k: "b" })).toBe(css(FALLBACK));
   });
 
   it("accepts __proto__ as an own key of the color map", () => {
     // オブジェクトリテラルの __proto__ は自身のプロパティにならないので、JSON から作る
     const colors = JSON.parse('{"__proto__":"#0000ff","a":"#ffffff"}');
-    const expr = circleColor({ color: "k", colors }, [], "#123456");
+    const expr = circleColor({ color: "k", colors }, [], FALLBACK);
     expect(evaluate(expr, { k: "__proto__" })).toBe(css("#0000ff"));
     expect(evaluate(expr, { k: "a" })).toBe(css("#ffffff"));
   });
@@ -637,7 +642,7 @@ describe("color map keys that a plain match cannot take", () => {
     const expr = circleColor(
       { color: "k", colors: ["#ff0000", "#00ff00"] },
       [feature({ k: "valueOf" }), feature({ k: "x" })],
-      "#123456",
+      FALLBACK,
     );
     expect(evaluate(expr, { k: "valueOf" })).toBe(css("#ff0000"));
     expect(evaluate(expr, { k: "x" })).toBe(css("#00ff00"));
@@ -647,11 +652,11 @@ describe("color map keys that a plain match cannot take", () => {
     const expr = circleColor(
       { color: "k", colors: { "": "#ff0000", a: "#00ff00" } },
       [],
-      "#123456",
+      FALLBACK,
     );
     expect(evaluate(expr, { k: "" })).toBe(css("#ff0000"));
-    expect(evaluate(expr, {})).toBe(css("#123456"));
-    expect(evaluate(expr, { k: null })).toBe(css("#123456"));
+    expect(evaluate(expr, {})).toBe(css(FALLBACK));
+    expect(evaluate(expr, { k: null })).toBe(css(FALLBACK));
     expect(evaluate(expr, { k: "a" })).toBe(css("#00ff00"));
   });
 
@@ -659,11 +664,23 @@ describe("color map keys that a plain match cannot take", () => {
     const expr = circleColor(
       { color: "k", colors: ["#ff0000", "#00ff00"] },
       [feature({ k: "" }), feature({ k: "a" })],
-      "#123456",
+      FALLBACK,
     );
     expect(evaluate(expr, { k: "" })).toBe(css("#ff0000"));
-    expect(evaluate(expr, {})).toBe(css("#123456"));
-    expect(evaluate(expr, { k: null })).toBe(css("#123456"));
+    expect(evaluate(expr, {})).toBe(css(FALLBACK));
+    expect(evaluate(expr, { k: null })).toBe(css(FALLBACK));
     expect(evaluate(expr, { k: "a" })).toBe(css("#00ff00"));
+  });
+});
+
+describe("@maplibre/maplibre-gl-style-spec", () => {
+  it("is the same copy that maplibre-gl uses", () => {
+    // 式の検証に使う style-spec が、maplibre-gl が実行時に使うものと同じであること
+    // （版がずれて maplibre-gl の下に別の版が入ると、テストが実行時と違う仕様で検証することになる）
+    const nested = new URL(
+      "../node_modules/maplibre-gl/node_modules/@maplibre/maplibre-gl-style-spec",
+      import.meta.url,
+    );
+    expect(existsSync(nested)).toBe(false);
   });
 });

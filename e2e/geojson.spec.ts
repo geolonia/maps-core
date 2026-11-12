@@ -131,47 +131,32 @@ test.describe("GeoJSON / SimpleStyle", () => {
       await waitForMapLoad(page);
 
       expect(await hasLayer(page, layer)).toBe(true);
-      // GeoJSON を URL から読み込んだ後に、式がデータに合わせて設定されること
-      // （既定の simplestyle の式のままではないこと）
-      await expect
-        .poll(
-          async () =>
-            JSON.stringify(
-              await page.evaluate(
-                ([layer, property]) => {
-                  const map = (window as unknown as Record<string, unknown>)
-                    .map as {
-                    getPaintProperty: (
-                      layer: string,
-                      property: string,
-                    ) => unknown;
-                  };
-                  return map.getPaintProperty(layer, property);
-                },
-                [layer, property] as const,
-              ),
-            ),
-          { timeout: 5000 },
-        )
-        .toMatch(/"(value|weight|category)"/);
-      if (viz === "circle-map") {
-        // 対応表のとおりの色になり、対応表に無い 公園 はラベルにしない
-        // （既定のパレットのカテゴリの式になっていないこと）
-        const expr = JSON.stringify(
+      const paint = async () =>
+        JSON.stringify(
           await page.evaluate(
-            ([layer, property]) =>
-              (
-                (window as unknown as Record<string, unknown>).map as {
-                  getPaintProperty: (
-                    layer: string,
-                    property: string,
-                  ) => unknown;
-                }
-              ).getPaintProperty(layer, property),
+            ([layer, property]) => {
+              const map = (window as unknown as Record<string, unknown>)
+                .map as {
+                getPaintProperty: (layer: string, property: string) => unknown;
+              };
+              return map.getPaintProperty(layer, property);
+            },
             [layer, property] as const,
           ),
         );
+      // GeoJSON を URL から読み込んだ後に、式がデータに合わせて設定されること
+      // （既定の simplestyle の式のままではないこと）
+      await expect
+        .poll(paint, { timeout: 5000 })
+        .toMatch(/"(value|weight|category)"/);
+      if (viz === "circle-map") {
+        // 式に対応表の 3 組がそのまま入り、対応表に無い 公園 はラベルにならないこと
+        // （出現順に既定のパレットを割り当てる式になっていないこと）
+        const expr = await paint();
+        expect(expr).toContain('["to-string",["get","category"]]');
+        expect(expr).toContain('"カフェ","#EA5C0D"');
         expect(expr).toContain('"書店","#2B6CB0"');
+        expect(expr).toContain('"ベーカリー","#FABF3D"');
         expect(expr).not.toContain('"公園"');
       }
       // 不正な式は MapLibre が拒否して error イベントで報告する
