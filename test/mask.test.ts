@@ -185,6 +185,14 @@ describe("maskGeometry with shared boundaries", () => {
     ]);
   });
 
+  it("cuts an area out of the hole even when it reuses the hole's array", () => {
+    // プログラムで組み立てたデータで、穴と同じ配列を別の面の外周に使い回す
+    expect(maskGeometry([[square(0, 0), lake], [lake]]).coordinates).toEqual([
+      [WORLD, square(0, 0)],
+      [lake, lake],
+    ]);
+  });
+
   it("keeps an adjacent area sharing an edge out of the hole", () => {
     const neighbor = square(1, 0);
     expect(
@@ -225,10 +233,20 @@ describe("Mask", () => {
     expect(map.getLayer("geolonia-mask-outline")).toBeUndefined();
   });
 
-  it("inserts the layers below the first symbol layer", () => {
-    map.addLayer({ id: "background", type: "background" });
-    map.addLayer({ id: "place-label", type: "symbol" });
-    map.addLayer({ id: "poi-label", type: "symbol" });
+  it("inserts the layers above the last non-symbol layer of the base map", () => {
+    // geolonia/basic-v2 と同じく、最初のシンボルより後ろに建物や行政界が並ぶ
+    for (const [id, type] of [
+      ["background", "background"],
+      ["water", "fill"],
+      ["waterway-name", "symbol"],
+      ["building", "fill"],
+      ["building-3d", "fill-extrusion"],
+      ["boundary", "line"],
+      ["place-label", "symbol"],
+      ["poi-label", "symbol"],
+    ]) {
+      map.addLayer({ id, type });
+    }
 
     new Mask({ geojson: polygon(square(0, 0)), outline: true }).addTo(
       asMap(map),
@@ -236,6 +254,11 @@ describe("Mask", () => {
 
     expect(map.getLayersOrder()).toEqual([
       "background",
+      "water",
+      "waterway-name",
+      "building",
+      "building-3d",
+      "boundary",
       "geolonia-mask",
       "geolonia-mask-outline",
       "place-label",
@@ -507,5 +530,27 @@ describe("Mask", () => {
     old.remove();
     expect(map.getLayer("geolonia-mask")).toBeDefined();
     expect(map.getSource("geolonia-mask")).toBeDefined();
+  });
+
+  it("does not use the GeoJSON when the map has been destroyed", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(polygon(square(0, 0)))),
+    );
+    const mask = new Mask("https://example.com/boundary.geojson").addTo(
+      asMap(map),
+    );
+    (map as unknown as { _removed: boolean })._removed = true;
+
+    await mask._loadingPromise;
+
+    expect(sourceData(map, "geolonia-mask")).toEqual({
+      type: "FeatureCollection",
+      features: [],
+    });
+  });
+
+  it("drops a ring that is not closed", () => {
+    const open = square(0, 0).slice(0, -1);
+    expect(collectPolygons(polygon(open))).toEqual([]);
   });
 });

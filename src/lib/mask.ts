@@ -45,7 +45,7 @@ function signedArea(ring: Ring): number {
   return sum;
 }
 
-/** 閉じたリングとして扱える（4 点以上で面積がある）かどうかです。 */
+/** 閉じたリング（4 点以上で、先頭と末尾が同じ点で、面積がある）として扱えるかどうかです。 */
 function isRing(ring: unknown): ring is Ring {
   return (
     Array.isArray(ring) &&
@@ -53,6 +53,8 @@ function isRing(ring: unknown): ring is Ring {
     ring.every(
       (p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]),
     ) &&
+    ring[0][0] === ring[ring.length - 1][0] &&
+    ring[0][1] === ring[ring.length - 1][1] &&
     signedArea(ring) !== 0
   );
 }
@@ -88,7 +90,23 @@ function onRing(point: GeoJSON.Position, ring: Ring): boolean {
  * すべての頂点が内側か線の上にあるとき、収まるとみなします（`outer` と同じ座標のリングも収まる）。
  */
 function ringWithin(inner: Ring, outer: Ring): boolean {
+  // 外接矩形に収まらなければ、頂点ごとの判定をするまでもなく収まらない
+  const [ix0, iy0, ix1, iy1] = ringBounds(inner);
+  const [ox0, oy0, ox1, oy1] = ringBounds(outer);
+  if (ix0 < ox0 || iy0 < oy0 || ix1 > ox1 || iy1 > oy1) return false;
   return inner.every((point) => onRing(point, outer) || inRing(point, outer));
+}
+
+/** リングの外接矩形 `[西, 南, 東, 北]` です。 */
+function ringBounds(ring: Ring): [number, number, number, number] {
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const [x, y] of ring) {
+    if (x < x0) x0 = x;
+    if (y < y0) y0 = y;
+    if (x > x1) x1 = x;
+    if (y > y1) y1 = y;
+  }
+  return [x0, y0, x1, y1];
 }
 
 /** 点がリングの内側にあるかどうかです（偶奇判定）。線の上の点の結果は決まりません。 */
@@ -152,27 +170,33 @@ export function collectPolygons(
  * 面の中での位置（先頭が外周、それ以降が穴）でリングの向きを直すためです。
  */
 export function maskGeometry(polygons: Ring[][]): GeoJSON.MultiPolygon {
-  const holes = polygons.flatMap(([, ...inner]) => inner);
-  const cutouts = new Map<Ring, Ring[]>([[WORLD, []]]);
-  for (const hole of holes) cutouts.set(hole, []);
-  for (const [outer] of polygons) {
+  // 穴ごとに、どの面の穴かを持っておく。自分の面の穴に自分の外周を入れないため
+  // （利用者のデータが同じ配列を外周と穴で使い回していても、参照の同一性には頼らない）
+  const holes = polygons.flatMap(([, ...inner], owner) =>
+    inner.map((ring) => ({ ring, owner, cutouts: [] as Ring[] })),
+  );
+  const world: Ring[] = [];
+  polygons.forEach(([outer], index) => {
     // 外周を囲む穴のうち、いちばん内側（面積が最小）のものにくり抜く
-    let parent = WORLD;
+    let parent: (typeof holes)[number] | undefined;
     for (const hole of holes) {
       if (
-        hole !== outer &&
-        ringWithin(outer, hole) &&
-        (parent === WORLD ||
-          Math.abs(signedArea(hole)) < Math.abs(signedArea(parent)))
+        hole.owner !== index &&
+        ringWithin(outer, hole.ring) &&
+        (!parent ||
+          Math.abs(signedArea(hole.ring)) < Math.abs(signedArea(parent.ring)))
       ) {
         parent = hole;
       }
     }
-    cutouts.get(parent)?.push(outer);
-  }
+    (parent ? parent.cutouts : world).push(outer);
+  });
   return {
     type: "MultiPolygon",
-    coordinates: [...cutouts].map(([ring, inner]) => [ring, ...inner]),
+    coordinates: [
+      [WORLD, ...world],
+      ...holes.map(({ ring, cutouts }) => [ring, ...cutouts]),
+    ],
   };
 }
 
@@ -190,11 +214,12 @@ export function normalizeMask(
  * 指定した範囲（市区町村の境界など）の外側を暗くするヘルパークラスです。
  *
  * 世界全体を覆う面から境界のポリゴンをくり抜いた面を、`fill` のレイヤーで塗ります。
- * レイヤーは、背景の地図の最初の文字（シンボル）のレイヤーと、既定の ID の `SimpleStyle` と
- * `SimpleStyleVector` のレイヤー（ID に `simple-style` を含むもの）のうち、いちばん下のものの下に入れます。
- * そのため地名のラベルと、`GeoloniaMap` の `geojson` オプションの地物は、マスクの上に表示されます。
- * 利用者が自分で追加したレイヤーは、この位置より上にあればマスクの上に、下にあればマスクの下に表示されます。
- * `beforeId` を指定せずに追加したレイヤーは最前面に入るので、マスクの上に表示されます。
+ * レイヤーは、地図にある文字（シンボル）以外のレイヤーのうち最後のものの直上で、既定の ID の `SimpleStyle` と
+ * `SimpleStyleVector` のレイヤー（ID に `simple-style` を含むもの）より下に入れます。
+ * そのため、背景の地図の陸地、道路、建物、行政界などは暗くなり、それより後ろに並ぶ地名のラベルと、
+ * `GeoloniaMap` の `geojson` オプションの地物は、マスクの上に表示されます。
+ * スタイルの途中に置かれた文字のレイヤー（一部のスタイルの河川名など）は、範囲の外では暗くなります。
+ * マスクより後に `beforeId` を指定せずに追加したレイヤーは最前面に入るので、マスクの上に表示されます。
  *
  * ソースとレイヤーの ID は {@link MASK_ID} に固定なので、1 つの地図に追加できる Mask は 1 つです。
  *
@@ -419,17 +444,19 @@ export class Mask {
 }
 
 /**
- * マスクをその下に入れるレイヤーの ID です。最初のシンボルのレイヤーか、SimpleStyle と
- * SimpleStyleVector のレイヤー（ID に `simple-style` を含む）のうち、いちばん下のものを返します。
- * SimpleStyle はポリゴンの塗りをシンボルより先に追加するので、背景の地図にシンボルのレイヤーが無いとき、
- * シンボルだけを見ると塗りの上にマスクが入ります。
- * どちらも無いときは `undefined`（最前面に追加する）を返します。
+ * マスクをその下に入れるレイヤーの ID です。
+ *
+ * 背景の地図の、文字（シンボル）以外のレイヤーのうち最後のものの直上に入れます。建物や行政界のように、
+ * 最初のシンボルより後ろに並ぶ塗りや線のレイヤーも暗くするためです。ただし SimpleStyle と
+ * SimpleStyleVector のレイヤー（ID に `simple-style` を含む。背景の地図より後ろに追加される）より下にします。
+ * 返すのはその位置の次のレイヤーで、無いときは `undefined`（最前面に追加する）を返します。
  */
 function layerAboveMask(map: MaplibreMap): string | undefined {
-  return map
-    .getLayersOrder()
-    .find(
-      (id) =>
-        map.getLayer(id)?.type === "symbol" || id.includes("simple-style"),
-    );
+  const order = map.getLayersOrder();
+  let index = 0;
+  for (let i = 0; i < order.length; i++) {
+    if (order[i].includes("simple-style")) break;
+    if (map.getLayer(order[i])?.type !== "symbol") index = i + 1;
+  }
+  return order[index];
 }

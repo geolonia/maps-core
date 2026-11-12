@@ -64,7 +64,7 @@ test.describe("mask", () => {
     expect(errors).toEqual([]);
   });
 
-  test("should place the mask below the labels and the geojson layers", async ({
+  test("should place the mask above the base map and below the geojson layers", async ({
     page,
   }) => {
     const errors = collectConsoleErrors(page);
@@ -78,16 +78,16 @@ test.describe("mask", () => {
       return {
         mask: layers.indexOf("geolonia-mask"),
         outline: layers.indexOf("geolonia-mask-outline"),
-        firstSymbol: layers.findIndex(
-          (id) => map.getLayer(id)?.type === "symbol",
-        ),
+        // sample-basic-style.json の最後の塗りのレイヤー
+        fixture: layers.indexOf("fixture"),
         firstSimpleStyle: layers.findIndex((id) =>
           id.startsWith("geolonia-simple-style"),
         ),
       };
     });
+    expect(order.fixture).toBeGreaterThanOrEqual(0);
+    expect(order.fixture).toBeLessThan(order.mask);
     expect(order.mask).toBeLessThan(order.outline);
-    expect(order.outline).toBeLessThan(order.firstSymbol);
     expect(order.outline).toBeLessThan(order.firstSimpleStyle);
     expect(errors).toEqual([]);
   });
@@ -108,6 +108,7 @@ test.describe("mask", () => {
               c.lng > 139.58 && c.lng < 139.98 && c.lat > 35.58 && c.lat < 35.8
             );
           }),
+        // fitBounds の既定の duration（3000ms）に、取得とフレームの余裕を足した値
         { timeout: 6000 },
       )
       .toBe(true);

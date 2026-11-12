@@ -294,7 +294,7 @@ new GeoloniaMap({
 - `geojson` as a string is a URL starting with `http://` or `https://`, or a path starting with `/` or `.` (such as `./boundary.geojson`).
 - Every Polygon and MultiPolygon is cut out, so exclaves and islands work. Holes inside a polygon, such as another area enclosed by the boundary, stay dark, and polygons inside such a hole (an island in a lake) are cut out again. Other geometries are ignored. A polygon whose outer ring is broken is skipped.
 - The polygons should not overlap each other, or the cut-out may be drawn incorrectly. Polygons that cross the antimeridian (longitude ±180°) are not supported.
-- The mask is drawn below the labels of the base map and below the `geojson` data. The mask is inserted below the first symbol layer and the `geojson` layers; layers you add above that position, including any added without `beforeId`, are drawn above the mask.
+- The mask is inserted right above the last non-label layer of the map, and below the `geojson` data. Land, roads, buildings and boundaries of the base map are darkened, while the labels drawn after them stay on top. Labels placed in the middle of a style (such as waterway names in some styles) are darkened outside the area. Layers added later without `beforeId` are drawn above the mask.
 - `outline: true` draws a 2-pixel line in the mask `color`.
 - Without `center` and `geojson`, the map fits to the boundary.
 
