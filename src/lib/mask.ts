@@ -332,6 +332,19 @@ export class Mask {
   private abortLoading: (() => void) | undefined;
   /** addTo と remove のたびに増やします。古い取得の結果を捨てるのに使います。 */
   private generation = 0;
+  /**
+   * 地図に追加されたままでソースが無い間（コンテキストを失っている間や、スタイルを読み込み直している間）に届いた境界の GeoJSON です。
+   * styledata でソースが戻ったときに書き込みます。
+   */
+  private pendingGeoJSON: unknown;
+  /** ソースが戻ったときに保留中の GeoJSON を書き込む styledata のリスナーです。remove で外します。 */
+  private readonly flushPending = () => {
+    const map = this.map;
+    if (this.pendingGeoJSON === undefined || !map || !this.owns(map)) return;
+    const geojson = this.pendingGeoJSON;
+    this.pendingGeoJSON = undefined;
+    this.setPolygons(geojson);
+  };
 
   /**
    * @param option 境界の GeoJSON の URL、または {@link MaskOptions} です。
@@ -394,6 +407,7 @@ export class Mask {
       throw error;
     }
     attached.set(map, this);
+    map.on("styledata", this.flushPending);
     this.outlineActive = !!this.options.outline;
     if (!map.getLayer(MASK_ID)) {
       // MapLibre は不正な paint の値（解釈できない色など）のレイヤーを追加せず、error イベントで知らせるだけなので、
@@ -401,6 +415,7 @@ export class Mask {
       console.error("[Geolonia] Failed to add the mask layer. Check `color`.");
       this.removeLayers(map);
       attached.delete(map);
+      map.off("styledata", this.flushPending);
       this.map = undefined;
       this.outlineActive = false;
       return this;
@@ -455,6 +470,8 @@ export class Mask {
       this.removeLayers(map);
       attached.delete(map);
     }
+    map?.off("styledata", this.flushPending);
+    this.pendingGeoJSON = undefined;
     this.outlineActive = false;
     return this;
   }
@@ -596,8 +613,13 @@ export class Mask {
   /** 境界の面をソースに入れます。地図が破棄されたかスタイルが差し替えられてソースが無いときは、何もしません。 */
   private setPolygons(geojson: unknown) {
     const map = this.map;
-    // 地図を破棄すると getSource は undefined を返すので、所有の照合で破棄も見分けられる
-    if (!map || !this.owns(map)) return;
+    if (!map) return;
+    if (!this.owns(map)) {
+      // 地図に追加されたままでソースだけが無い（コンテキストを失っている間など）なら、ソースが戻るまで保留する。
+      // 地図を破棄したときも getSource は undefined を返すが、その後に styledata は来ないので、保留したまま書き込まない
+      if (attached.get(map) === this) this.pendingGeoJSON = geojson;
+      return;
+    }
     const source = map.getSource(MASK_ID) as GeoJSONSource;
 
     const { polygons, dropped } = collectPolygonsWithDropped(geojson);

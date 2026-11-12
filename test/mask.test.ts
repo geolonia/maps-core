@@ -1184,4 +1184,36 @@ describe("Mask", () => {
     added.remove();
     expect(added.isAddedTo(asMap(other))).toBe(false);
   });
+
+  it("keeps a GeoJSON that arrives while the source is gone and writes it when the source returns", async () => {
+    let resolve: (r: Response) => void = () => {};
+    vi.spyOn(window, "fetch").mockImplementation(
+      () =>
+        new Promise<Response>((r) => {
+          resolve = r;
+        }),
+    );
+    const mask = new Mask("https://example.com/boundary.geojson").addTo(
+      asMap(map),
+    );
+    // コンテキストを失っている間は、スタイルが無いのでソースも無い
+    const saved = map.sources;
+    map.sources = {};
+
+    resolve(new Response(JSON.stringify(polygon(square(0, 0)))));
+    await mask._loadingPromise;
+    expect(map.getSource("geolonia-mask")).toBeUndefined();
+
+    // 復元するとスナップショット（取得前の空のデータ）からソースが戻り、styledata が来る
+    map.sources = Object.fromEntries(
+      Object.entries(saved).map(([id, source]) => [
+        id,
+        { ...(source as object) },
+      ]),
+    );
+    map.fire("styledata");
+    expect(
+      (sourceData(map, "geolonia-mask") as GeoJSON.Feature).geometry,
+    ).toEqual(maskGeometry([[square(0, 0)]]));
+  });
 });
