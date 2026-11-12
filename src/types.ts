@@ -129,6 +129,7 @@ export type GeoloniaMapOptions = MapOptions & {
   /**
    * `geojson` のポリゴンを、プロパティの値で塗り分ける（コロプレス）。
    * プロパティ名の文字列、または {@link ChoroplethOptions} を指定する。
+   * 数値の値は連続した色で、`colors` に {@link ColorMap} を渡したときは値ごとの色で塗る。
    * 地物の simplestyle の `fill` より優先する。地物に `fill-opacity` がないときの不透明度は、
    * 背景の地図が透けるよう 1 ではなく 0.7 にする。
    */
@@ -169,17 +170,33 @@ export type GeoloniaMapOptions = MapOptions & {
 };
 
 /**
+ * 値と色の対応表。キーを値、値を色（CSS カラー文字列）とする。
+ * 地物の値は文字列にしてキーと照合する。`{ 1: "#..." }` のような数値のキーは、値 `1` にも `"1"` にも一致する。
+ * 対応表に無い値の地物は、色の指定が無いときと同じ見た目（地物の simplestyle の色、または既定の色）にする。
+ *
+ * @example
+ * ```typescript
+ * { normal: "#3b82f6", warning: "#eab308", danger: "#ef4444" }
+ * ```
+ */
+export type ColorMap = Record<string, string>;
+
+/**
  * {@link GeoloniaMapOptions.choropleth} の詳細な指定。
  */
 export type ChoroplethOptions = {
-  /** 塗り分けに使うプロパティ名。値が数値の地物だけを塗り分ける。 */
+  /**
+   * 塗り分けに使うプロパティ名。`colors` が配列なら値が数値の地物だけを塗り分け、
+   * {@link ColorMap} なら対応表にある値の地物を塗り分ける。
+   */
   property: string;
   /**
-   * 値の小さい側から大きい側へ並べた色。値の範囲に等間隔で割り当て、間は補間する。
+   * 配列なら、値の小さい側から大きい側へ並べた色。値の範囲に等間隔で割り当て、間は補間する。
+   * {@link ColorMap} なら、値ごとの色。
    * @defaultValue `['#FFF2CC', '#FFAB40', '#EA5C0D', '#B3261E']`
    */
-  colors?: string[];
-  /** 色を割り当てる値の範囲 `[最小, 最大]`。省略するとデータの最小値と最大値を使う。 */
+  colors?: string[] | ColorMap;
+  /** 色を割り当てる値の範囲 `[最小, 最大]`。省略するとデータの最小値と最大値を使う。`colors` が {@link ColorMap} のときは使わない。 */
   range?: [number, number];
 };
 
@@ -205,11 +222,14 @@ export type CircleOptions = {
   /**
    * 円の色に使うプロパティ名。値がすべて数値なら連続した色に、
    * そうでなければ値ごとに別の色にする。`"12"` のような数字の文字列もカテゴリとして扱う。
-   * オブジェクトや配列の値は色分けしない。
+   * オブジェクトや配列の値は色分けしない。`colors` に {@link ColorMap} を渡したときは、値の種類によらず対応表のとおりに塗る。
    */
   color?: string;
-  /** `color` に使う色。数値なら小さい側から大きい側へ、カテゴリなら出現順に割り当てる。 */
-  colors?: string[];
+  /**
+   * `color` に使う色。配列なら、数値は小さい側から大きい側へ、カテゴリは出現順に割り当てる。
+   * {@link ColorMap} なら、値の種類によらず対応表のとおりに割り当てる。
+   */
+  colors?: string[] | ColorMap;
 };
 
 /**
@@ -255,10 +275,11 @@ export type ExtrusionColorOptions = {
   /** 色に使うプロパティ名。 */
   property: string;
   /**
-   * 色。数値なら小さい側から大きい側へ並べて値の範囲に等間隔で割り当て、カテゴリなら出現順に割り当てる。
+   * 色。配列なら、数値は小さい側から大きい側へ並べて値の範囲に等間隔で割り当て、カテゴリは出現順に割り当てる。
+   * {@link ColorMap} なら、値の種類によらず対応表のとおりに割り当てる。
    * @defaultValue 数値は `['#FFF2CC', '#FFAB40', '#EA5C0D', '#B3261E']`
    */
-  colors?: string[];
-  /** 数値の色を割り当てる値の範囲 `[最小, 最大]`。省略するとデータの最小値と最大値を使う。 */
+  colors?: string[] | ColorMap;
+  /** 数値の色を割り当てる値の範囲 `[最小, 最大]`。省略するとデータの最小値と最大値を使う。`colors` が {@link ColorMap} のときは使わない。 */
   range?: [number, number];
 };

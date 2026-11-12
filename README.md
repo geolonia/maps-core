@@ -206,6 +206,18 @@ new GeoloniaMap({ container: '#map', geojson, heatmap: 'weight' });
 // Size points by `weight` and color them by `category`.
 // Numeric values get a color ramp, other values one color per category.
 new GeoloniaMap({ container: '#map', geojson, circle: { size: 'weight', color: 'category' } });
+
+// Fix the color of each value with an object instead of an array.
+new GeoloniaMap({
+  container: '#map',
+  geojson,
+  circle: { color: 'status', colors: { normal: '#3b82f6', warning: '#eab308', danger: '#ef4444' } },
+});
+new GeoloniaMap({
+  container: '#map',
+  geojson,
+  choropleth: { property: 'zoning', colors: { residential: '#fde68a', commercial: '#f87171' } },
+});
 ```
 
 - These options take precedence over simplestyle properties such as `fill` and `marker-color`. Features without a numeric value fall back to the simplestyle look.
@@ -214,6 +226,7 @@ new GeoloniaMap({ container: '#map', geojson, circle: { size: 'weight', color: '
 - `colors` is optional. The defaults are Geolonia's orange ramp and a categorical palette.
 - With `choropleth`, polygons without a `fill-opacity` property are drawn at 0.7 opacity instead of 1, so that the base map shows through.
 - With `circle.color`, a property is treated as numeric only when every value is a number. Numeric strings such as `"12"` count as categories. Objects and arrays are not colored.
+- `colors` may also be an object that maps values to colors. It works with `choropleth`, `circle.color` and `extrusion.color`. Each feature's value is converted to a string and looked up in the object, so the colors do not depend on the order of the data, and a key such as `1` matches both `1` and `"1"`. Features whose value is not in the object fall back to the simplestyle look. With an object, `choropleth` colors by category instead of a numeric ramp, and `range` is ignored.
 
 #### `extrusion`
 

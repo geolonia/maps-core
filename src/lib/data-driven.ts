@@ -7,6 +7,7 @@ import type { ExpressionSpecification } from "maplibre-gl";
 import type {
   ChoroplethOptions,
   CircleOptions,
+  ColorMap,
   ExtrusionColorOptions,
   ExtrusionHeightOptions,
   ExtrusionOptions,
@@ -39,9 +40,86 @@ export const DEFAULT_EXTRUSION_MAX_HEIGHT = 3000;
 /** `circle.size` を指定したときの円の半径の範囲（ピクセル）です。 */
 const CIRCLE_RADIUS_RANGE: [number, number] = [3, 11];
 
-/** `colors` が指定されていなければ、または空なら `defaults` を返します。 */
-function colorsOr(colors: string[] | undefined, defaults: string[]): string[] {
-  return colors?.length ? colors : defaults;
+/** `colors` が配列でなければ、または空なら `defaults` を返します。 */
+function colorsOr(
+  colors: string[] | ColorMap | undefined,
+  defaults: string[],
+): string[] {
+  return Array.isArray(colors) && colors.length ? colors : defaults;
+}
+
+/** `colors` が値と色の対応表（配列でないオブジェクト）かどうかです。 */
+function isColorMap(
+  colors: string[] | ColorMap | undefined,
+): colors is ColorMap {
+  return (
+    typeof colors === "object" && colors !== null && !Array.isArray(colors)
+  );
+}
+
+/**
+ * 値と色の割り当てです。地図の式はこの割り当てから組み立てます。
+ *
+ * - `sequential`: 数値の値を `range` の中で `colors` に線形に補間します。
+ * - `categorical`: 値を文字列にして `entries` の値と照合し、一致した色にします。
+ */
+type ColorScale =
+  | {
+      type: "sequential";
+      property: string;
+      range: [number, number];
+      colors: string[];
+    }
+  | { type: "categorical"; property: string; entries: [string, string][] };
+
+/** 割り当てから地図の式を組み立てます。割り当てが無いときや、割り当てに一致しない地物は `fallback` にします。 */
+function colorExpression(
+  scale: ColorScale | undefined,
+  fallback: Expression,
+): Expression {
+  if (!scale) return fallback;
+  if (scale.type === "sequential") {
+    return whenNumber(
+      scale.property,
+      interpolate(scale.property, scale.range, scale.colors),
+      fallback,
+    );
+  }
+  return [
+    "match",
+    ["to-string", ["get", scale.property]],
+    ...scale.entries.flat(),
+    fallback,
+  ] as ExpressionSpecification;
+}
+
+/** 数値の値を連続した色に割り当てます。数値が 1 つもないときは割り当てを作りません。 */
+function sequentialScale(
+  property: string,
+  features: GeoJSON.Feature[],
+  colors: string[],
+  range?: [number, number],
+): ColorScale | undefined {
+  const r = range ?? numericRange(features, property);
+  return r && { type: "sequential", property, range: r, colors };
+}
+
+/**
+ * 値と色の対応表から割り当てを作ります。キーは値を文字列にしたものと照合します。
+ * 色が文字列でない項目は、型のない呼び出し元から渡されても地図の初期化を止めないよう無視します。
+ * 有効な項目が 1 つもないときは割り当てを作りません。
+ */
+function colorMapScale(
+  property: string,
+  colors: ColorMap,
+): ColorScale | undefined {
+  const entries = Object.entries(colors).filter(
+    (entry): entry is [string, string] =>
+      typeof entry[1] === "string" && entry[1] !== "",
+  );
+  return entries.length
+    ? { type: "categorical", property, entries }
+    : undefined;
 }
 
 /** `choropleth` オプションを {@link ChoroplethOptions} にそろえます。 */
@@ -137,32 +215,24 @@ function whenNumber(
   ] as ExpressionSpecification;
 }
 
-/** 数値のプロパティを連続した色に対応させます。数値が 1 つもないときは `fallback` を返します。 */
-function sequentialColor(
-  property: string,
-  features: GeoJSON.Feature[],
-  colors: string[],
-  fallback: Expression,
-  range?: [number, number],
-): Expression {
-  const r = range ?? numericRange(features, property);
-  if (!r) return fallback;
-  return whenNumber(property, interpolate(property, r, colors), fallback);
-}
-
-/** コロプレスの塗りの色の式です。 */
+/**
+ * コロプレスの塗りの色の式です。`colors` が値と色の対応表なら値ごとの色に、
+ * そうでなければ数値の値を連続した色にします。
+ */
 export function choroplethColor(
   option: ChoroplethOptions,
   features: GeoJSON.Feature[],
   fallback: Expression,
 ): Expression {
-  return sequentialColor(
-    option.property,
-    features,
-    colorsOr(option.colors, SEQUENTIAL_COLORS),
-    fallback,
-    option.range,
-  );
+  const scale = isColorMap(option.colors)
+    ? colorMapScale(option.property, option.colors)
+    : sequentialScale(
+        option.property,
+        features,
+        colorsOr(option.colors, SEQUENTIAL_COLORS),
+        option.range,
+      );
+  return colorExpression(scale, fallback);
 }
 
 /** ヒートマップの重みの式です。重みはデータの範囲を 0 から 1 に対応させます。 */
@@ -211,40 +281,39 @@ export function circleRadius(
 }
 
 /**
- * `property` の値で色分けする式です。値がすべて数値なら連続した色に、
- * そうでなければ値ごとのカテゴリの色にします。
+ * `property` の値で色分けする割り当てです。`colors` が値と色の対応表ならその対応に、
+ * そうでなければ、値がすべて数値なら連続した色に、それ以外は値ごとのカテゴリの色にします。
  */
-function propertyColor(
+function propertyColorScale(
   property: string,
   features: GeoJSON.Feature[],
-  colors: string[] | undefined,
-  fallback: Expression,
+  colors: string[] | ColorMap | undefined,
   range?: [number, number],
-): Expression {
+): ColorScale | undefined {
+  if (isColorMap(colors)) return colorMapScale(property, colors);
+
   const values = features
     .map((f) => f.properties?.[property])
     // オブジェクトや配列は MapLibre の to-string と JS の String() で文字列が変わるので、カテゴリにしない
     .filter((v) => ["string", "number", "boolean"].includes(typeof v));
-  if (values.length === 0) return fallback;
+  if (values.length === 0) return undefined;
 
   if (values.every((v) => typeof v === "number")) {
-    return sequentialColor(
+    return sequentialScale(
       property,
       features,
       colorsOr(colors, SEQUENTIAL_COLORS),
-      fallback,
       range,
     );
   }
 
   const palette = colorsOr(colors, CATEGORICAL_COLORS);
   const categories = [...new Set(values.map(String))];
-  return [
-    "match",
-    ["to-string", ["get", property]],
-    ...categories.flatMap((c, i) => [c, palette[i % palette.length]]),
-    fallback,
-  ] as ExpressionSpecification;
+  return {
+    type: "categorical",
+    property,
+    entries: categories.map((c, i) => [c, palette[i % palette.length]]),
+  };
 }
 
 /**
@@ -257,7 +326,10 @@ export function circleColor(
   fallback: Expression,
 ): Expression {
   if (!option.color) return fallback;
-  return propertyColor(option.color, features, option.colors, fallback);
+  return colorExpression(
+    propertyColorScale(option.color, features, option.colors),
+    fallback,
+  );
 }
 
 /**
@@ -305,11 +377,8 @@ export function extrusionColor(
   features: GeoJSON.Feature[],
   fallback: Expression,
 ): Expression {
-  return propertyColor(
-    option.property,
-    features,
-    option.colors,
+  return colorExpression(
+    propertyColorScale(option.property, features, option.colors, option.range),
     fallback,
-    option.range,
   );
 }

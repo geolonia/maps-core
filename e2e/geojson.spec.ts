@@ -112,6 +112,7 @@ test.describe("GeoJSON / SimpleStyle", () => {
     ["choropleth", "geolonia-simple-style-polygon", "fill-color"],
     ["heatmap", "geolonia-simple-style-heatmap", "heatmap-weight"],
     ["circle", "geolonia-simple-style-circle-points", "circle-color"],
+    ["circle-map", "geolonia-simple-style-circle-points", "circle-color"],
     [
       "extrusion",
       "geolonia-simple-style-polygon-extrusion",

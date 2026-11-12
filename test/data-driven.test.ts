@@ -468,3 +468,94 @@ describe("extrusionColor", () => {
     ]);
   });
 });
+
+describe("colors as a color map", () => {
+  const status = { normal: "#3b82f6", warning: "#eab308", danger: "#ef4444" };
+  const matchStatus = (property: string, fallback: string) => [
+    "match",
+    ["to-string", ["get", property]],
+    "normal",
+    "#3b82f6",
+    "warning",
+    "#eab308",
+    "danger",
+    "#ef4444",
+    fallback,
+  ];
+
+  it("maps circle colors by value, independent of the order in the data", () => {
+    const features = [feature({ s: "danger" }), feature({ s: "normal" })];
+    expect(
+      circleColor({ color: "s", colors: status }, features, "red"),
+    ).toEqual(matchStatus("s", "red"));
+    expect(
+      circleColor(
+        { color: "s", colors: status },
+        [...features].reverse(),
+        "red",
+      ),
+    ).toEqual(matchStatus("s", "red"));
+  });
+
+  it("builds the same match when the data is empty or numeric", () => {
+    expect(circleColor({ color: "s", colors: status }, [], "red")).toEqual(
+      matchStatus("s", "red"),
+    );
+    expect(
+      circleColor(
+        { color: "v", colors: { 1: "#111", 2: "#222" } },
+        [feature({ v: 1 }), feature({ v: 2 })],
+        "red",
+      ),
+    ).toEqual([
+      "match",
+      ["to-string", ["get", "v"]],
+      "1",
+      "#111",
+      "2",
+      "#222",
+      "red",
+    ]);
+  });
+
+  it("paints choropleth polygons by category and ignores range", () => {
+    expect(
+      choroplethColor(
+        { property: "s", colors: status, range: [0, 1] },
+        [feature({ s: "normal" })],
+        "red",
+      ),
+    ).toEqual(matchStatus("s", "red"));
+  });
+
+  it("maps extrusion colors by value", () => {
+    expect(
+      extrusionColor(
+        { property: "s", colors: status, range: [0, 1] },
+        [feature({ s: "warning" })],
+        "#f00",
+      ),
+    ).toEqual(matchStatus("s", "#f00"));
+  });
+
+  it("ignores entries whose color is not a non-empty string", () => {
+    const colors = { a: "#111", b: "", c: 3 } as unknown as Record<
+      string,
+      string
+    >;
+    expect(circleColor({ color: "k", colors }, [], "red")).toEqual([
+      "match",
+      ["to-string", ["get", "k"]],
+      "a",
+      "#111",
+      "red",
+    ]);
+  });
+
+  it("falls back when the map has no valid entry", () => {
+    expect(circleColor({ color: "k", colors: {} }, [], "red")).toBe("red");
+    expect(choroplethColor({ property: "k", colors: {} }, [], "red")).toBe(
+      "red",
+    );
+  });
+});

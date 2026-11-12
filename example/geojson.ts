@@ -53,7 +53,7 @@ if (source === "url") {
   options.geojson = inlineGeoJSON;
 }
 
-// Data-driven styles: ?viz=choropleth | heatmap | circle | extrusion
+// Data-driven styles: ?viz=choropleth | heatmap | circle | circle-map | extrusion
 // sample-mesh.geojson (255 polygons with `value`) and sample-spots.geojson
 // (400 points with `weight`, `category` and simplestyle `marker-*`) are
 // synthetic data generated with a seeded PRNG, not real facilities or statistics.
@@ -76,6 +76,14 @@ if (viz === "choropleth") {
   options.geojson = "/sample-mesh.geojson";
   options.extrusion = "value";
   options.pitch = 60;
+} else if (viz === "circle-map") {
+  // Colors fixed per category, whatever order the categories appear in.
+  // 公園 is left out to show the fallback to the simplestyle marker-color.
+  options.geojson = "/sample-spots.geojson";
+  options.circle = {
+    color: "category",
+    colors: { カフェ: "#EA5C0D", 書店: "#2B6CB0", ベーカリー: "#FABF3D" },
+  };
 }
 
 if (params.has("cluster")) {
