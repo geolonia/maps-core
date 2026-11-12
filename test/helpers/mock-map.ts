@@ -5,7 +5,7 @@ type EventHandler = (...args: unknown[]) => void;
 /**
  * Shared MockMap for unit testing without MapLibre GL dependency.
  *
- * Covers methods used across: simplestyle, simplestyle-vector, attribution, util.
+ * Covers methods used across: simplestyle, simplestyle-vector, mask, attribution, util.
  */
 export class MockMap {
   bounds = false;
@@ -23,8 +23,18 @@ export class MockMap {
     this.sources[id] = source;
   }
 
-  addLayer(layer: Record<string, unknown>) {
-    this.layers.push(layer);
+  addLayer(layer: Record<string, unknown>, beforeId?: string) {
+    if (!beforeId) {
+      this.layers.push(layer);
+      return;
+    }
+    // MapLibre と同じく、存在しない beforeId では追加しない
+    const index = this.layers.findIndex((l) => l.id === beforeId);
+    if (index >= 0) this.layers.splice(index, 0, layer);
+  }
+
+  getLayersOrder() {
+    return this.layers.map((l) => l.id as string);
   }
 
   getSource(id: string) {
