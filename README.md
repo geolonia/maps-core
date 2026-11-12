@@ -301,8 +301,8 @@ new GeoloniaMap({
 - Adjacent polygons that share an edge may show a faint seam along the shared edge inside the area. Merge them into one polygon to avoid it.
 - A polygon enclosed by a hole of another polygon (such as an area enclosed by a city) is detected when all its vertices and the midpoints of its edges are inside the hole or on its edge, within about 0.2 m. Adjacent polygons should share their vertices or use coordinates rounded to 6 or more decimal places; otherwise an enclosed polygon may be darkened. With very detailed boundaries that have both holes and polygons inside them, this check takes more time.
 - `outline: true` draws a 2-pixel line in the mask `color`.
-- An `opacity` that is not a number from 0 to 1 logs an error and the default is used. If loading the URL (including the response body) does not finish within 30 seconds, it is aborted and an error is logged. Skipped polygons or holes are reported with a warning. If MapLibre rejects the fill layer (for example, a color it cannot parse), nothing is added and an error is logged. If only the outline is rejected, the fill is kept and an error is logged.
-- Without `center`, `bounds`, `geojson` and `simpleVector`, the map fits to the boundary. This also happens again after `setStyle()`, since the mask is added again for the new style.
+- An `opacity` that is not a number from 0 to 1 logs an error and the default is used. If loading the URL (including the response body) does not finish within 30 seconds, it is aborted and an error is logged. Skipped polygons or holes are reported with a warning, or with an error when every polygon is skipped. If MapLibre rejects the fill layer (for example, a color it cannot parse), nothing is added and an error is logged. If only the outline is rejected, the fill is kept and an error is logged.
+- Without `center`, `bounds`, `geojson` and `simpleVector`, the map fits to the boundary. This also happens again after `setStyle()`, since the mask is added again for the new style. As with `geojson`, a position restored by `hash` or a `zoom` without `center` does not prevent the fit.
 
 ### `GeoloniaMarker`
 
@@ -330,7 +330,7 @@ ss.addTo(map).fitBounds();
 
 ### `Mask`
 
-Darkens everything outside a boundary on an existing map. Takes the same value as the `mask` option. Call `addTo` after the style has loaded. Only one mask can be added to a map; a second one is not added and logs an error. A removed mask can be added again, and calling `addTo` on a mask that is already added moves it.
+Darkens everything outside a boundary on an existing map. Takes the same value as the `mask` option. Call `addTo` after the style has loaded. Only one mask can be added to a map; a second one, or a mask on a map that already has a source or layer named `geolonia-mask` or `geolonia-mask-outline` (even without `outline`), is not added and logs an error. Calling `addTo` before the style has loaded throws, as `addSource` does. A removed mask can be added again, and calling `addTo` on a mask that is already added moves it.
 
 ```typescript
 import { Mask } from '@geolonia/maps-core';

@@ -334,8 +334,10 @@ export class Mask {
    *
    * - この Mask を追加済みのときは、先に取り除いてから追加し直します（取得中のフィットの予約は取り消します）。
    *   別の地図への移動を断ったときは、元の地図に追加したままにします。
-   * - 同じ地図に別の Mask が追加済みのとき、`geojson` が指定されていないとき、`geojson` が URL として不正なときは、
+   * - 同じ ID（`geolonia-mask`、`geolonia-mask-outline`）のソースかレイヤーがすでにあるとき（別の Mask が追加済みのときを含む。
+   *   境界線を引かない設定でも）、`geojson` が指定されていないとき、`geojson` が URL として不正なときは、
    *   何も追加せずに `console.error` に出します。
+   * - スタイルの読み込みが終わる前に呼ぶと、MapLibre の `addSource` と同じく例外を投げます（Mask の状態は追加前に戻します）。
    *
    * @returns メソッドチェーンのための `this` を返します。
    */
@@ -369,7 +371,14 @@ export class Mask {
     const generation = ++this.generation;
     this.map = map;
     this.polygons = undefined;
-    this.addLayers();
+    try {
+      this.addLayers();
+    } catch (error) {
+      // スタイルの読み込み前に呼ぶと MapLibre の addSource が例外を投げる。状態を戻してから投げ直す
+      this.removeLayersById(map);
+      this.map = undefined;
+      throw error;
+    }
     this.source = map.getSource(MASK_ID);
     this.outlineSource = this.options.outline
       ? map.getSource(`${MASK_ID}-outline`)
@@ -385,10 +394,12 @@ export class Mask {
       return this;
     }
     if (this.options.outline && !map.getLayer(`${MASK_ID}-outline`)) {
-      // 境界線だけが追加できなかったときは、塗りのマスクは残す
+      // 境界線だけが追加できなかったときは、塗りのマスクは残し、使わない境界線のソースは取り除く
       console.error(
         "[Geolonia] Failed to add the mask outline layer. Check `outline.color` and `outline.width`.",
       );
+      if (this.ownsOutline(map)) map.removeSource(`${MASK_ID}-outline`);
+      this.outlineSource = undefined;
     }
 
     if (url) {
@@ -447,6 +458,16 @@ export class Mask {
     if (map.getLayer(MASK_ID)) map.removeLayer(MASK_ID);
     if (ownsOutline) map.removeSource(outline);
     if (map.getSource(MASK_ID)) map.removeSource(MASK_ID);
+  }
+
+  /** addLayers の途中で例外が出たときに、この呼び出しで追加できたものを ID で取り除きます。 */
+  private removeLayersById(map: MaplibreMap) {
+    for (const id of [`${MASK_ID}-outline`, MASK_ID]) {
+      if (map.getLayer(id)) map.removeLayer(id);
+    }
+    for (const id of [`${MASK_ID}-outline`, MASK_ID]) {
+      if (map.getSource(id)) map.removeSource(id);
+    }
   }
 
   /** 地図の `geolonia-mask-outline` のソースが、この Mask が追加したものかどうかです。 */
@@ -557,7 +578,10 @@ export class Mask {
     const { polygons, dropped } = collectPolygonsWithDropped(geojson);
     if (polygons.length === 0) {
       console.error(
-        "[Geolonia] The mask GeoJSON has no Polygon or MultiPolygon.",
+        dropped > 0
+          ? "[Geolonia] All mask polygons were skipped (not closed, no area, or outside longitude/latitude):"
+          : "[Geolonia] The mask GeoJSON has no Polygon or MultiPolygon.",
+        ...(dropped > 0 ? [dropped] : []),
       );
       return;
     }

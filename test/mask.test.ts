@@ -1007,4 +1007,73 @@ describe("Mask", () => {
       2,
     );
   });
+
+  it("logs an error naming the cause when every polygon is skipped", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    new Mask({ geojson: polygon(square(-30000, 50000, 1000)) }).addTo(
+      asMap(map),
+    );
+    expect(error).toHaveBeenCalledWith(
+      "[Geolonia] All mask polygons were skipped (not closed, no area, or outside longitude/latitude):",
+      1,
+    );
+  });
+
+  it("gives up when the response body does not arrive in time", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(window, "fetch").mockImplementation(
+        async (_url, init) =>
+          ({
+            ok: true,
+            json: () =>
+              new Promise((_resolve, reject) => {
+                (init as RequestInit).signal?.addEventListener("abort", () =>
+                  reject((init as RequestInit).signal?.reason),
+                );
+              }),
+          }) as unknown as Response,
+      );
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const mask = new Mask("https://example.com/boundary.geojson").addTo(
+        asMap(map),
+      );
+      await vi.advanceTimersByTimeAsync(MASK_FETCH_TIMEOUT);
+      await mask._loadingPromise;
+      expect(error).toHaveBeenCalledWith(
+        "[Geolonia] Failed to load mask GeoJSON:",
+        expect.any(Error),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("restores its state when adding the layers throws", () => {
+    vi.spyOn(map, "addSource").mockImplementation(() => {
+      throw new Error("Style is not done loading");
+    });
+    const mask = new Mask({ geojson: polygon(square(0, 0)) });
+    expect(() => mask.addTo(asMap(map))).toThrow("Style is not done loading");
+    vi.mocked(map.addSource).mockRestore();
+
+    // 状態が戻っているので、読み込み後に追加し直せる
+    mask.addTo(asMap(map));
+    expect(map.getLayer("geolonia-mask")).toBeDefined();
+  });
+
+  it("removes the outline source when only the outline layer is rejected", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const addLayer = map.addLayer.bind(map);
+    vi.spyOn(map, "addLayer").mockImplementation((layer, before) => {
+      if (layer.id !== "geolonia-mask-outline") addLayer(layer, before);
+    });
+    new Mask({
+      geojson: polygon(square(0, 0)),
+      outline: { width: -1 },
+    }).addTo(asMap(map));
+
+    expect(map.getLayer("geolonia-mask")).toBeDefined();
+    expect(map.getSource("geolonia-mask-outline")).toBeUndefined();
+  });
 });

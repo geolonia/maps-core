@@ -383,6 +383,8 @@ export default class GeoloniaMap extends maplibregl.Map {
     // Style extensions (SimpleStyle, SimpleVector, Mask, 3D)
     // 前のスタイルで作った Mask。作り直す前に取り除き、取得中の境界の GeoJSON を止める
     let mask: Mask | undefined;
+    // 地図を破棄したら、取得中の境界の GeoJSON も止める
+    this.once("remove", () => mask?.remove());
     this.on("styledata", async () => {
       if (!this.__styleExtensionLoadRequired) {
         return;
