@@ -581,14 +581,27 @@ describe("color map keys that a plain match cannot take", () => {
     }
     return String(parsed.value.evaluate({ zoom: 0 }, { type: 1, properties }));
   };
+  // フォールバックには circle-color の既定値（#000000）と違う色を使う。
+  // 評価に失敗すると MapLibre は既定値を返すので、フォールバックと区別できるようにするため
   /** 式を評価した色と比べるため、色の文字列を MapLibre の Color の文字列（`rgba(...)`）にします。 */
   const css = (color: string) => String(Color.parse(color));
+
+  it("matches a numeric key with both the number and the string", () => {
+    const expr = circleColor(
+      { color: "v", colors: { 1: "#ff0000" } },
+      [],
+      "#123456",
+    );
+    expect(evaluate(expr, { v: 1 })).toBe(css("#ff0000"));
+    expect(evaluate(expr, { v: "1" })).toBe(css("#ff0000"));
+    expect(evaluate(expr, { v: 2 })).toBe(css("#123456"));
+  });
 
   it("rejects a color that MapLibre cannot parse", () => {
     const expr = circleColor(
       { color: "k", colors: { a: "notacolor" } },
       [],
-      "#000000",
+      "#123456",
     );
     expect(() => evaluate(expr, { k: "a" })).toThrow();
   });
@@ -604,18 +617,18 @@ describe("color map keys that a plain match cannot take", () => {
         } as unknown as Record<string, string>,
       },
       [],
-      "#000000",
+      "#123456",
     );
     expect(evaluate(expr, { k: "constructor" })).toBe(css("#ff0000"));
     expect(evaluate(expr, { k: "toString" })).toBe(css("#00ff00"));
     expect(evaluate(expr, { k: "a" })).toBe(css("#ffffff"));
-    expect(evaluate(expr, { k: "b" })).toBe(css("#000000"));
+    expect(evaluate(expr, { k: "b" })).toBe(css("#123456"));
   });
 
   it("accepts __proto__ as an own key of the color map", () => {
     // オブジェクトリテラルの __proto__ は自身のプロパティにならないので、JSON から作る
     const colors = JSON.parse('{"__proto__":"#0000ff","a":"#ffffff"}');
-    const expr = circleColor({ color: "k", colors }, [], "#000000");
+    const expr = circleColor({ color: "k", colors }, [], "#123456");
     expect(evaluate(expr, { k: "__proto__" })).toBe(css("#0000ff"));
     expect(evaluate(expr, { k: "a" })).toBe(css("#ffffff"));
   });
@@ -624,7 +637,7 @@ describe("color map keys that a plain match cannot take", () => {
     const expr = circleColor(
       { color: "k", colors: ["#ff0000", "#00ff00"] },
       [feature({ k: "valueOf" }), feature({ k: "x" })],
-      "#000000",
+      "#123456",
     );
     expect(evaluate(expr, { k: "valueOf" })).toBe(css("#ff0000"));
     expect(evaluate(expr, { k: "x" })).toBe(css("#00ff00"));
@@ -634,11 +647,11 @@ describe("color map keys that a plain match cannot take", () => {
     const expr = circleColor(
       { color: "k", colors: { "": "#ff0000", a: "#00ff00" } },
       [],
-      "#000000",
+      "#123456",
     );
     expect(evaluate(expr, { k: "" })).toBe(css("#ff0000"));
-    expect(evaluate(expr, {})).toBe(css("#000000"));
-    expect(evaluate(expr, { k: null })).toBe(css("#000000"));
+    expect(evaluate(expr, {})).toBe(css("#123456"));
+    expect(evaluate(expr, { k: null })).toBe(css("#123456"));
     expect(evaluate(expr, { k: "a" })).toBe(css("#00ff00"));
   });
 
@@ -646,11 +659,11 @@ describe("color map keys that a plain match cannot take", () => {
     const expr = circleColor(
       { color: "k", colors: ["#ff0000", "#00ff00"] },
       [feature({ k: "" }), feature({ k: "a" })],
-      "#000000",
+      "#123456",
     );
     expect(evaluate(expr, { k: "" })).toBe(css("#ff0000"));
-    expect(evaluate(expr, {})).toBe(css("#000000"));
-    expect(evaluate(expr, { k: null })).toBe(css("#000000"));
+    expect(evaluate(expr, {})).toBe(css("#123456"));
+    expect(evaluate(expr, { k: null })).toBe(css("#123456"));
     expect(evaluate(expr, { k: "a" })).toBe(css("#00ff00"));
   });
 });
