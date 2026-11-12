@@ -71,10 +71,12 @@ function isRing(ring: unknown): ring is Ring {
 }
 
 /**
- * 点が線分の上にあるとみなす、線分からの距離の上限（度）です。約 0.1 メートルにあたります。
- * 座標を小数 6 桁に丸めたデータでは、頂点を共有しない接点（T 字の接点）が線分から最大で約 5e-7 度ずれるためです。
+ * 点が線分の上にあるとみなす、線分からの距離の上限（度）です。約 0.2 メートルにあたります。
+ * 座標を小数 6 桁に丸めたデータでは、各座標が最大 5e-7 度ずれます。頂点を共有しない接点（T 字の接点）では、
+ * 点のずれ（斜めの辺で最大 約 7.1e-7 度）に線分の端点のずれ（同じく最大 約 7.1e-7 度）が加わり、
+ * 線分からの距離は最大で 約 1.4e-6 度になるので、それを上回る値にしています。
  */
-const ON_SEGMENT_TOLERANCE = 1e-6;
+const ON_SEGMENT_TOLERANCE = 2e-6;
 
 /** 点が線分の上にあるかどうかです。 */
 function onSegment(
@@ -265,7 +267,7 @@ export function normalizeMask(
  * {@link MaskOptions.beforeId} を指定すると、そのレイヤーの下に入れます（最初のラベルのレイヤーを指定すれば、ラベルを明るく残せます）。
  * マスクより後に `beforeId` を指定せずに追加したレイヤーは最前面に入るので、マスクの上に表示されます。
  *
- * ソースとレイヤーの ID は {@link MASK_ID} に固定なので、1 つの地図に追加できる Mask は 1 つです。
+ * ソースとレイヤーの ID は `geolonia-mask`（境界線は `geolonia-mask-outline`）に固定なので、1 つの地図に追加できる Mask は 1 つです。
  *
  * @example
  * ```typescript
@@ -349,7 +351,7 @@ export class Mask {
     if (url) {
       this._loadingPromise = this.load(url, generation);
     } else {
-      this.setPolygons(geojson as GeoJSON.Feature | GeoJSON.FeatureCollection);
+      this.setPolygons(geojson);
     }
     return this;
   }

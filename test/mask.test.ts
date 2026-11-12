@@ -840,4 +840,20 @@ describe("Mask", () => {
       "vt-circle-simple-style-points",
     ]);
   });
+
+  it("clears the timeout when the fetch responds in time", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(window, "fetch").mockResolvedValue(
+        new Response(JSON.stringify(polygon(square(0, 0)))),
+      );
+      const mask = new Mask("https://example.com/boundary.geojson").addTo(
+        asMap(map),
+      );
+      await mask._loadingPromise;
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

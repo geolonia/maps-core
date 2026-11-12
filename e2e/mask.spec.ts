@@ -117,6 +117,29 @@ test.describe("mask", () => {
     expect(errors).toEqual([]);
   });
 
+  test("should add the mask again after setStyle", async ({ page }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/geojson.html?mask=true");
+    await waitForMapLoad(page);
+    // 既定の表示範囲に入る、境界の穴の中の地点（範囲の外なので塗られる）
+    await expect.poll(() => isMasked(page, [139.72, 35.695])).toBe(true);
+
+    // スタイルを差し替えると、styledata で作り直したマスクがまた外側を塗る
+    await page.evaluate(() =>
+      (
+        window as unknown as { map: { setStyle: (s: string) => void } }
+      ).map.setStyle("/sample-basic-style.json?v=2"),
+    );
+    await expect
+      .poll(() => hasLayer(page, "geolonia-mask"), { timeout: 10000 })
+      .toBe(true);
+    await expect
+      .poll(() => isMasked(page, [139.72, 35.695]), { timeout: 10000 })
+      .toBe(true);
+    expect(await mapErrorsOf(page)).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
   test("should fit to the mask when neither center nor geojson is given", async ({
     page,
   }) => {
