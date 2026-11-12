@@ -88,6 +88,11 @@ type Container = HTMLElement & {
 export default class GeoloniaMap extends maplibregl.Map {
   private geoloniaSourcesUrl!: URL;
   private __styleExtensionLoadRequired!: boolean;
+  /**
+   * このインスタンスが追加したローディング表示です。`load` か {@link GeoloniaMap.remove | remove} で外します。
+   * 同じコンテナに作り直した別の地図の表示を消さないよう、コンテナの中を探さずにこの要素だけを外します。
+   */
+  private loadingElement: HTMLDivElement | undefined;
 
   /**
    * 地図を生成します。
@@ -244,13 +249,15 @@ export default class GeoloniaMap extends maplibregl.Map {
     } catch (error) {
       // 初期化に失敗した以上ローディングは終わらないので、先に消す。
       // 消さないと `errorMessage: false` のとき「読み込み中」のまま見えてしまう。
-      container.querySelector(".loading-geolonia-map")?.remove();
+      // 同じコンテナにある別の地図の表示を消さないよう、自分が追加した要素だけを外す。
+      loading?.remove();
       handleErrorMode(container, { message: options.errorMessage });
       throw error;
     }
 
     this.geoloniaSourcesUrl = sourcesUrl;
     this.__styleExtensionLoadRequired = true;
+    this.loadingElement = loading;
 
     // Controls
     // Note: GeoloniaControl should be placed before another controls.
@@ -301,13 +308,7 @@ export default class GeoloniaMap extends maplibregl.Map {
     this.on("load", (event) => {
       const map = event.target;
 
-      if (loading) {
-        try {
-          container.removeChild(loading);
-        } catch {
-          // Already removed
-        }
-      }
+      this.removeLoader();
 
       // Gesture handling
       if (options.gestureHandling !== false) {
@@ -478,6 +479,7 @@ export default class GeoloniaMap extends maplibregl.Map {
    * MapLibre GL JS の破棄処理に加えて、コンテナ要素に保持している地図インスタンスへの
    * 参照（`geoloniaMap`）も削除します。これにより、同じコンテナで再度
    * {@link GeoloniaMap} を生成した際に、破棄済みのインスタンスが返されることを防ぎます。
+   * 読み込みが終わる前に破棄したときは、このインスタンスが追加したローディング表示も外します。
    *
    * @example
    * ```typescript
@@ -488,8 +490,16 @@ export default class GeoloniaMap extends maplibregl.Map {
    */
   remove(): void {
     const container = this.getContainer() as Container;
+    // load の前に破棄したときも、ローディング表示を残さない
+    this.removeLoader();
     super.remove.call(this);
     delete container.geoloniaMap;
+  }
+
+  /** このインスタンスが追加したローディング表示を外します。外した後や、表示していないときは何もしません。 */
+  private removeLoader(): void {
+    this.loadingElement?.remove();
+    this.loadingElement = undefined;
   }
 
   /**

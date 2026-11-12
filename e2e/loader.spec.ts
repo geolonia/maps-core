@@ -38,4 +38,23 @@ test.describe("Loader animation", () => {
     });
     expect(everPresent).toBe(false);
   });
+
+  test("should not leave the loader of a map removed before load", async ({
+    page,
+  }) => {
+    // 2 つ目の地図の読み込みを遅らせ、その間のローディング表示を数える
+    await page.route("**/sample-basic-style.json", async (route) => {
+      await new Promise((r) => setTimeout(r, 1000));
+      await route.continue();
+    });
+
+    await page.goto("/loader.html?removeBeforeLoad=true");
+    // 破棄した地図の表示は外れ、2 つ目の地図の表示だけが残る（2 つ目の表示は消さない）。
+    // toHaveCount は数が合うまで待つので、2 つ目の読み込みが終わって数が減るのを待ってしまう。
+    // 2 つ目の読み込みは遅らせてあるので、待たずにいまの数を数える
+    expect(await page.locator(".loading-geolonia-map").count()).toBe(1);
+
+    await waitForMapLoad(page);
+    await expect(page.locator(".loading-geolonia-map")).toHaveCount(0);
+  });
 });
