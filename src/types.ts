@@ -274,7 +274,7 @@ export type ExtrusionColorOptions = {
  */
 export type MaskOptions = {
   /**
-   * 境界。GeoJSON の URL（`http://`、`https://`、`/`、`./`、`../` で始まるもの）、または Feature か FeatureCollection を指定する。
+   * 境界。GeoJSON の URL（`http://` か `https://` で始まるもの、または `/` か `.` で始まるパス）、または Feature か FeatureCollection を指定する。
    * Polygon と MultiPolygon の面をすべてくり抜き、それ以外のジオメトリは無視する。
    * 面の穴（境界に囲まれた別の地域）は暗くし、その穴の中にある面（湖の中の島など）はくり抜く。
    * 面が重なっていると正しくくり抜けないので、重ならない面を渡す。

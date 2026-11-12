@@ -46,6 +46,9 @@ test.describe("mask", () => {
         }),
     );
 
+    // レイヤーは取得の前から空で存在するので、外側が塗られる（取得が終わる）まで待つ
+    await expect.poll(() => isMasked(page, [139.5, 35.69])).toBe(true);
+
     // 境界の内側は塗らず、外側と、境界の穴（別の地域）は塗る
     expect(await isMasked(page, [139.8, 35.7])).toBe(false);
     expect(await isMasked(page, [139.95, 35.62])).toBe(false);

@@ -57,7 +57,41 @@ function isRing(ring: unknown): ring is Ring {
   );
 }
 
-/** 点がリングの内側にあるかどうかです（偶奇判定）。 */
+/** 点が線分の上にあるかどうかです。 */
+function onSegment(
+  [x, y]: GeoJSON.Position,
+  [x1, y1]: GeoJSON.Position,
+  [x2, y2]: GeoJSON.Position,
+): boolean {
+  const cross = (x2 - x1) * (y - y1) - (y2 - y1) * (x - x1);
+  const scale = Math.abs(x2 - x1) + Math.abs(y2 - y1);
+  return (
+    Math.abs(cross) <= 1e-12 * Math.max(1, scale) &&
+    Math.min(x1, x2) <= x &&
+    x <= Math.max(x1, x2) &&
+    Math.min(y1, y2) <= y &&
+    y <= Math.max(y1, y2)
+  );
+}
+
+/** 点がリングの線の上にあるかどうかです。 */
+function onRing(point: GeoJSON.Position, ring: Ring): boolean {
+  for (let i = 0; i < ring.length - 1; i++) {
+    if (onSegment(point, ring[i], ring[i + 1])) return true;
+  }
+  return false;
+}
+
+/**
+ * リング `inner` が、リング `outer` の内側（線の上を含む）に収まるかどうかです。
+ * 隣り合う地域どうしは境界の線を共有するので、1 点だけで判定すると、線の上の点の扱いで結果がぶれます。
+ * すべての頂点が内側か線の上にあるとき、収まるとみなします（`outer` と同じ座標のリングも収まる）。
+ */
+function ringWithin(inner: Ring, outer: Ring): boolean {
+  return inner.every((point) => onRing(point, outer) || inRing(point, outer));
+}
+
+/** 点がリングの内側にあるかどうかです（偶奇判定）。線の上の点の結果は決まりません。 */
 function inRing([x, y]: GeoJSON.Position, ring: Ring): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -127,7 +161,7 @@ export function maskGeometry(polygons: Ring[][]): GeoJSON.MultiPolygon {
     for (const hole of holes) {
       if (
         hole !== outer &&
-        inRing(outer[0], hole) &&
+        ringWithin(outer, hole) &&
         (parent === WORLD ||
           Math.abs(signedArea(hole)) < Math.abs(signedArea(parent)))
       ) {
@@ -159,7 +193,8 @@ export function normalizeMask(
  * レイヤーは、背景の地図の最初の文字（シンボル）のレイヤーと、既定の ID の `SimpleStyle` と
  * `SimpleStyleVector` のレイヤー（ID に `simple-style` を含むもの）のうち、いちばん下のものの下に入れます。
  * そのため地名のラベルと、`GeoloniaMap` の `geojson` オプションの地物は、マスクの上に表示されます。
- * 利用者が自分で追加したレイヤーとの重なり順は、マスクを追加する前後で変わります。
+ * 利用者が自分で追加したレイヤーは、この位置より上にあればマスクの上に、下にあればマスクの下に表示されます。
+ * `beforeId` を指定せずに追加したレイヤーは最前面に入るので、マスクの上に表示されます。
  *
  * ソースとレイヤーの ID は {@link MASK_ID} に固定なので、1 つの地図に追加できる Mask は 1 つです。
  *
@@ -171,10 +206,15 @@ export function normalizeMask(
 export class Mask {
   /** URL から GeoJSON を取得しているときの Promise です。 */
   public _loadingPromise: Promise<void> | undefined;
-  private readonly options: MaskOptions;
+  private readonly options: MaskOptions | undefined;
   private polygons: Ring[][] | undefined;
   private map: MaplibreMap | undefined;
   private fitBoundsOptions: FitBoundsOptions | undefined;
+  /**
+   * addTo で追加したソースです。スタイルの差し替えの後に別の Mask が同じ ID のソースを追加しても、
+   * そちらに書き込んだり消したりしないよう、同じオブジェクトのときだけ扱います。
+   */
+  private source: unknown;
   /** addTo と remove のたびに増やします。古い取得の結果を捨てるのに使います。 */
   private generation = 0;
 
@@ -182,26 +222,35 @@ export class Mask {
    * @param option 境界の GeoJSON の URL、または {@link MaskOptions} です。
    */
   constructor(option: string | MaskOptions) {
-    this.options = normalizeMask(option) ?? { geojson: "" };
+    this.options = normalizeMask(option);
   }
 
   /**
    * 地図にマスクを追加します。`geojson` が URL のときは、空のソースとレイヤーを先に追加し、
-   * 取得してから中身を入れます。同じ地図に別の Mask が追加済みのときは、何もせずに `console.error` に出します。
+   * 取得してから中身を入れます。スタイルの読み込みが終わってから呼び出します（MapLibre の `addSource` と同じ）。
+   *
+   * - この Mask を追加済みのときは、先に取り除いてから追加し直します。
+   * - 同じ地図に別の Mask が追加済みのときと、`geojson` が指定されていないときは、何も追加せずに `console.error` に出します。
    *
    * @returns メソッドチェーンのための `this` を返します。
    */
   addTo(map: MaplibreMap) {
-    const generation = ++this.generation;
+    if (this.map) this.remove();
+    if (!this.options) {
+      console.error("[Geolonia] The mask option has no geojson."); // eslint-disable-line no-console
+      return this;
+    }
     if (map.getSource(MASK_ID)) {
       console.error(
         "[Geolonia] A mask has already been added to this map. Only one mask is supported per map.",
       ); // eslint-disable-line no-console
       return this;
     }
+    const generation = ++this.generation;
     this.map = map;
     this.polygons = undefined;
     this.addLayers();
+    this.source = map.getSource(MASK_ID);
 
     const { geojson } = this.options;
     if (typeof geojson === "string") {
@@ -242,7 +291,10 @@ export class Mask {
     this.map = undefined;
     this.polygons = undefined;
     this.fitBoundsOptions = undefined;
-    if (!map) return this;
+    const owned = !!map && this.owns(map);
+    this.source = undefined;
+    // スタイルが差し替えられて、同じ ID のソースが別の Mask のものになっていたら消さない
+    if (!map || !owned) return this;
     for (const id of [`${MASK_ID}-outline`, MASK_ID]) {
       if (map.getLayer(id)) map.removeLayer(id);
     }
@@ -270,10 +322,16 @@ export class Mask {
   }
 
   /** 空のソースとレイヤーを追加します。 */
+  /** 地図の `geolonia-mask` のソースが、この Mask が追加したものかどうかです。 */
+  private owns(map: MaplibreMap): boolean {
+    return this.source !== undefined && map.getSource(MASK_ID) === this.source;
+  }
+
   private addLayers() {
     const map = this.map as MaplibreMap;
+    const options = this.options as MaskOptions;
     const before = layerAboveMask(map);
-    const color = this.options.color ?? DEFAULT_MASK_COLOR;
+    const color = options.color ?? DEFAULT_MASK_COLOR;
 
     map.addSource(MASK_ID, { type: "geojson", data: EMPTY });
     map.addLayer(
@@ -283,13 +341,13 @@ export class Mask {
         source: MASK_ID,
         paint: {
           "fill-color": color,
-          "fill-opacity": this.options.opacity ?? DEFAULT_MASK_OPACITY,
+          "fill-opacity": options.opacity ?? DEFAULT_MASK_OPACITY,
         },
       },
       before,
     );
 
-    const outline = this.options.outline;
+    const outline = options.outline;
     if (!outline) return;
     // 境界線はくり抜いた面ではなく元の面に引く。くり抜いた面に引くと、世界の外周（経度 ±180 度）にも線が出る
     const style = typeof outline === "object" ? outline : {};
@@ -312,9 +370,10 @@ export class Mask {
   /** 境界の面をソースに入れます。地図が破棄されたかスタイルが差し替えられてソースが無いときは、何もしません。 */
   private setPolygons(geojson: GeoJSON.Feature | GeoJSON.FeatureCollection) {
     const map = this.map;
-    if (!map || (map as { _removed?: boolean })._removed) return;
-    const source = map.getSource(MASK_ID) as GeoJSONSource | undefined;
-    if (!source) return;
+    if (!map || (map as { _removed?: boolean })._removed || !this.owns(map)) {
+      return;
+    }
+    const source = map.getSource(MASK_ID) as GeoJSONSource;
 
     const polygons = collectPolygons(geojson);
     if (polygons.length === 0) {
@@ -361,7 +420,8 @@ export class Mask {
 /**
  * マスクをその下に入れるレイヤーの ID です。最初のシンボルのレイヤーか、SimpleStyle と
  * SimpleStyleVector のレイヤー（ID に `simple-style` を含む）のうち、いちばん下のものを返します。
- * SimpleStyle はポリゴンの塗りをシンボルより先に追加するので、シンボルだけを見ると塗りの上にマスクが入ります。
+ * SimpleStyle はポリゴンの塗りをシンボルより先に追加するので、背景の地図にシンボルのレイヤーが無いとき、
+ * シンボルだけを見ると塗りの上にマスクが入ります。
  * どちらも無いときは `undefined`（最前面に追加する）を返します。
  */
 function layerAboveMask(map: MaplibreMap): string | undefined {

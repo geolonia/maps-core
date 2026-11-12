@@ -149,6 +149,50 @@ describe("maskGeometry", () => {
   });
 });
 
+describe("maskGeometry with shared boundaries", () => {
+  const lake = square(0.2, 0.2, 0.6);
+  const rotate = (ring: Ring, n: number): Ring => {
+    const open = ring.slice(0, -1);
+    const rotated = [...open.slice(n), ...open.slice(0, n)];
+    return [...rotated, rotated[0]];
+  };
+
+  it.each([0, 1, 2, 3])(
+    "cuts an area that fills the hole exactly out of the hole (start vertex %i)",
+    (n) => {
+      const enclosed = rotate(lake, n);
+      expect(
+        maskGeometry([[square(0, 0), lake], [enclosed]]).coordinates,
+      ).toEqual([
+        [WORLD, square(0, 0)],
+        [lake, enclosed],
+      ]);
+    },
+  );
+
+  it("cuts an island touching the shore out of the lake", () => {
+    // 先頭の頂点が湖の線の上にある
+    const island: Ring = [
+      [0.2, 0.4],
+      [0.4, 0.4],
+      [0.4, 0.6],
+      [0.2, 0.6],
+      [0.2, 0.4],
+    ];
+    expect(maskGeometry([[square(0, 0), lake], [island]]).coordinates).toEqual([
+      [WORLD, square(0, 0)],
+      [lake, island],
+    ]);
+  });
+
+  it("keeps an adjacent area sharing an edge out of the hole", () => {
+    const neighbor = square(1, 0);
+    expect(
+      maskGeometry([[square(0, 0), lake], [neighbor]]).coordinates,
+    ).toEqual([[WORLD, square(0, 0), neighbor], [lake]]);
+  });
+});
+
 describe("Mask", () => {
   let map: MockMap;
 
@@ -404,5 +448,63 @@ describe("Mask", () => {
     frame?.(0);
 
     expect(fitBounds).not.toHaveBeenCalled();
+  });
+
+  it("logs and adds nothing when there is no geojson", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    new Mask({} as unknown as string).addTo(asMap(map));
+
+    expect(map.getLayersOrder()).toEqual([]);
+    expect(error).toHaveBeenCalledWith(
+      "[Geolonia] The mask option has no geojson.",
+    );
+  });
+
+  it("re-adds itself when addTo is called twice, keeping the URL result", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(
+      async () => new Response(JSON.stringify(polygon(square(0, 0)))),
+    );
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const mask = new Mask("https://example.com/boundary.geojson");
+    mask.addTo(asMap(map));
+    mask.addTo(asMap(map));
+
+    await mask._loadingPromise;
+
+    expect(error).not.toHaveBeenCalled();
+    expect(
+      (sourceData(map, "geolonia-mask") as GeoJSON.Feature).geometry,
+    ).toEqual(maskGeometry([[square(0, 0)]]));
+  });
+
+  it("moves to another map when added to it", () => {
+    const other = new MockMap();
+    const mask = new Mask({ geojson: polygon(square(0, 0)) }).addTo(asMap(map));
+    mask.addTo(asMap(other));
+
+    expect(map.getSource("geolonia-mask")).toBeUndefined();
+    expect(other.getSource("geolonia-mask")).toBeDefined();
+    mask.remove();
+    expect(other.getSource("geolonia-mask")).toBeUndefined();
+  });
+
+  it("does not touch a mask that replaced it after a style change", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(polygon(square(0, 0)))),
+    );
+    const old = new Mask("https://example.com/old.geojson").addTo(asMap(map));
+    // setStyle でソースとレイヤーが消え、新しいスタイルに別の Mask が追加される
+    map.layers = [];
+    map.sources = {};
+    new Mask({ geojson: polygon(square(5, 5)) }).addTo(asMap(map));
+
+    await old._loadingPromise;
+    expect(
+      (sourceData(map, "geolonia-mask") as GeoJSON.Feature).geometry,
+    ).toEqual(maskGeometry([[square(5, 5)]]));
+
+    old.remove();
+    expect(map.getLayer("geolonia-mask")).toBeDefined();
+    expect(map.getSource("geolonia-mask")).toBeDefined();
   });
 });
