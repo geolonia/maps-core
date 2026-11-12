@@ -291,9 +291,10 @@ new GeoloniaMap({
 });
 ```
 
-- Every Polygon and MultiPolygon is cut out, so exclaves and islands work. Holes inside a polygon, such as another area enclosed by the boundary, stay dark. Other geometries are ignored.
+- `geojson` as a string must start with `http://`, `https://`, `/`, `./` or `../`.
+- Every Polygon and MultiPolygon is cut out, so exclaves and islands work. Holes inside a polygon, such as another area enclosed by the boundary, stay dark, and polygons inside such a hole (an island in a lake) are cut out again. Other geometries are ignored. A polygon whose outer ring is broken is skipped.
 - The polygons should not overlap each other, or the cut-out may be drawn incorrectly.
-- The mask is drawn below the labels of the base map and below the `geojson` data.
+- The mask is drawn below the labels of the base map and below the `geojson` data. Layers you add yourself are drawn above or below the mask depending on whether they were added after or before it.
 - `outline: true` draws a 2-pixel line in the mask `color`.
 - Without `center` and `geojson`, the map fits to the boundary.
 
@@ -323,7 +324,7 @@ ss.addTo(map).fitBounds();
 
 ### `Mask`
 
-Darkens everything outside a boundary on an existing map. Takes the same value as the `mask` option.
+Darkens everything outside a boundary on an existing map. Takes the same value as the `mask` option. Only one mask can be added to a map; a second one is not added and logs an error. A removed mask can be added again.
 
 ```typescript
 import { Mask } from '@geolonia/maps-core';

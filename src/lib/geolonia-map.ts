@@ -393,9 +393,14 @@ export default class GeoloniaMap extends maplibregl.Map {
       }
 
       if (options.mask) {
-        const mask = new Mask(options.mask).addTo(this);
-        if (!options.center && !options.geojson) {
-          mask.fitBounds();
+        // マスクの指定が不正でも、後に続く geojson と 3D の処理は止めない
+        try {
+          const mask = new Mask(options.mask).addTo(this);
+          if (!options.center && !options.geojson) {
+            mask.fitBounds();
+          }
+        } catch (error) {
+          console.error("[Geolonia] Failed to add the mask:", error); // eslint-disable-line no-console
         }
       }
 

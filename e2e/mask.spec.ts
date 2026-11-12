@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { hasLayer, waitForMapLoad } from "./helper";
+import { collectConsoleErrors, hasLayer, waitForMapLoad } from "./helper";
 
 type TestMap = {
   getLayersOrder: () => string[];
@@ -30,6 +30,7 @@ test.describe("mask", () => {
   test("should cut the boundary out of the mask in MapLibre", async ({
     page,
   }) => {
+    const errors = collectConsoleErrors(page);
     await page.goto("/geojson.html?mask=true");
     await waitForMapLoad(page);
     await expect.poll(() => hasLayer(page, "geolonia-mask")).toBe(true);
@@ -50,16 +51,20 @@ test.describe("mask", () => {
     expect(await isMasked(page, [139.95, 35.62])).toBe(false);
     expect(await isMasked(page, [139.5, 35.69])).toBe(true);
     expect(await isMasked(page, [139.72, 35.695])).toBe(true);
+    // 境界の穴の中にある面（島）は、穴の面からくり抜く
+    expect(await isMasked(page, [139.708, 35.688])).toBe(false);
 
     const mapErrors = await page.evaluate(
       () => (window as unknown as { mapErrors: string[] }).mapErrors,
     );
     expect(mapErrors).toEqual([]);
+    expect(errors).toEqual([]);
   });
 
   test("should place the mask below the labels and the geojson layers", async ({
     page,
   }) => {
+    const errors = collectConsoleErrors(page);
     await page.goto("/geojson.html?mask=true");
     await waitForMapLoad(page);
     await expect.poll(() => hasLayer(page, "geolonia-mask")).toBe(true);
@@ -81,11 +86,13 @@ test.describe("mask", () => {
     expect(order.mask).toBeLessThan(order.outline);
     expect(order.outline).toBeLessThan(order.firstSymbol);
     expect(order.outline).toBeLessThan(order.firstSimpleStyle);
+    expect(errors).toEqual([]);
   });
 
   test("should fit to the mask when neither center nor geojson is given", async ({
     page,
   }) => {
+    const errors = collectConsoleErrors(page);
     await page.goto("/geojson.html?mask=only&noCenter=true");
     await waitForMapLoad(page);
 
@@ -101,5 +108,6 @@ test.describe("mask", () => {
         { timeout: 6000 },
       )
       .toBe(true);
+    expect(errors).toEqual([]);
   });
 });

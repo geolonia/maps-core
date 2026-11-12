@@ -3,19 +3,26 @@
 import { readFileSync } from "node:fs";
 import { builtinModules } from "node:module";
 
-const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url)));
+const pkg = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url)),
+);
 const declared = new Set([
   ...Object.keys(pkg.dependencies ?? {}),
   ...Object.keys(pkg.peerDependencies ?? {}),
   ...Object.keys(pkg.optionalDependencies ?? {}),
 ]);
-const builtins = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)]);
+const builtins = new Set([
+  ...builtinModules,
+  ...builtinModules.map((m) => `node:${m}`),
+]);
 
 const files = ["../dist/npm/index.js"];
 const re = /(?:from|require\()\s*["']([^"'][^"']*)["']/g;
 
 const toPkgName = (spec) =>
-  spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0];
+  spec.startsWith("@")
+    ? spec.split("/").slice(0, 2).join("/")
+    : spec.split("/")[0];
 
 const validSpec = /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+(?:\/[a-z0-9._-]+)*$/;
 
