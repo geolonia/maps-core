@@ -224,6 +224,25 @@ describe("handleRestrictedMode", () => {
     expect(container.querySelector("#recreated")).not.toBeNull();
   });
 
+  it("should not put the restricted background under a map recreated by a remove listener", () => {
+    const container = document.createElement("div") as HTMLDivElement & {
+      geoloniaMap?: unknown;
+    };
+    const map = {
+      getContainer: () => container,
+      // remove イベントのリスナーが同じコンテナに地図を作り直し、コンテナに登録される
+      remove: () => {
+        container.geoloniaMap = {};
+      },
+    };
+
+    handleRestrictedMode(map);
+
+    expect(
+      container.classList.contains("geolonia__restricted-mode-image-container"),
+    ).toBe(false);
+  });
+
   it("should not call map.remove() on second invocation", () => {
     const container = document.createElement("div");
     const removeSpy = vi.fn();

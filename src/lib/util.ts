@@ -196,7 +196,10 @@ export function handleRestrictedMode(map: {
     const ownNodes = Array.from(container.childNodes);
     map.remove();
     for (const node of ownNodes) node.remove();
-    container.classList.add("geolonia__restricted-mode-image-container");
+    // リスナーが作り直した地図がコンテナに登録されていれば、その地図の上に制限モードの背景を出さない
+    if (!(container as HTMLElement & { geoloniaMap?: unknown }).geoloniaMap) {
+      container.classList.add("geolonia__restricted-mode-image-container");
+    }
   }
 }
 
