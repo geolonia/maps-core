@@ -233,37 +233,63 @@ describe("Mask", () => {
     expect(map.getLayer("geolonia-mask-outline")).toBeUndefined();
   });
 
-  it("inserts the layers above the last non-symbol layer of the base map", () => {
-    // geolonia/basic-v2 と同じく、最初のシンボルより後ろに建物や行政界が並ぶ
+  const basicV2Like = () => {
+    // geolonia/basic-v2 の並びを縮めたもの（ラベルの後ろに行政界の線、その後ろに都道府県名が並ぶ）
     for (const [id, type] of [
       ["background", "background"],
       ["water", "fill"],
       ["waterway-name", "symbol"],
-      ["building", "fill"],
       ["building-3d", "fill-extrusion"],
-      ["boundary", "line"],
-      ["place-label", "symbol"],
-      ["poi-label", "symbol"],
+      ["place-city", "symbol"],
+      ["oc-boundary-land-level-0", "line"],
+      ["place-city-pref", "symbol"],
     ]) {
       map.addLayer({ id, type });
     }
+  };
 
+  it("inserts the layers above every layer of the base map by default", () => {
+    basicV2Like();
     new Mask({ geojson: polygon(square(0, 0)), outline: true }).addTo(
       asMap(map),
     );
 
-    expect(map.getLayersOrder()).toEqual([
-      "background",
-      "water",
-      "waterway-name",
-      "building",
-      "building-3d",
-      "boundary",
+    expect(map.getLayersOrder().slice(-3)).toEqual([
+      "place-city-pref",
       "geolonia-mask",
       "geolonia-mask-outline",
-      "place-label",
-      "poi-label",
     ]);
+  });
+
+  it("inserts the layers below beforeId", () => {
+    basicV2Like();
+    new Mask({
+      geojson: polygon(square(0, 0)),
+      outline: true,
+      beforeId: "waterway-name",
+    }).addTo(asMap(map));
+
+    expect(map.getLayersOrder().slice(0, 5)).toEqual([
+      "background",
+      "water",
+      "geolonia-mask",
+      "geolonia-mask-outline",
+      "waterway-name",
+    ]);
+  });
+
+  it("logs and uses the default position when beforeId does not exist", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    basicV2Like();
+    new Mask({ geojson: polygon(square(0, 0)), beforeId: "nope" }).addTo(
+      asMap(map),
+    );
+
+    expect(map.getLayersOrder().at(-1)).toBe("geolonia-mask");
+    expect(error).toHaveBeenCalledWith(
+      "[Geolonia] The mask beforeId layer does not exist. The mask is added below the geojson layers:",
+      "nope",
+    );
   });
 
   it("inserts the layers below SimpleStyle layers added before the mask", () => {
@@ -604,5 +630,49 @@ describe("Mask", () => {
     expect(error).toHaveBeenCalledWith(
       "[Geolonia] Failed to add the mask outline layer. Check `outline.color` and `outline.width`.",
     );
+  });
+
+  it("accepts a GeoJSON whose top level is a geometry", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ type: "Polygon", coordinates: [square(0, 0)] }),
+      ),
+    );
+    const mask = new Mask("https://example.com/boundary.geojson").addTo(
+      asMap(map),
+    );
+
+    await mask._loadingPromise;
+
+    expect(
+      (sourceData(map, "geolonia-mask") as GeoJSON.Feature).geometry,
+    ).toEqual(maskGeometry([[square(0, 0)]]));
+  });
+
+  it("refuses when a layer with the mask ID already exists", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    map.addLayer({ id: "geolonia-mask", type: "fill", source: "other" });
+    const mask = new Mask({ geojson: polygon(square(0, 0)) }).addTo(asMap(map));
+    mask.remove();
+
+    expect(error).toHaveBeenCalled();
+    expect(map.getLayer("geolonia-mask")).toEqual({
+      id: "geolonia-mask",
+      type: "fill",
+      source: "other",
+    });
+  });
+
+  it("does not report a failed fetch that was discarded by remove", async () => {
+    vi.spyOn(window, "fetch").mockRejectedValue(new Error("offline"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const mask = new Mask("https://example.com/boundary.geojson").addTo(
+      asMap(map),
+    );
+    mask.remove();
+
+    await mask._loadingPromise;
+
+    expect(error).not.toHaveBeenCalled();
   });
 });

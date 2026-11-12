@@ -11,7 +11,7 @@ import CustomAttributionControl from "./controls/attribution";
 import { GeoloniaControl } from "./controls/geolonia-logo";
 import GeoloniaMarker from "./geolonia-marker";
 
-import { Mask, normalizeMask } from "./mask";
+import { MASK_ID, Mask, normalizeMask } from "./mask";
 import { SimpleStyle } from "./simplestyle";
 import SimpleStyleVector from "./simplestyle-vector";
 
@@ -393,7 +393,8 @@ export default class GeoloniaMap extends maplibregl.Map {
       }
 
       const maskOptions = normalizeMask(options.mask);
-      if (maskOptions) {
+      // setStyle の transformStyle でマスクが新しいスタイルに写されたときは、作り直さない
+      if (maskOptions && !this.getSource(MASK_ID)) {
         // マスクの指定が不正でも、後に続く geojson と 3D の処理は止めない
         try {
           const mask = new Mask(maskOptions).addTo(this);

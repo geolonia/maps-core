@@ -156,8 +156,8 @@ export type GeoloniaMapOptions = MapOptions & {
   simpleVector?: string;
   /**
    * 指定した範囲（市区町村の境界など）の外側を暗くする。境界の GeoJSON の URL、または {@link MaskOptions} を指定する。
-   * マスクは背景の地図の文字以外のレイヤーのうち最後のものの直上に入れるので、陸地、道路、建物、行政界などは暗くなり、
-   * それより後ろに並ぶ地名のラベルと、`geojson` と `simpleVector` の地物はマスクの上に表示する。
+   * マスクは既定では背景の地図のすべてのレイヤーの上に入れるので、範囲の外は地名のラベルも含めて暗くなる。
+   * `geojson` と `simpleVector` の地物はマスクの上に表示する。入れる位置は {@link MaskOptions.beforeId} で変えられる。
    * `center` と `geojson` が未指定のときは、境界の範囲に自動的にフィットする。
    */
   mask?: string | MaskOptions;
@@ -276,6 +276,7 @@ export type ExtrusionColorOptions = {
 export type MaskOptions = {
   /**
    * 境界。GeoJSON の URL（`http://` か `https://` で始まるもの、または `/` か `.` で始まるパス）、または Feature か FeatureCollection を指定する。
+   * URL が返す GeoJSON は、最上位が Polygon か MultiPolygon のジオメトリでもよい。
    * Polygon と MultiPolygon の面をすべてくり抜き、それ以外のジオメトリは無視する。
    * 面の穴（境界に囲まれた別の地域）は暗くし、その穴の中にある面（湖の中の島など）はくり抜く。
    * 面が重なっていると正しくくり抜けないので、重ならない面を渡す。経度 ±180 度をまたぐ面と、経度緯度の範囲の外の座標を含む面には対応しない。
@@ -298,4 +299,10 @@ export type MaskOptions = {
    * @defaultValue `false`
    */
   outline?: boolean | { color?: string; width?: number };
+  /**
+   * マスクをこの ID のレイヤーの下に入れる。背景の地図の最初の地名のラベルのレイヤーを指定すると、ラベルを範囲の外でも明るく残せる。
+   * 省略したとき、または地図に無い ID のとき（`console.error` に出す）は、背景の地図のすべてのレイヤーの上で、
+   * `geojson` と `simpleVector` の地物の下に入れる。
+   */
+  beforeId?: string;
 };

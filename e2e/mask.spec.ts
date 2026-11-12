@@ -100,6 +100,22 @@ test.describe("mask", () => {
     expect(errors).toEqual([]);
   });
 
+  test("should place the mask below beforeId", async ({ page }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/geojson.html?mask=true&maskBefore=fixture");
+    await waitForMapLoad(page);
+    await expect.poll(() => hasLayer(page, "geolonia-mask")).toBe(true);
+
+    const order = await page.evaluate(() =>
+      (window as unknown as { map: TestMap }).map.getLayersOrder(),
+    );
+    expect(order.indexOf("geolonia-mask")).toBeLessThan(
+      order.indexOf("fixture"),
+    );
+    expect(await mapErrorsOf(page)).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
   test("should fit to the mask when neither center nor geojson is given", async ({
     page,
   }) => {

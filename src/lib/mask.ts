@@ -136,19 +136,20 @@ function inRing([x, y]: GeoJSON.Position, ring: Ring): boolean {
  * 穴のうち閉じたリングとして扱えないものは捨てます。
  */
 export function collectPolygons(
-  geojson: GeoJSON.Feature | GeoJSON.FeatureCollection,
+  geojson: GeoJSON.Feature | GeoJSON.FeatureCollection | GeoJSON.Geometry,
 ): Ring[][] {
-  const features =
+  // GeoJSON の最上位には Feature と FeatureCollection のほか、ジオメトリも置ける（RFC 7946）
+  const geometries: unknown[] =
     geojson?.type === "FeatureCollection"
       ? Array.isArray(geojson.features)
-        ? geojson.features
+        ? geojson.features.map((f) => f?.geometry)
         : []
       : geojson?.type === "Feature"
-        ? [geojson]
-        : [];
+        ? [geojson.geometry]
+        : [geojson];
   const polygons: unknown[] = [];
-  for (const feature of features) {
-    const geometry = feature?.geometry;
+  for (const item of geometries) {
+    const geometry = item as GeoJSON.Geometry | null | undefined;
     if (geometry?.type !== "Polygon" && geometry?.type !== "MultiPolygon") {
       continue;
     }
@@ -157,7 +158,8 @@ export function collectPolygons(
     if (geometry.type === "Polygon") {
       polygons.push(geometry.coordinates);
     } else {
-      polygons.push(...geometry.coordinates);
+      // 面の数が非常に多いと、可変長引数のスプレッドは引数の上限を超えるので、1 つずつ積む
+      for (const rings of geometry.coordinates) polygons.push(rings);
     }
   }
   return polygons.flatMap((rings) => {
@@ -222,11 +224,9 @@ export function normalizeMask(
  * 指定した範囲（市区町村の境界など）の外側を暗くするヘルパークラスです。
  *
  * 世界全体を覆う面から境界のポリゴンをくり抜いた面を、`fill` のレイヤーで塗ります。
- * レイヤーは、地図にある文字（シンボル）以外のレイヤーのうち最後のものの直上で、既定の ID の `SimpleStyle` と
- * `SimpleStyleVector` のレイヤー（ID に `simple-style` を含むもの）より下に入れます。
- * そのため、背景の地図の陸地、道路、建物、行政界などは暗くなり、それより後ろに並ぶ地名のラベルと、
- * `GeoloniaMap` の `geojson` オプションの地物は、マスクの上に表示されます。
- * スタイルの途中に置かれた文字のレイヤー（一部のスタイルの河川名など）は、範囲の外では暗くなります。
+ * レイヤーは既定では、背景の地図のすべてのレイヤー（地名のラベルを含む）の上で、既定の ID の `SimpleStyle` と
+ * `SimpleStyleVector` のレイヤー（ID に `simple-style` を含むもの）の下に入れます。範囲の外は、地名のラベルも含めて暗くなります。
+ * {@link MaskOptions.beforeId} を指定すると、そのレイヤーの下に入れます（最初のラベルのレイヤーを指定すれば、ラベルを明るく残せます）。
  * マスクより後に `beforeId` を指定せずに追加したレイヤーは最前面に入るので、マスクの上に表示されます。
  *
  * ソースとレイヤーの ID は {@link MASK_ID} に固定なので、1 つの地図に追加できる Mask は 1 つです。
@@ -274,7 +274,8 @@ export class Mask {
       console.error("[Geolonia] The mask option has no geojson."); // eslint-disable-line no-console
       return this;
     }
-    if (map.getSource(MASK_ID)) {
+    // 同じ ID のレイヤーだけが先にあっても、追加に失敗したうえ、後の remove で他人のレイヤーを消してしまう
+    if (map.getSource(MASK_ID) || map.getLayer(MASK_ID)) {
       console.error(
         "[Geolonia] A mask has already been added to this map. Only one mask is supported per map.",
       ); // eslint-disable-line no-console
@@ -366,7 +367,10 @@ export class Mask {
       }
       data = await response.json();
     } catch (error) {
-      console.error("[Geolonia] Failed to load mask GeoJSON:", error); // eslint-disable-line no-console
+      // remove や addTo のやり直しで捨てた取得の失敗は報告しない
+      if (generation === this.generation) {
+        console.error("[Geolonia] Failed to load mask GeoJSON:", error); // eslint-disable-line no-console
+      }
       return;
     }
     // 取得中に remove や addTo がやり直されていたら、この結果は使わない
@@ -383,7 +387,7 @@ export class Mask {
   private addLayers() {
     const map = this.map as MaplibreMap;
     const options = this.options as MaskOptions;
-    const before = layerAboveMask(map);
+    const before = layerAboveMask(map, options.beforeId);
     const color = options.color ?? DEFAULT_MASK_COLOR;
     let opacity = options.opacity ?? DEFAULT_MASK_OPACITY;
     if (!(typeof opacity === "number" && opacity >= 0 && opacity <= 1)) {
@@ -429,7 +433,9 @@ export class Mask {
   }
 
   /** 境界の面をソースに入れます。地図が破棄されたかスタイルが差し替えられてソースが無いときは、何もしません。 */
-  private setPolygons(geojson: GeoJSON.Feature | GeoJSON.FeatureCollection) {
+  private setPolygons(
+    geojson: GeoJSON.Feature | GeoJSON.FeatureCollection | GeoJSON.Geometry,
+  ) {
     const map = this.map;
     if (!map || (map as { _removed?: boolean })._removed || !this.owns(map)) {
       return;
@@ -481,17 +487,24 @@ export class Mask {
 /**
  * マスクをその下に入れるレイヤーの ID です。
  *
- * 背景の地図の、文字（シンボル）以外のレイヤーのうち最後のものの直上に入れます。建物や行政界のように、
- * 最初のシンボルより後ろに並ぶ塗りや線のレイヤーも暗くするためです。ただし SimpleStyle と
- * SimpleStyleVector のレイヤー（ID に `simple-style` を含む。背景の地図より後ろに追加される）より下にします。
- * 返すのはその位置の次のレイヤーで、無いときは `undefined`（最前面に追加する）を返します。
+ * `beforeId` が地図にあればそのレイヤーを返します。指定されていないときと、地図に無いときは、
+ * SimpleStyle と SimpleStyleVector のレイヤー（ID に `simple-style` を含む）のうち最初のものを返します。
+ * つまり既定では、背景の地図のすべてのレイヤーの上で、`geojson` と `simpleVector` の地物の下に入れます。
+ * どちらも無いときは `undefined`（最前面に追加する）を返します。
+ *
+ * 背景の地図の中に入れる位置をスタイルの並びから決めないのは、Geolonia のスタイルでもラベルと線の並びがスタイルごとに違い、
+ * どの規則でも一部のスタイルで期待どおりにならないためです。
  */
-function layerAboveMask(map: MaplibreMap): string | undefined {
-  const order = map.getLayersOrder();
-  let index = 0;
-  for (let i = 0; i < order.length; i++) {
-    if (order[i].includes("simple-style")) break;
-    if (map.getLayer(order[i])?.type !== "symbol") index = i + 1;
+function layerAboveMask(
+  map: MaplibreMap,
+  beforeId: string | undefined,
+): string | undefined {
+  if (beforeId !== undefined) {
+    if (map.getLayer(beforeId)) return beforeId;
+    console.error(
+      "[Geolonia] The mask beforeId layer does not exist. The mask is added below the geojson layers:",
+      beforeId,
+    ); // eslint-disable-line no-console
   }
-  return order[index];
+  return map.getLayersOrder().find((id) => id.includes("simple-style"));
 }
