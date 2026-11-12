@@ -164,6 +164,7 @@ const map = new GeoloniaMap({
   circle: { size: 'weight', color: 'category' }, // Size and color points (see below)
   extrusion: 'population',      // Extrude polygons by a property (see below)
   simpleVector: 'my-tileset',   // Vector tile URL or tileset ID
+  mask: './boundary.geojson',   // Darken outside a boundary (see below)
   '3d': false,
   errorMessage: undefined,      // Message shown when the map fails to initialize
 });
@@ -270,6 +271,32 @@ new GeoloniaMap({
 
 Replacing the function later with `map.setTransformRequest()` also removes the maps-core rewriting, including `key` and `sessionId`.
 
+#### `mask`
+
+Darken everything outside a boundary, such as a city's, so that the area inside stands out.
+
+```typescript
+// A GeoJSON URL with the boundary polygons.
+new GeoloniaMap({ container: '#map', mask: './boundary.geojson' });
+
+// Fine-grained settings.
+new GeoloniaMap({
+  container: '#map',
+  mask: {
+    geojson: boundary,   // URL, Feature or FeatureCollection
+    color: '#000000',    // default
+    opacity: 0.3,        // default
+    outline: true,       // draw the boundary line too; or { color: '#333333', width: 3 }
+  },
+});
+```
+
+- Every Polygon and MultiPolygon is cut out, so exclaves and islands work. Holes inside a polygon, such as another area enclosed by the boundary, stay dark. Other geometries are ignored.
+- The polygons should not overlap each other, or the cut-out may be drawn incorrectly.
+- The mask is drawn below the labels of the base map and below the `geojson` data.
+- `outline: true` draws a 2-pixel line in the mask `color`.
+- Without `center` and `geojson`, the map fits to the boundary.
+
 ### `GeoloniaMarker`
 
 Extends `maplibregl.Marker` with Geolonia's default marker style.
@@ -292,6 +319,18 @@ import { SimpleStyle } from '@geolonia/maps-core';
 const ss = new SimpleStyle(geojson, { cluster: true });
 // Also accepts `choropleth`, `heatmap` and `circle` (see GeoloniaMap options)
 ss.addTo(map).fitBounds();
+```
+
+### `Mask`
+
+Darkens everything outside a boundary on an existing map. Takes the same value as the `mask` option.
+
+```typescript
+import { Mask } from '@geolonia/maps-core';
+
+const mask = new Mask({ geojson: './boundary.geojson', outline: true });
+mask.addTo(map).fitBounds();
+mask.remove();
 ```
 
 ### `keyring`

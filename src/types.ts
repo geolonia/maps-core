@@ -155,6 +155,12 @@ export type GeoloniaMapOptions = MapOptions & {
   /** SimpleStyle Vector で表示するベクトルタイルの URL または論理名。 */
   simpleVector?: string;
   /**
+   * 指定した範囲（市区町村の境界など）の外側を暗くする。境界の GeoJSON の URL、または {@link MaskOptions} を指定する。
+   * 背景の地図の地名のラベルと、`geojson` の地物は、マスクの上に表示する。
+   * `center` と `geojson` が未指定のときは、境界の範囲に自動的にフィットする。
+   */
+  mask?: string | MaskOptions;
+  /**
    * 3D モード（対応スタイルの建物などの 3D 表示）を有効にするかどうか。
    * @defaultValue `false`
    */
@@ -261,4 +267,32 @@ export type ExtrusionColorOptions = {
   colors?: string[];
   /** 数値の色を割り当てる値の範囲 `[最小, 最大]`。省略するとデータの最小値と最大値を使う。 */
   range?: [number, number];
+};
+
+/**
+ * {@link GeoloniaMapOptions.mask} の詳細な指定。
+ */
+export type MaskOptions = {
+  /**
+   * 境界。GeoJSON の URL、または Feature か FeatureCollection を指定する。
+   * Polygon と MultiPolygon の面をすべてくり抜き、それ以外のジオメトリは無視する。
+   * 面が重なっていると正しくくり抜けないので、重ならない面を渡す。
+   */
+  geojson: string | GeoJSON.Feature | GeoJSON.FeatureCollection;
+  /**
+   * 範囲の外側を塗る色（CSS カラー文字列）。
+   * @defaultValue `'#000000'`
+   */
+  color?: string;
+  /**
+   * 範囲の外側を塗る不透明度（0 から 1）。
+   * @defaultValue `0.3`
+   */
+  opacity?: number;
+  /**
+   * 境界に線を引くかどうか。`true` のときは `color` の色で太さ 2 ピクセルの実線を引く。
+   * 色と太さを変えるときはオブジェクトで指定する。
+   * @defaultValue `false`
+   */
+  outline?: boolean | { color?: string; width?: number };
 };

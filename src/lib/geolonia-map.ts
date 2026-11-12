@@ -11,6 +11,7 @@ import CustomAttributionControl from "./controls/attribution";
 import { GeoloniaControl } from "./controls/geolonia-logo";
 import GeoloniaMarker from "./geolonia-marker";
 
+import { Mask } from "./mask";
 import { SimpleStyle } from "./simplestyle";
 import SimpleStyleVector from "./simplestyle-vector";
 
@@ -233,6 +234,7 @@ export default class GeoloniaMap extends maplibregl.Map {
       "circle",
       "extrusion",
       "simpleVector",
+      "mask",
       "3d",
       "errorMessage",
     ] as const) {
@@ -378,7 +380,7 @@ export default class GeoloniaMap extends maplibregl.Map {
       }
     });
 
-    // Style extensions (SimpleStyle, SimpleVector, 3D)
+    // Style extensions (SimpleStyle, SimpleVector, Mask, 3D)
     this.on("styledata", async () => {
       if (!this.__styleExtensionLoadRequired) {
         return;
@@ -388,6 +390,13 @@ export default class GeoloniaMap extends maplibregl.Map {
       if (options.simpleVector) {
         const url = parseSimpleVector(options.simpleVector);
         new SimpleStyleVector(url).addTo(this);
+      }
+
+      if (options.mask) {
+        const mask = new Mask(options.mask).addTo(this);
+        if (!options.center && !options.geojson) {
+          mask.fitBounds();
+        }
       }
 
       if (options.geojson) {

@@ -23,8 +23,19 @@ export class MockMap {
     this.sources[id] = source;
   }
 
-  addLayer(layer: Record<string, unknown>) {
-    this.layers.push(layer);
+  addLayer(layer: Record<string, unknown>, beforeId?: string) {
+    const index = beforeId
+      ? this.layers.findIndex((l) => l.id === beforeId)
+      : -1;
+    if (index >= 0) {
+      this.layers.splice(index, 0, layer);
+    } else {
+      this.layers.push(layer);
+    }
+  }
+
+  getLayersOrder() {
+    return this.layers.map((l) => l.id as string);
   }
 
   getSource(id: string) {

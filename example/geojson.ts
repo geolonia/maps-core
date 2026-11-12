@@ -82,6 +82,17 @@ if (params.has("cluster")) {
   options.cluster = params.get("cluster") === "true";
 }
 
+// Mask: ?mask=true darkens outside sample-boundary.geojson (a synthetic shape,
+// not a real boundary). ?mask=only drops the geojson data as well, so that the
+// map fits to the mask when ?noCenter=true.
+const mask = params.get("mask");
+if (mask) {
+  options.mask = { geojson: "/sample-boundary.geojson", outline: true };
+  if (mask === "only") {
+    delete options.geojson;
+  }
+}
+
 const map = new GeoloniaMap(options);
 
 // GeoloniaMap listens to "error", so MapLibre does not log style validation
