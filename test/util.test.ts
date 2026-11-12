@@ -205,6 +205,25 @@ describe("handleRestrictedMode", () => {
     ).toBe(true);
   });
 
+  it("should keep nodes that a remove listener added to the container", () => {
+    const container = document.createElement("div");
+    container.innerHTML = "<p>existing content</p>";
+    const map = {
+      getContainer: () => container,
+      // remove イベントのリスナーが同じコンテナに地図を作り直したときと同じく、要素を足す
+      remove: () => {
+        const recreated = document.createElement("div");
+        recreated.id = "recreated";
+        container.appendChild(recreated);
+      },
+    };
+
+    handleRestrictedMode(map);
+
+    expect(container.querySelector("p")).toBeNull();
+    expect(container.querySelector("#recreated")).not.toBeNull();
+  });
+
   it("should not call map.remove() on second invocation", () => {
     const container = document.createElement("div");
     const removeSpy = vi.fn();
