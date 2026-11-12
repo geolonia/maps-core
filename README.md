@@ -293,9 +293,10 @@ new GeoloniaMap({
 
 - `geojson` as a string is a URL starting with `http://` or `https://`, or a path starting with `/` or `.` (such as `./boundary.geojson`).
 - Every Polygon and MultiPolygon is cut out, so exclaves and islands work. Holes inside a polygon, such as another area enclosed by the boundary, stay dark, and polygons inside such a hole (an island in a lake) are cut out again. Other geometries are ignored. A polygon whose outer ring is broken is skipped.
-- The polygons should not overlap each other, or the cut-out may be drawn incorrectly. Polygons that cross the antimeridian (longitude ±180°) are not supported.
-- The mask is inserted right above the last non-label layer of the map, and below the `geojson` data. Land, roads, buildings and boundaries of the base map are darkened, while the labels drawn after them stay on top. Labels placed in the middle of a style (such as waterway names in some styles) are darkened outside the area. Layers added later without `beforeId` are drawn above the mask.
+- The polygons should not overlap each other, or the cut-out may be drawn incorrectly. Polygons that cross the antimeridian (longitude ±180°), and polygons with coordinates outside longitude ±180° or latitude ±90° (such as projected coordinates), are not supported; the latter are skipped. MapLibre fills at most 500 rings of one polygon per tile, so when a tile contains more than about 500 boundary polygons, small ones may not be cut out.
+- The mask is inserted right above the last non-label layer of the map, and below the `geojson` and `simpleVector` data. Land, roads, buildings and boundaries of the base map are darkened, while the labels drawn after them stay on top. Labels placed in the middle of a style (such as waterway names in some styles) are darkened outside the area. Layers added later without `beforeId` are drawn above the mask.
 - `outline: true` draws a 2-pixel line in the mask `color`.
+- An `opacity` outside 0 to 1 logs an error and the default is used. If MapLibre rejects the fill layer (for example, a color it cannot parse), nothing is added and an error is logged. If only the outline is rejected, the fill is kept and an error is logged.
 - Without `center` and `geojson`, the map fits to the boundary.
 
 ### `GeoloniaMarker`

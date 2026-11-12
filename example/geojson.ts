@@ -86,7 +86,7 @@ if (params.has("cluster")) {
 // not a real boundary). ?mask=only drops the geojson data as well, so that the
 // map fits to the mask when ?noCenter=true.
 const mask = params.get("mask");
-if (mask) {
+if (mask === "true" || mask === "only") {
   options.mask = { geojson: "/sample-boundary.geojson", outline: true };
   if (mask === "only") {
     delete options.geojson;

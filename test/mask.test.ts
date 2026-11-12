@@ -553,4 +553,56 @@ describe("Mask", () => {
     const open = square(0, 0).slice(0, -1);
     expect(collectPolygons(polygon(open))).toEqual([]);
   });
+
+  it("uses the default opacity for a value outside 0 to 1", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    new Mask({ geojson: polygon(square(0, 0)), opacity: 1.5 }).addTo(
+      asMap(map),
+    );
+
+    expect(
+      (map.getLayer("geolonia-mask") as { paint: Record<string, unknown> })
+        .paint["fill-opacity"],
+    ).toBe(DEFAULT_MASK_OPACITY);
+    expect(error).toHaveBeenCalled();
+  });
+
+  it("adds nothing when MapLibre rejects the layer", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    // MapLibre は解釈できない色のレイヤーを追加しない
+    const addLayer = map.addLayer.bind(map);
+    vi.spyOn(map, "addLayer").mockImplementation((layer, before) => {
+      if (layer.id !== "geolonia-mask") addLayer(layer, before);
+    });
+    const mask = new Mask({ geojson: polygon(square(0, 0)), color: "foo" });
+    mask.addTo(asMap(map));
+
+    expect(map.getLayersOrder()).toEqual([]);
+    expect(map.getSource("geolonia-mask")).toBeUndefined();
+    expect(error).toHaveBeenCalledWith(
+      "[Geolonia] Failed to add the mask layer. Check `color`.",
+    );
+  });
+
+  it("skips polygons with coordinates outside longitude and latitude", () => {
+    const projected = square(-30000, 50000, 1000);
+    expect(collectPolygons(polygon(projected))).toEqual([]);
+  });
+
+  it("keeps the fill and logs when only the outline layer is rejected", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const addLayer = map.addLayer.bind(map);
+    vi.spyOn(map, "addLayer").mockImplementation((layer, before) => {
+      if (layer.id !== "geolonia-mask-outline") addLayer(layer, before);
+    });
+    new Mask({
+      geojson: polygon(square(0, 0)),
+      outline: { color: "foo" },
+    }).addTo(asMap(map));
+
+    expect(map.getLayer("geolonia-mask")).toBeDefined();
+    expect(error).toHaveBeenCalledWith(
+      "[Geolonia] Failed to add the mask outline layer. Check `outline.color` and `outline.width`.",
+    );
+  });
 });

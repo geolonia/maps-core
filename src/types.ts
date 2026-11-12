@@ -157,7 +157,7 @@ export type GeoloniaMapOptions = MapOptions & {
   /**
    * 指定した範囲（市区町村の境界など）の外側を暗くする。境界の GeoJSON の URL、または {@link MaskOptions} を指定する。
    * マスクは背景の地図の文字以外のレイヤーのうち最後のものの直上に入れるので、陸地、道路、建物、行政界などは暗くなり、
-   * それより後ろに並ぶ地名のラベルと、`geojson` の地物はマスクの上に表示する。
+   * それより後ろに並ぶ地名のラベルと、`geojson` と `simpleVector` の地物はマスクの上に表示する。
    * `center` と `geojson` が未指定のときは、境界の範囲に自動的にフィットする。
    */
   mask?: string | MaskOptions;
@@ -278,7 +278,8 @@ export type MaskOptions = {
    * 境界。GeoJSON の URL（`http://` か `https://` で始まるもの、または `/` か `.` で始まるパス）、または Feature か FeatureCollection を指定する。
    * Polygon と MultiPolygon の面をすべてくり抜き、それ以外のジオメトリは無視する。
    * 面の穴（境界に囲まれた別の地域）は暗くし、その穴の中にある面（湖の中の島など）はくり抜く。
-   * 面が重なっていると正しくくり抜けないので、重ならない面を渡す。経度 ±180 度をまたぐ面には対応しない。
+   * 面が重なっていると正しくくり抜けないので、重ならない面を渡す。経度 ±180 度をまたぐ面と、経度緯度の範囲の外の座標を含む面には対応しない。
+   * MapLibre は 1 つの面のリングを 1 タイルあたり 500 本までしか塗らないので、1 タイルに約 500 を超える面が入ると、小さい面がくり抜かれないことがある。
    */
   geojson: string | GeoJSON.Feature | GeoJSON.FeatureCollection;
   /**
@@ -287,7 +288,7 @@ export type MaskOptions = {
    */
   color?: string;
   /**
-   * 範囲の外側を塗る不透明度（0 から 1）。
+   * 範囲の外側を塗る不透明度（0 から 1）。範囲の外の値は `console.error` に出し、既定値を使う。
    * @defaultValue `0.3`
    */
   opacity?: number;

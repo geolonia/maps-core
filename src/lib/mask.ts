@@ -45,13 +45,21 @@ function signedArea(ring: Ring): number {
   return sum;
 }
 
-/** 閉じたリング（4 点以上で、先頭と末尾が同じ点で、面積がある）として扱えるかどうかです。 */
+/**
+ * 閉じたリング（4 点以上で、先頭と末尾が同じ点で、面積がある）として扱えるかどうかです。
+ * 経度 -180〜180 度、緯度 -90〜90 度の外にある点を含むリング（投影座標系の座標など）は扱いません。
+ */
 function isRing(ring: unknown): ring is Ring {
   return (
     Array.isArray(ring) &&
     ring.length >= 4 &&
     ring.every(
-      (p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]),
+      (p) =>
+        Array.isArray(p) &&
+        Number.isFinite(p[0]) &&
+        Number.isFinite(p[1]) &&
+        Math.abs(p[0]) <= 180 &&
+        Math.abs(p[1]) <= 90,
     ) &&
     ring[0][0] === ring[ring.length - 1][0] &&
     ring[0][1] === ring[ring.length - 1][1] &&
@@ -282,6 +290,20 @@ export class Mask {
     this.map = map;
     this.polygons = undefined;
     this.addLayers();
+    if (!map.getLayer(MASK_ID)) {
+      // MapLibre は不正な paint の値（解釈できない色など）のレイヤーを追加せず、error イベントで知らせるだけなので、
+      // ここで気づいて取り除く。GeoloniaMap は error を購読しているので、コンソールには出ない
+      console.error("[Geolonia] Failed to add the mask layer. Check `color`."); // eslint-disable-line no-console
+      this.removeLayers(map);
+      this.map = undefined;
+      return this;
+    }
+    if (this.options.outline && !map.getLayer(`${MASK_ID}-outline`)) {
+      // 境界線だけが追加できなかったときは、塗りのマスクは残す
+      console.error(
+        "[Geolonia] Failed to add the mask outline layer. Check `outline.color` and `outline.width`.",
+      ); // eslint-disable-line no-console
+    }
     this.source = map.getSource(MASK_ID);
 
     if (url) {
@@ -321,13 +343,18 @@ export class Mask {
     this.source = undefined;
     // スタイルが差し替えられて、同じ ID のソースが別の Mask のものになっていたら消さない
     if (!map || !owned) return this;
+    this.removeLayers(map);
+    return this;
+  }
+
+  /** マスクのレイヤーとソースを地図から取り除きます。 */
+  private removeLayers(map: MaplibreMap) {
     for (const id of [`${MASK_ID}-outline`, MASK_ID]) {
       if (map.getLayer(id)) map.removeLayer(id);
     }
     for (const id of [`${MASK_ID}-outline`, MASK_ID]) {
       if (map.getSource(id)) map.removeSource(id);
     }
-    return this;
   }
 
   private async load(url: string, generation: number) {
@@ -358,6 +385,14 @@ export class Mask {
     const options = this.options as MaskOptions;
     const before = layerAboveMask(map);
     const color = options.color ?? DEFAULT_MASK_COLOR;
+    let opacity = options.opacity ?? DEFAULT_MASK_OPACITY;
+    if (!(typeof opacity === "number" && opacity >= 0 && opacity <= 1)) {
+      console.error(
+        "[Geolonia] The mask opacity must be a number from 0 to 1. The default is used:",
+        opacity,
+      ); // eslint-disable-line no-console
+      opacity = DEFAULT_MASK_OPACITY;
+    }
 
     map.addSource(MASK_ID, { type: "geojson", data: EMPTY });
     map.addLayer(
@@ -367,7 +402,7 @@ export class Mask {
         source: MASK_ID,
         paint: {
           "fill-color": color,
-          "fill-opacity": options.opacity ?? DEFAULT_MASK_OPACITY,
+          "fill-opacity": opacity,
         },
       },
       before,

@@ -14,6 +14,13 @@ type TestMap = {
   ) => unknown[];
 };
 
+/** 地図の error イベントで報告されたエラーです（GeoloniaMap が購読するので、コンソールには出ない）。 */
+async function mapErrorsOf(page: Page) {
+  return page.evaluate(
+    () => (window as unknown as { mapErrors: string[] }).mapErrors,
+  );
+}
+
 /** 指定した地点がマスクで塗られているかどうかを返します。 */
 async function isMasked(page: Page, lnglat: [number, number]) {
   return page.evaluate((lnglat) => {
@@ -89,6 +96,7 @@ test.describe("mask", () => {
     expect(order.fixture).toBeLessThan(order.mask);
     expect(order.mask).toBeLessThan(order.outline);
     expect(order.outline).toBeLessThan(order.firstSimpleStyle);
+    expect(await mapErrorsOf(page)).toEqual([]);
     expect(errors).toEqual([]);
   });
 
@@ -112,6 +120,7 @@ test.describe("mask", () => {
         { timeout: 6000 },
       )
       .toBe(true);
+    expect(await mapErrorsOf(page)).toEqual([]);
     expect(errors).toEqual([]);
   });
 });
