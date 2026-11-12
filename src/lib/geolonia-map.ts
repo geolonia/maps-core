@@ -476,10 +476,11 @@ export default class GeoloniaMap extends maplibregl.Map {
   /**
    * 地図を破棄し、関連するリソースやイベントリスナーを解放します。
    *
-   * MapLibre GL JS の破棄処理に加えて、コンテナ要素に保持している地図インスタンスへの
-   * 参照（`geoloniaMap`）も削除します。これにより、同じコンテナで再度
+   * MapLibre GL JS の破棄処理に加えて、コンテナ要素に登録されているのがこのインスタンスであれば、
+   * その参照（`geoloniaMap`）を削除します。これにより、同じコンテナで再度
    * {@link GeoloniaMap} を生成した際に、破棄済みのインスタンスが返されることを防ぎます。
    * 読み込みが終わる前に破棄したときは、このインスタンスが追加したローディング表示も外します。
+   * 破棄済みのインスタンスで呼び出しても何もしません（同じコンテナに作り直した別の地図に影響しません）。
    *
    * @example
    * ```typescript
@@ -489,11 +490,14 @@ export default class GeoloniaMap extends maplibregl.Map {
    * ```
    */
   remove(): void {
+    // MapLibre の remove() は 2 回目の呼び出しを防がず、コンテナから maplibregl-map クラスを外すなどの片付けをもう一度行う。
+    // 同じコンテナに作り直した別の地図を壊さないよう、破棄済みなら何もしない
+    if (this._removed) return;
     const container = this.getContainer() as Container;
     // load の前に破棄したときも、ローディング表示を残さない
     this.removeLoader();
     super.remove.call(this);
-    // 2 回目の remove() で、同じコンテナに作り直した別の地図の登録を消さない
+    // 同じコンテナに作り直した別の地図の登録は消さない
     if (container.geoloniaMap === this) {
       delete container.geoloniaMap;
     }

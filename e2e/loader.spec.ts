@@ -84,10 +84,17 @@ test.describe("Loader animation", () => {
         return container.geoloniaMap === w.map;
       }),
     ).toBe(true);
+    // 2 回目の remove() で、コンテナから maplibregl-map クラスを外さない（2 つ目の地図が使っている）
+    expect(
+      await page.evaluate(() =>
+        document.querySelector("#map")?.classList.contains("maplibregl-map"),
+      ),
+    ).toBe(true);
 
     await pending?.continue();
     await waitForMapLoad(page);
     await expect(page.locator(".loading-geolonia-map")).toHaveCount(0);
+    await expect(page.locator("#map")).toHaveClass(/maplibregl-map/);
     expect(errors).toEqual([]);
   });
 });
