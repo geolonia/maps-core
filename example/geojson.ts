@@ -78,11 +78,12 @@ if (viz === "choropleth") {
   options.pitch = 60;
 } else if (viz === "circle-map") {
   // Colors fixed per category, whatever order the categories appear in.
-  // 公園 is left out to show the fallback to the simplestyle marker-color.
+  // The colors differ from the simplestyle marker-color of the sample data, so
+  // the effect is visible. 公園 is left out to show the fallback to marker-color.
   options.geojson = "/sample-spots.geojson";
   options.circle = {
     color: "category",
-    colors: { カフェ: "#EA5C0D", 書店: "#2B6CB0", ベーカリー: "#FABF3D" },
+    colors: { カフェ: "#7A4FA0", 書店: "#2B6CB0", ベーカリー: "#5B8C2A" },
   };
 }
 

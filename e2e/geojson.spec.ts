@@ -154,9 +154,9 @@ test.describe("GeoJSON / SimpleStyle", () => {
         // （出現順に既定のパレットを割り当てる式になっていないこと）
         const expr = await paint();
         expect(expr).toContain('["to-string",["get","category"]]');
-        expect(expr).toContain('"カフェ","#EA5C0D"');
+        expect(expr).toContain('"カフェ","#7A4FA0"');
         expect(expr).toContain('"書店","#2B6CB0"');
-        expect(expr).toContain('"ベーカリー","#FABF3D"');
+        expect(expr).toContain('"ベーカリー","#5B8C2A"');
         expect(expr).not.toContain('"公園"');
       }
       // 不正な式は MapLibre が拒否して error イベントで報告する

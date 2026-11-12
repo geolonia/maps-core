@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import {
   Color,
   latest,
@@ -674,13 +674,34 @@ describe("color map keys that a plain match cannot take", () => {
 });
 
 describe("@maplibre/maplibre-gl-style-spec", () => {
-  it("is the same copy that maplibre-gl uses", () => {
-    // 式の検証に使う style-spec が、maplibre-gl が実行時に使うものと同じであること
-    // （版がずれて maplibre-gl の下に別の版が入ると、テストが実行時と違う仕様で検証することになる）
-    const nested = new URL(
-      "../node_modules/maplibre-gl/node_modules/@maplibre/maplibre-gl-style-spec",
-      import.meta.url,
-    );
-    expect(existsSync(nested)).toBe(false);
+  it("is within the range that maplibre-gl depends on", () => {
+    // maplibre-gl は style-spec をビルド時に取り込んでいるので、実行時に使うのは同梱の版である。
+    // 式の検証に使う devDependencies の style-spec が、maplibre-gl が宣言する依存範囲の外へずれていないことを確かめる
+    // （同梱の版と一致することまでは確かめられない）
+    const readJson = (path: string) =>
+      JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8"));
+    const range: string = readJson("../node_modules/maplibre-gl/package.json")
+      .dependencies["@maplibre/maplibre-gl-style-spec"];
+    const version: string = readJson(
+      "../node_modules/@maplibre/maplibre-gl-style-spec/package.json",
+    ).version;
+    // maplibre-gl はキャレット（^メジャー.マイナー.パッチ）で宣言している
+    const match = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(range);
+    expect(match).not.toBeNull();
+    const [major, minor, patch] = (match as RegExpExecArray)
+      .slice(1)
+      .map(Number);
+    const [vMajor, vMinor, vPatch] = version.split(".").map(Number);
+    expect(vMajor).toBe(major);
+    expect(vMinor > minor || (vMinor === minor && vPatch >= patch)).toBe(true);
+    // maplibre-gl の下に別の版が入っていないこと（1 つの版に解決されていること）
+    expect(
+      existsSync(
+        new URL(
+          "../node_modules/maplibre-gl/node_modules/@maplibre/maplibre-gl-style-spec",
+          import.meta.url,
+        ),
+      ),
+    ).toBe(false);
   });
 });

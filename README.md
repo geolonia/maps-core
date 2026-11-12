@@ -255,7 +255,7 @@ new GeoloniaMap({
 - Height is set in one of two ways:
   - `maxHeight` (meters, default `3000`): the range is mapped proportionally to 0 to `maxHeight`, so the columns fit whatever the values are. The range defaults to 0 to the maximum of the data, or to the minimum and maximum when the minimum is negative. This is the default.
   - `heightScale`: meters per unit of the value. The height does not depend on the data range, so maps with different grid sizes or years can be compared at the same scale. When `heightScale` is set, `maxHeight` is ignored. Negative heights are drawn flat.
-- A `range` whose minimum is not below its maximum is ignored, and the range is taken from the data.
+- A height `range` whose minimum is not below its maximum is ignored, and the range is taken from the data.
 - `color` defaults to the height property. Like `circle.color`, numeric values get a color ramp and other values one color per category, unless `colors` is an object that maps values to colors. In that case `range` is ignored.
 - `extrusion` takes precedence over `choropleth` and the simplestyle `fill`. The flat polygon fill is not drawn, so the simplestyle `fill-opacity` and `stroke` do not apply either. The columns are drawn at 0.9 opacity.
 - Polygons without a numeric height value are drawn flat.
