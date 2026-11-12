@@ -1,5 +1,35 @@
-import { expect, type Route, test } from "@playwright/test";
+import { expect, type Page, type Route, test } from "@playwright/test";
 import { collectConsoleErrors, waitForMapLoad } from "./helper";
+
+/**
+ * スタイルの取得を止めておき、止めたリクエストを返します。数え終わるまで地図の読み込みを進めないために使います
+ * （時間で遅らせると、遅い環境で数え損なう）。
+ */
+async function holdStyleRequest(page: Page) {
+  let pending: Route | undefined;
+  await page.route("**/sample-basic-style.json", (route) => {
+    pending = route;
+  });
+  return {
+    /** 止めたリクエストが届くまで待ちます。届かないときは、テスト全体の timeout より先にここで落とす。 */
+    async waitForRequest() {
+      await expect
+        .poll(() => pending !== undefined, { timeout: 3000 })
+        .toBe(true);
+    },
+    /** 止めたリクエストを進めます。 */
+    async release() {
+      await pending?.continue();
+    },
+  };
+}
+
+/** example が記録した地図の error イベント（GeoloniaMap が購読するので、コンソールには出ない）です。 */
+async function mapErrorsOf(page: Page) {
+  return page.evaluate(
+    () => (window as unknown as { mapErrors: string[] }).mapErrors,
+  );
+}
 
 test.describe("Loader animation", () => {
   test("should show loader while the map is loading (default)", async ({
@@ -43,47 +73,30 @@ test.describe("Loader animation", () => {
     page,
   }) => {
     const errors = collectConsoleErrors(page);
-    // 2 つ目の地図のスタイルの取得を、数え終わるまで止めておく（時間で遅らせると遅い環境で数え損なう）
-    let pending: Route | undefined;
-    await page.route("**/sample-basic-style.json", (route) => {
-      pending = route;
-    });
+    const style = await holdStyleRequest(page);
 
     await page.goto("/loader.html?removeBeforeLoad=true");
-    // テスト全体の timeout（30 秒）に収まるよう、待つ時間を短く区切る
-    await expect
-      .poll(() => pending !== undefined, { timeout: 3000 })
-      .toBe(true);
+    await style.waitForRequest();
     // 破棄した地図の表示は外れ、2 つ目の地図の表示だけが残る。
     // 修正前は表示が 2 つ残るので、待たずにいまの数を数えて、すぐに落ちるようにしている
     expect(await page.locator(".loading-geolonia-map").count()).toBe(1);
 
-    await pending?.continue();
+    await style.release();
     await waitForMapLoad(page);
     await expect(page.locator(".loading-geolonia-map")).toHaveCount(0);
     expect(errors).toEqual([]);
-    expect(
-      await page.evaluate(
-        () => (window as unknown as { mapErrors: string[] }).mapErrors,
-      ),
-    ).toEqual([]);
+    expect(await mapErrorsOf(page)).toEqual([]);
   });
 
   test("should keep the second map when the first one is removed twice", async ({
     page,
   }) => {
     const errors = collectConsoleErrors(page);
-    let pending: Route | undefined;
-    await page.route("**/sample-basic-style.json", (route) => {
-      pending = route;
-    });
+    const style = await holdStyleRequest(page);
 
     // 1 つ目を破棄し、同じコンテナに 2 つ目を作ってから、1 つ目をもう一度 remove() する
     await page.goto("/loader.html?removeTwice=true");
-    // テスト全体の timeout（30 秒）に収まるよう、待つ時間を短く区切る
-    await expect
-      .poll(() => pending !== undefined, { timeout: 3000 })
-      .toBe(true);
+    await style.waitForRequest();
     // 2 回目の remove() は、2 つ目の地図の表示もコンテナへの登録も消さない
     expect(await page.locator(".loading-geolonia-map").count()).toBe(1);
     expect(
@@ -102,15 +115,42 @@ test.describe("Loader animation", () => {
       ),
     ).toBe(true);
 
-    await pending?.continue();
+    await style.release();
     await waitForMapLoad(page);
     await expect(page.locator(".loading-geolonia-map")).toHaveCount(0);
     await expect(page.locator("#map")).toHaveClass(/maplibregl-map/);
     expect(errors).toEqual([]);
-    expect(
-      await page.evaluate(
-        () => (window as unknown as { mapErrors: string[] }).mapErrors,
-      ),
-    ).toEqual([]);
+    expect(await mapErrorsOf(page)).toEqual([]);
+  });
+
+  test("should remove only its own loader and registration", async ({
+    page,
+  }) => {
+    const style = await holdStyleRequest(page);
+    await page.goto("/loader.html");
+    await style.waitForRequest();
+
+    // 読み込み前の地図のコンテナに、別の地図の表示と登録があるときを作る
+    const kept = await page.evaluate(() => {
+      const w = window as unknown as { map: { remove: () => void } };
+      const container = document.querySelector("#map") as HTMLElement & {
+        geoloniaMap?: unknown;
+      };
+      const foreign = document.createElement("div");
+      foreign.className = "loading-geolonia-map";
+      foreign.id = "foreign-loader";
+      container.appendChild(foreign);
+      const other = {};
+      container.geoloniaMap = other;
+
+      w.map.remove();
+      return {
+        loaders: container.querySelectorAll(".loading-geolonia-map").length,
+        foreign: !!container.querySelector("#foreign-loader"),
+        registration: container.geoloniaMap === other,
+      };
+    });
+    // 自分の表示だけを外し、別の地図の表示と登録は残す
+    expect(kept).toEqual({ loaders: 1, foreign: true, registration: true });
   });
 });
