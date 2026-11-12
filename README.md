@@ -283,7 +283,7 @@ new GeoloniaMap({ container: '#map', mask: './boundary.geojson' });
 new GeoloniaMap({
   container: '#map',
   mask: {
-    geojson: boundary,   // URL, Feature, FeatureCollection, Polygon or MultiPolygon
+    geojson: boundary,   // URL, Feature, FeatureCollection or a Polygon/MultiPolygon/GeometryCollection geometry
     color: '#000000',    // default
     opacity: 0.3,        // default
     outline: true,       // draw the boundary line too; or { color: '#333333', width: 3 }
@@ -292,7 +292,7 @@ new GeoloniaMap({
 });
 ```
 
-- `geojson` as a string is a URL starting with `http://` or `https://`, or a path starting with `/` or `.` (such as `./boundary.geojson`). The response may also be a bare Polygon or MultiPolygon geometry.
+- `geojson` as a string is a URL starting with `http://` or `https://`, or a path starting with `/` or `.` (such as `./boundary.geojson`). The response may also be a bare Polygon, MultiPolygon or GeometryCollection geometry, and so may an object passed directly.
 - Every Polygon and MultiPolygon, including those inside a GeometryCollection, is cut out, so exclaves and islands work. Holes inside a polygon, such as another area enclosed by the boundary, stay dark, and polygons inside such a hole (an island in a lake) are cut out again. Other geometries are ignored. A polygon whose outer ring is broken is skipped.
 - The polygons should not overlap each other, or the cut-out may be drawn incorrectly. Polygons that cross the antimeridian (longitude ±180°), and polygons with coordinates outside longitude ±180° or latitude ±90° (such as projected coordinates), are not supported. A polygon whose outer ring has coordinates outside that range is skipped, and such a hole is dropped. MapLibre fills at most 500 rings of one polygon per tile, so when a tile contains more than about 500 boundary polygons, small ones may not be cut out.
 - By default the mask is drawn above every layer of the base map, labels included, and below the `geojson` and `simpleVector` data, so place names outside the area are darkened too. To keep labels bright, set `beforeId` to the first label layer of the style; the mask is inserted below that layer, and every layer after it (including buildings and boundaries in some styles) stays bright. A `beforeId` that is not in the map logs an error and the default position is used. Layers added later without `beforeId` are drawn above the mask.
@@ -301,8 +301,8 @@ new GeoloniaMap({
 - Adjacent polygons that share an edge may show a faint seam along the shared edge inside the area. Merge them into one polygon to avoid it.
 - A polygon enclosed by a hole of another polygon (such as an area enclosed by a city) is detected when all its vertices and the midpoints of its edges are inside the hole or on its edge, within about 0.2 m. Adjacent polygons should share their vertices or use coordinates rounded to 6 or more decimal places; otherwise an enclosed polygon may be darkened. With very detailed boundaries that have both holes and polygons inside them, this check takes more time.
 - `outline: true` draws a 2-pixel line in the mask `color`.
-- An `opacity` that is not a number from 0 to 1 logs an error and the default is used. A URL that does not respond within 30 seconds logs an error. If MapLibre rejects the fill layer (for example, a color it cannot parse), nothing is added and an error is logged. If only the outline is rejected, the fill is kept and an error is logged.
-- Without `center`, `bounds`, `geojson` and `simpleVector`, the map fits to the boundary.
+- An `opacity` that is not a number from 0 to 1 logs an error and the default is used. If loading the URL (including the response body) does not finish within 30 seconds, it is aborted and an error is logged. Skipped polygons or holes are reported with a warning. If MapLibre rejects the fill layer (for example, a color it cannot parse), nothing is added and an error is logged. If only the outline is rejected, the fill is kept and an error is logged.
+- Without `center`, `bounds`, `geojson` and `simpleVector`, the map fits to the boundary. This also happens again after `setStyle()`, since the mask is added again for the new style.
 
 ### `GeoloniaMarker`
 

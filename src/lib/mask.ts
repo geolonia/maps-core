@@ -168,6 +168,14 @@ function inRing([x, y]: GeoJSON.Position, ring: Ring): boolean {
  * 穴のうち閉じたリングとして扱えないものは捨てます。
  */
 export function collectPolygons(geojson: unknown): Ring[][] {
+  return collectPolygonsWithDropped(geojson).polygons;
+}
+
+/** {@link collectPolygons} と同じく面を集め、捨てた面と穴の数も返します。 */
+function collectPolygonsWithDropped(geojson: unknown): {
+  polygons: Ring[][];
+  dropped: number;
+} {
   // GeoJSON の最上位には Feature と FeatureCollection のほか、ジオメトリも置ける（RFC 7946）
   const root = geojson as
     | { type?: unknown; features?: unknown; geometry?: unknown }
@@ -204,11 +212,18 @@ export function collectPolygons(geojson: unknown): Ring[][] {
       for (const rings of geometry.coordinates) polygons.push(rings);
     }
   }
-  return polygons.flatMap((rings) => {
-    if (!Array.isArray(rings) || !isRing(rings[0])) return [];
+  let dropped = 0;
+  const result = polygons.flatMap((rings) => {
+    if (!Array.isArray(rings) || !isRing(rings[0])) {
+      dropped++;
+      return [];
+    }
     const [outer, ...inner] = rings;
-    return [[outer, ...inner.filter(isRing)]];
+    const holes = inner.filter(isRing);
+    dropped += inner.length - holes.length;
+    return [[outer, ...holes]];
   });
+  return { polygons: result, dropped };
 }
 
 /**
@@ -299,6 +314,8 @@ export class Mask {
    * そちらに書き込んだり消したりしないよう、同じオブジェクトのときだけ扱います。
    */
   private source: unknown;
+  /** addTo で追加した境界線のソースです。境界線を引かないときは `undefined` です。 */
+  private outlineSource: unknown;
   /** 取得中の GeoJSON の取得を止めます。remove で呼びます。 */
   private abortLoading: (() => void) | undefined;
   /** addTo と remove のたびに増やします。古い取得の結果を捨てるのに使います。 */
@@ -353,12 +370,18 @@ export class Mask {
     this.map = map;
     this.polygons = undefined;
     this.addLayers();
+    this.source = map.getSource(MASK_ID);
+    this.outlineSource = this.options.outline
+      ? map.getSource(`${MASK_ID}-outline`)
+      : undefined;
     if (!map.getLayer(MASK_ID)) {
       // MapLibre は不正な paint の値（解釈できない色など）のレイヤーを追加せず、error イベントで知らせるだけなので、
       // ここで気づいて取り除く。GeoloniaMap は error を購読しているので、コンソールには出ない
       console.error("[Geolonia] Failed to add the mask layer. Check `color`.");
       this.removeLayers(map);
       this.map = undefined;
+      this.source = undefined;
+      this.outlineSource = undefined;
       return this;
     }
     if (this.options.outline && !map.getLayer(`${MASK_ID}-outline`)) {
@@ -367,7 +390,6 @@ export class Mask {
         "[Geolonia] Failed to add the mask outline layer. Check `outline.color` and `outline.width`.",
       );
     }
-    this.source = map.getSource(MASK_ID);
 
     if (url) {
       this._loadingPromise = this.load(url, generation);
@@ -406,21 +428,33 @@ export class Mask {
     this.polygons = undefined;
     this.fitBoundsOptions = undefined;
     const owned = !!map && this.owns(map);
-    this.source = undefined;
     // スタイルが差し替えられて、同じ ID のソースが別の Mask のものになっていたら消さない
-    if (!map || !owned) return this;
-    this.removeLayers(map);
+    if (map && owned) this.removeLayers(map);
+    this.source = undefined;
+    this.outlineSource = undefined;
     return this;
   }
 
-  /** マスクのレイヤーとソースを地図から取り除きます。 */
+  /**
+   * マスクのレイヤーとソースを地図から取り除きます。この Mask が追加したソースのときだけ呼びます。
+   * 境界線は、この Mask が追加した境界線のソースが残っているときだけ取り除きます
+   * （境界線を引かない設定で、利用者が同じ ID のものを追加していても消さない）。
+   */
   private removeLayers(map: MaplibreMap) {
-    for (const id of [`${MASK_ID}-outline`, MASK_ID]) {
-      if (map.getLayer(id)) map.removeLayer(id);
-    }
-    for (const id of [`${MASK_ID}-outline`, MASK_ID]) {
-      if (map.getSource(id)) map.removeSource(id);
-    }
+    const outline = `${MASK_ID}-outline`;
+    const ownsOutline = this.ownsOutline(map);
+    if (ownsOutline && map.getLayer(outline)) map.removeLayer(outline);
+    if (map.getLayer(MASK_ID)) map.removeLayer(MASK_ID);
+    if (ownsOutline) map.removeSource(outline);
+    if (map.getSource(MASK_ID)) map.removeSource(MASK_ID);
+  }
+
+  /** 地図の `geolonia-mask-outline` のソースが、この Mask が追加したものかどうかです。 */
+  private ownsOutline(map: MaplibreMap): boolean {
+    return (
+      this.outlineSource !== undefined &&
+      map.getSource(`${MASK_ID}-outline`) === this.outlineSource
+    );
   }
 
   private async load(url: string, generation: number) {
@@ -516,17 +550,23 @@ export class Mask {
   /** 境界の面をソースに入れます。地図が破棄されたかスタイルが差し替えられてソースが無いときは、何もしません。 */
   private setPolygons(geojson: unknown) {
     const map = this.map;
-    if (!map || (map as { _removed?: boolean })._removed || !this.owns(map)) {
-      return;
-    }
+    // 地図を破棄すると getSource は undefined を返すので、所有の照合で破棄も見分けられる
+    if (!map || !this.owns(map)) return;
     const source = map.getSource(MASK_ID) as GeoJSONSource;
 
-    const polygons = collectPolygons(geojson);
+    const { polygons, dropped } = collectPolygonsWithDropped(geojson);
     if (polygons.length === 0) {
       console.error(
         "[Geolonia] The mask GeoJSON has no Polygon or MultiPolygon.",
       );
       return;
+    }
+    if (dropped > 0) {
+      // 一部の面や穴だけを捨てたときも、暗くなる理由に気づけるよう知らせる
+      console.warn(
+        "[Geolonia] Some mask polygons or holes were skipped (not closed, no area, or outside longitude/latitude):",
+        dropped,
+      );
     }
     this.polygons = polygons;
     source.setData({
@@ -534,13 +574,13 @@ export class Mask {
       properties: {},
       geometry: maskGeometry(polygons),
     });
-    (map.getSource(`${MASK_ID}-outline`) as GeoJSONSource | undefined)?.setData(
-      {
+    if (this.ownsOutline(map)) {
+      (map.getSource(`${MASK_ID}-outline`) as GeoJSONSource).setData({
         type: "Feature",
         properties: {},
         geometry: { type: "MultiPolygon", coordinates: polygons },
-      },
-    );
+      });
+    }
     if (this.fitBoundsOptions) this.applyFitBounds();
   }
 
@@ -558,7 +598,8 @@ export class Mask {
     window.requestAnimationFrame(() => {
       // 次のフレームまでに remove されていたら、地図を動かさない
       if (generation !== this.generation) return;
-      if ((map as { _removed?: boolean })._removed) return;
+      // 地図が破棄されていたら（getSource が undefined を返し、所有の照合が外れる）動かさない
+      if (!this.owns(map)) return;
       map.fitBounds(bounds, options);
     });
   }

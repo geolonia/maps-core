@@ -672,14 +672,12 @@ describe("Mask", () => {
     const mask = new Mask("https://example.com/boundary.geojson").addTo(
       asMap(map),
     );
-    (map as unknown as { _removed: boolean })._removed = true;
+    // MapLibre の地図を破棄すると、getSource は undefined を返す
+    map.sources = {};
 
     await mask._loadingPromise;
 
-    expect(sourceData(map, "geolonia-mask")).toEqual({
-      type: "FeatureCollection",
-      features: [],
-    });
+    expect(map.getSource("geolonia-mask")).toBeUndefined();
   });
 
   it("drops a ring that is not closed", () => {
@@ -962,4 +960,51 @@ describe("Mask", () => {
       expect(map.getLayersOrder()).toEqual(["geolonia-mask"]);
     },
   );
+
+  it("does not touch an outline source that someone else added later", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(polygon(square(0, 0)))),
+    );
+    // 境界線を引かない Mask の後に、利用者が同じ ID のソースとレイヤーを追加する
+    const mask = new Mask("https://example.com/boundary.geojson").addTo(
+      asMap(map),
+    );
+    map.addSource("geolonia-mask-outline", { type: "vector", url: "x" });
+    map.addLayer({
+      id: "geolonia-mask-outline",
+      type: "line",
+      source: "geolonia-mask-outline",
+    });
+
+    await mask._loadingPromise;
+    expect(map.getSource("geolonia-mask-outline")).toEqual(
+      expect.not.objectContaining({ data: expect.anything() }),
+    );
+
+    mask.remove();
+    expect(map.getSource("geolonia-mask")).toBeUndefined();
+    expect(map.getSource("geolonia-mask-outline")).toBeDefined();
+    expect(map.getLayer("geolonia-mask-outline")).toBeDefined();
+  });
+
+  it("warns when some polygons or holes are skipped", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const flat = [
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [0, 0],
+    ];
+    new Mask({
+      geojson: {
+        type: "FeatureCollection",
+        features: [polygon(square(0, 0), flat), polygon(flat)],
+      },
+    }).addTo(asMap(map));
+
+    expect(warn).toHaveBeenCalledWith(
+      "[Geolonia] Some mask polygons or holes were skipped (not closed, no area, or outside longitude/latitude):",
+      2,
+    );
+  });
 });

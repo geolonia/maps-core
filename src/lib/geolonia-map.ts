@@ -381,6 +381,8 @@ export default class GeoloniaMap extends maplibregl.Map {
     });
 
     // Style extensions (SimpleStyle, SimpleVector, Mask, 3D)
+    // 前のスタイルで作った Mask。作り直す前に取り除き、取得中の境界の GeoJSON を止める
+    let mask: Mask | undefined;
     this.on("styledata", async () => {
       if (!this.__styleExtensionLoadRequired) {
         return;
@@ -397,7 +399,8 @@ export default class GeoloniaMap extends maplibregl.Map {
       if (maskOptions && !this.getSource(MASK_ID)) {
         // マスクの指定が不正でも、後に続く geojson と 3D の処理は止めない
         try {
-          const mask = new Mask(maskOptions).addTo(this);
+          mask?.remove();
+          mask = new Mask(maskOptions).addTo(this);
           // geojson と simpleVector はそれぞれの範囲にフィットするので、どちらも無いときだけ境界にフィットする。
           // MapLibre の bounds で表示範囲を指定したときも、それを上書きしない
           if (
