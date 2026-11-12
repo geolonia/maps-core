@@ -283,7 +283,7 @@ new GeoloniaMap({ container: '#map', mask: './boundary.geojson' });
 new GeoloniaMap({
   container: '#map',
   mask: {
-    geojson: boundary,   // URL, Feature or FeatureCollection
+    geojson: boundary,   // URL, Feature, FeatureCollection, Polygon or MultiPolygon
     color: '#000000',    // default
     opacity: 0.3,        // default
     outline: true,       // draw the boundary line too; or { color: '#333333', width: 3 }
@@ -299,7 +299,7 @@ new GeoloniaMap({
 - The `geojson` layers are found by `simple-style` in their ID. A `SimpleStyle` added before the mask with a custom `id` that does not contain `simple-style` is drawn below it.
 - The layers are `geolonia-mask` (fill) and `geolonia-mask-outline` (line), with sources of the same IDs. Use these IDs as `beforeId` to place your own layers above or below the mask.
 - Adjacent polygons that share an edge may show a faint seam along the shared edge inside the area. Merge them into one polygon to avoid it.
-- A polygon enclosed by a hole of another polygon (such as an area enclosed by a city) is detected when all its vertices are inside the hole or on its edge, within about 0.2 m. Adjacent polygons should share their vertices or use coordinates with 6 or more decimal places; otherwise an enclosed polygon may be darkened.
+- A polygon enclosed by a hole of another polygon (such as an area enclosed by a city) is detected when all its vertices and the midpoints of its edges are inside the hole or on its edge, within about 0.2 m. Adjacent polygons should share their vertices or use coordinates rounded to 6 or more decimal places; otherwise an enclosed polygon may be darkened. With very detailed boundaries that have both holes and polygons inside them, this check takes more time.
 - `outline: true` draws a 2-pixel line in the mask `color`.
 - An `opacity` that is not a number from 0 to 1 logs an error and the default is used. A URL that does not respond within 30 seconds logs an error. If MapLibre rejects the fill layer (for example, a color it cannot parse), nothing is added and an error is logged. If only the outline is rejected, the fill is kept and an error is logged.
 - Without `center`, `bounds`, `geojson` and `simpleVector`, the map fits to the boundary.

@@ -276,15 +276,20 @@ export type ExtrusionColorOptions = {
 export type MaskOptions = {
   /**
    * 境界。GeoJSON の URL（`http://` か `https://` で始まるもの、または `/` か `.` で始まるパス）、または Feature か FeatureCollection を指定する。
-   * URL が返す GeoJSON は、最上位が Polygon か MultiPolygon のジオメトリでもよい。
+   * Polygon か MultiPolygon のジオメトリを直接渡してもよく、URL が返す GeoJSON も最上位がジオメトリでよい。
    * Polygon と MultiPolygon の面を（GeometryCollection の中のものも）すべてくり抜き、それ以外のジオメトリは無視する。
    * URL の取得は 30 秒で打ち切り、`console.error` に出す。
    * 面の穴（境界に囲まれた別の地域）は暗くし、その穴の中にある面（湖の中の島など）はくり抜く。
-   * 穴の中にある面かどうかは、頂点がすべて穴の内側か線の上（約 0.2 メートル以内）にあるかで判定するので、隣り合う面は頂点を共有するか、座標を小数 6 桁以上の精度にする。
+   * 穴の中にある面かどうかは、頂点と辺の中点がすべて穴の内側か線の上（約 0.2 メートル以内）にあるかで判定するので、隣り合う面は頂点を共有するか、座標を小数 6 桁以上の精度にする。
    * 面が重なっていると正しくくり抜けないので、重ならない面を渡す。経度 ±180 度をまたぐ面と、経度緯度の範囲の外の座標を含む面には対応しない。
    * MapLibre は 1 つの面のリングを 1 タイルあたり 500 本までしか塗らないので、1 タイルに約 500 を超える面が入ると、小さい面がくり抜かれないことがある。
    */
-  geojson: string | GeoJSON.Feature | GeoJSON.FeatureCollection;
+  geojson:
+    | string
+    | GeoJSON.Feature
+    | GeoJSON.FeatureCollection
+    | GeoJSON.Polygon
+    | GeoJSON.MultiPolygon;
   /**
    * 範囲の外側を塗る色（CSS カラー文字列）。
    * @defaultValue `'#000000'`

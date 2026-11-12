@@ -110,7 +110,7 @@ function onRing(point: GeoJSON.Position, ring: Ring): boolean {
 /**
  * リング `inner` が、リング `outer` の内側（線の上を含む）に収まるかどうかです。
  * 隣り合う地域どうしは境界の線を共有するので、1 点だけで判定すると、線の上の点の扱いで結果がぶれます。
- * すべての頂点が内側か線の上にあるとき、収まるとみなします（`outer` と同じ座標のリングも収まる）。
+ * すべての頂点と辺の中点が内側か線の上にあるとき、収まるとみなします（`outer` と同じ座標のリングも収まる）。
  */
 function ringWithin(inner: Ring, outer: Ring): boolean {
   const within = (point: GeoJSON.Position) =>
@@ -125,12 +125,16 @@ function ringWithin(inner: Ring, outer: Ring): boolean {
   return true;
 }
 
-/** 外接矩形 `a` が外接矩形 `b` に収まるかどうかです。 */
+/**
+ * 外接矩形 `a` が外接矩形 `b` に収まるかどうかです。線の上の判定と合わせるため、
+ * `b` を {@link ON_SEGMENT_TOLERANCE} だけ広げて比べます（`b` の端の辺にわずかに外から接する頂点を除かないため）。
+ */
 function boundsWithin(
   [ax0, ay0, ax1, ay1]: [number, number, number, number],
   [bx0, by0, bx1, by1]: [number, number, number, number],
 ): boolean {
-  return ax0 >= bx0 && ay0 >= by0 && ax1 <= bx1 && ay1 <= by1;
+  const t = ON_SEGMENT_TOLERANCE;
+  return ax0 >= bx0 - t && ay0 >= by0 - t && ax1 <= bx1 + t && ay1 <= by1 + t;
 }
 
 /** リングの外接矩形 `[西, 南, 東, 北]` です。 */
@@ -311,7 +315,8 @@ export class Mask {
    * 地図にマスクを追加します。`geojson` が URL のときは、空のソースとレイヤーを先に追加し、
    * 取得してから中身を入れます。スタイルの読み込みが終わってから呼び出します（MapLibre の `addSource` と同じ）。
    *
-   * - この Mask を追加済みのときは、先に取り除いてから追加し直します。
+   * - この Mask を追加済みのときは、先に取り除いてから追加し直します（取得中のフィットの予約は取り消します）。
+   *   別の地図への移動を断ったときは、元の地図に追加したままにします。
    * - 同じ地図に別の Mask が追加済みのとき、`geojson` が指定されていないとき、`geojson` が URL として不正なときは、
    *   何も追加せずに `console.error` に出します。
    *

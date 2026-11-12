@@ -409,7 +409,7 @@ export default class GeoloniaMap extends maplibregl.Map {
             mask.fitBounds();
           }
         } catch (error) {
-          console.error("[Geolonia] Failed to add the mask:", error); // eslint-disable-line no-console
+          console.error("[Geolonia] Failed to add the mask:", error);
         }
       }
 

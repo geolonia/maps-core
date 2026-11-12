@@ -83,6 +83,12 @@ describe("collectPolygons", () => {
     expect(polygons).toEqual([[square(0, 0)], [square(2, 0)], [square(4, 0)]]);
   });
 
+  it("accepts a geometry passed directly", () => {
+    expect(
+      collectPolygons({ type: "Polygon", coordinates: [square(0, 0)] }),
+    ).toEqual([[square(0, 0)]]);
+  });
+
   it("accepts a single Feature", () => {
     expect(collectPolygons(polygon(square(0, 0)))).toEqual([[square(0, 0)]]);
   });
@@ -275,6 +281,22 @@ describe("maskGeometry with shared boundaries", () => {
     expect(maskGeometry([[square(0, 0), u], [notch]]).coordinates).toEqual([
       [WORLD, square(0, 0), notch],
       [u],
+    ]);
+  });
+
+  it("cuts an area out of the hole when its vertex is just outside an axis-aligned hole edge", () => {
+    // 穴を小数 6 桁、内側の面を 7 桁で丸めたときのように、軸に平行な辺から外へわずかにずれた頂点
+    const enclosed: Ring = [
+      [0.8 + 1e-7, 0.4],
+      [0.5, 0.5],
+      [0.5, 0.3],
+      [0.8 + 1e-7, 0.4],
+    ];
+    expect(
+      maskGeometry([[square(0, 0), lake], [enclosed]]).coordinates,
+    ).toEqual([
+      [WORLD, square(0, 0)],
+      [lake, enclosed],
     ]);
   });
 
@@ -928,12 +950,16 @@ describe("Mask", () => {
     ).toEqual(maskGeometry([[square(5, 5)]]));
   });
 
-  it("treats an empty or null beforeId as not specified", () => {
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    new Mask({ geojson: polygon(square(0, 0)), beforeId: "" }).addTo(
-      asMap(map),
-    );
-    expect(error).not.toHaveBeenCalled();
-    expect(map.getLayersOrder()).toEqual(["geolonia-mask"]);
-  });
+  it.each(["", null])(
+    "treats a beforeId of %j as not specified",
+    (beforeId) => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      new Mask({
+        geojson: polygon(square(0, 0)),
+        beforeId: beforeId as unknown as string,
+      }).addTo(asMap(map));
+      expect(error).not.toHaveBeenCalled();
+      expect(map.getLayersOrder()).toEqual(["geolonia-mask"]);
+    },
+  );
 });
