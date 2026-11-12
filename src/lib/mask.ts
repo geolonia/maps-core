@@ -98,11 +98,15 @@ function onRing(point: GeoJSON.Position, ring: Ring): boolean {
  * すべての頂点が内側か線の上にあるとき、収まるとみなします（`outer` と同じ座標のリングも収まる）。
  */
 function ringWithin(inner: Ring, outer: Ring): boolean {
-  // 外接矩形に収まらなければ、頂点ごとの判定をするまでもなく収まらない
-  const [ix0, iy0, ix1, iy1] = ringBounds(inner);
-  const [ox0, oy0, ox1, oy1] = ringBounds(outer);
-  if (ix0 < ox0 || iy0 < oy0 || ix1 > ox1 || iy1 > oy1) return false;
   return inner.every((point) => onRing(point, outer) || inRing(point, outer));
+}
+
+/** 外接矩形 `a` が外接矩形 `b` に収まるかどうかです。 */
+function boundsWithin(
+  [ax0, ay0, ax1, ay1]: [number, number, number, number],
+  [bx0, by0, bx1, by1]: [number, number, number, number],
+): boolean {
+  return ax0 >= bx0 && ay0 >= by0 && ax1 <= bx1 && ay1 <= by1;
 }
 
 /** リングの外接矩形 `[西, 南, 東, 北]` です。 */
@@ -135,18 +139,20 @@ function inRing([x, y]: GeoJSON.Position, ring: Ring): boolean {
  * 外周が閉じたリングとして扱えない面は、面ごと捨てます（穴が外周に繰り上がらないように）。
  * 穴のうち閉じたリングとして扱えないものは捨てます。
  */
-export function collectPolygons(
-  geojson: GeoJSON.Feature | GeoJSON.FeatureCollection | GeoJSON.Geometry,
-): Ring[][] {
+export function collectPolygons(geojson: unknown): Ring[][] {
   // GeoJSON の最上位には Feature と FeatureCollection のほか、ジオメトリも置ける（RFC 7946）
+  const root = geojson as
+    | { type?: unknown; features?: unknown; geometry?: unknown }
+    | null
+    | undefined;
   const geometries: unknown[] =
-    geojson?.type === "FeatureCollection"
-      ? Array.isArray(geojson.features)
-        ? geojson.features.map((f) => f?.geometry)
+    root?.type === "FeatureCollection"
+      ? Array.isArray(root.features)
+        ? root.features.map((f: { geometry?: unknown } | null) => f?.geometry)
         : []
-      : geojson?.type === "Feature"
-        ? [geojson.geometry]
-        : [geojson];
+      : root?.type === "Feature"
+        ? [root.geometry]
+        : [root];
   const polygons: unknown[] = [];
   for (const item of geometries) {
     const geometry = item as GeoJSON.Geometry | null | undefined;
@@ -182,19 +188,28 @@ export function collectPolygons(
 export function maskGeometry(polygons: Ring[][]): GeoJSON.MultiPolygon {
   // 穴ごとに、どの面の穴かを持っておく。自分の面の穴に自分の外周を入れないため
   // （利用者のデータが同じ配列を外周と穴で使い回していても、参照の同一性には頼らない）
+  // 外接矩形と面積は先に 1 回だけ求める（面と穴の組ごとに求め直さない）
   const holes = polygons.flatMap(([, ...inner], owner) =>
-    inner.map((ring) => ({ ring, owner, cutouts: [] as Ring[] })),
+    inner.map((ring) => ({
+      ring,
+      owner,
+      bounds: ringBounds(ring),
+      area: Math.abs(signedArea(ring)),
+      cutouts: [] as Ring[],
+    })),
   );
   const world: Ring[] = [];
   polygons.forEach(([outer], index) => {
     // 外周を囲む穴のうち、いちばん内側（面積が最小）のものにくり抜く
+    const bounds = ringBounds(outer);
     let parent: (typeof holes)[number] | undefined;
     for (const hole of holes) {
       if (
         hole.owner !== index &&
-        ringWithin(outer, hole.ring) &&
-        (!parent ||
-          Math.abs(signedArea(hole.ring)) < Math.abs(signedArea(parent.ring)))
+        (!parent || hole.area < parent.area) &&
+        // 外接矩形に収まらなければ、頂点ごとの判定をするまでもなく収まらない
+        boundsWithin(bounds, hole.bounds) &&
+        ringWithin(outer, hole.ring)
       ) {
         parent = hole;
       }
@@ -274,8 +289,9 @@ export class Mask {
       console.error("[Geolonia] The mask option has no geojson."); // eslint-disable-line no-console
       return this;
     }
-    // 同じ ID のレイヤーだけが先にあっても、追加に失敗したうえ、後の remove で他人のレイヤーを消してしまう
-    if (map.getSource(MASK_ID) || map.getLayer(MASK_ID)) {
+    // 同じ ID のソースかレイヤーが 1 つでも先にあると、追加に失敗したうえ、後の remove で他人のものを消してしまう
+    const ids = [MASK_ID, `${MASK_ID}-outline`];
+    if (ids.some((id) => map.getSource(id) || map.getLayer(id))) {
       console.error(
         "[Geolonia] A mask has already been added to this map. Only one mask is supported per map.",
       ); // eslint-disable-line no-console
@@ -359,7 +375,8 @@ export class Mask {
   }
 
   private async load(url: string, generation: number) {
-    let data: GeoJSON.Feature | GeoJSON.FeatureCollection;
+    // 取得した JSON の形は分からないので、collectPolygons で確かめる
+    let data: unknown;
     try {
       const response = await window.fetch(url);
       if (!response.ok) {
@@ -433,9 +450,7 @@ export class Mask {
   }
 
   /** 境界の面をソースに入れます。地図が破棄されたかスタイルが差し替えられてソースが無いときは、何もしません。 */
-  private setPolygons(
-    geojson: GeoJSON.Feature | GeoJSON.FeatureCollection | GeoJSON.Geometry,
-  ) {
+  private setPolygons(geojson: unknown) {
     const map = this.map;
     if (!map || (map as { _removed?: boolean })._removed || !this.owns(map)) {
       return;

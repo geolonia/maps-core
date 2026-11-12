@@ -398,7 +398,8 @@ export default class GeoloniaMap extends maplibregl.Map {
         // マスクの指定が不正でも、後に続く geojson と 3D の処理は止めない
         try {
           const mask = new Mask(maskOptions).addTo(this);
-          if (!options.center && !options.geojson) {
+          // geojson と simpleVector はそれぞれの範囲にフィットするので、どちらも無いときだけ境界にフィットする
+          if (!options.center && !options.geojson && !options.simpleVector) {
             mask.fitBounds();
           }
         } catch (error) {

@@ -675,4 +675,18 @@ describe("Mask", () => {
 
     expect(error).not.toHaveBeenCalled();
   });
+
+  it("refuses when only the outline source or layer already exists", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    map.addLayer({ id: "geolonia-mask-outline", type: "line", source: "x" });
+    const mask = new Mask({
+      geojson: polygon(square(0, 0)),
+      outline: true,
+    }).addTo(asMap(map));
+    mask.remove();
+
+    expect(error).toHaveBeenCalled();
+    expect(map.getLayersOrder()).toEqual(["geolonia-mask-outline"]);
+    expect(map.getSource("geolonia-mask")).toBeUndefined();
+  });
 });
