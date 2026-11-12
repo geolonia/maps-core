@@ -22,10 +22,21 @@ if (params.has("loader")) {
 
 // ?removeBeforeLoad=true removes a first map before it loads and creates a new
 // one in the same container, as React StrictMode does with maps-react's <Map>.
-if (params.get("removeBeforeLoad") === "true") {
-  new GeoloniaMap(options).remove();
+// ?removeTwice=true does the same, and then calls remove() on the first map
+// again after the second map has been created.
+let first: GeoloniaMap | undefined;
+if (
+  params.get("removeBeforeLoad") === "true" ||
+  params.get("removeTwice") === "true"
+) {
+  first = new GeoloniaMap(options);
+  first.remove();
 }
 
 const map = new GeoloniaMap(options);
+
+if (params.get("removeTwice") === "true") {
+  first?.remove();
+}
 
 (window as unknown as Record<string, unknown>).map = map;

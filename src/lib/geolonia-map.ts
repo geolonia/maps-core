@@ -493,7 +493,10 @@ export default class GeoloniaMap extends maplibregl.Map {
     // load の前に破棄したときも、ローディング表示を残さない
     this.removeLoader();
     super.remove.call(this);
-    delete container.geoloniaMap;
+    // 2 回目の remove() で、同じコンテナに作り直した別の地図の登録を消さない
+    if (container.geoloniaMap === this) {
+      delete container.geoloniaMap;
+    }
   }
 
   /** このインスタンスが追加したローディング表示を外します。外した後や、表示していないときは何もしません。 */
