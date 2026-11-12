@@ -1125,4 +1125,32 @@ describe("Mask", () => {
     expect(map.getLayer("geolonia-mask")).toBeUndefined();
     expect(other.getLayersOrder()).toEqual([]);
   });
+
+  it("does not fit for a frame requested before remove and addTo again", () => {
+    let frame: FrameRequestCallback | undefined;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      frame = cb;
+      return 0;
+    });
+    const fitBounds = vi.spyOn(map, "fitBounds");
+    const mask = new Mask({ geojson: polygon(square(0, 0)) })
+      .addTo(asMap(map))
+      .fitBounds();
+    const oldFrame = frame;
+    // 同じ地図に追加し直すと所有は戻るので、古いフレームを止めるのは世代番号の照合だけになる
+    mask.remove();
+    mask.addTo(asMap(map));
+    oldFrame?.(0);
+
+    expect(fitBounds).not.toHaveBeenCalled();
+  });
+
+  it("stops on a GeometryCollection that contains itself", () => {
+    const gc: GeoJSON.GeometryCollection = {
+      type: "GeometryCollection",
+      geometries: [{ type: "Polygon", coordinates: [square(0, 0)] }],
+    };
+    gc.geometries.push(gc as unknown as GeoJSON.Geometry);
+    expect(collectPolygons(gc)).toEqual([[square(0, 0)]]);
+  });
 });

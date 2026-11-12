@@ -311,7 +311,7 @@ export type MaskOptions = {
    * マスクをこの ID のレイヤーの下に入れる。背景の地図の最初の地名のラベルのレイヤーを指定すると、ラベルを範囲の外でも明るく残せる。
    * そのレイヤーより後ろのレイヤー（スタイルによっては建物や行政界も）は、すべて明るく残る。
    * 省略したとき、または地図に無い ID のとき（`console.error` に出す）は、背景の地図のすべてのレイヤーの上で、
-   * `geojson` と `simpleVector` の地物の下に入れる。
+   * ID に `simple-style` を含む最初のレイヤー（`GeoloniaMap` の `geojson` / `simpleVector` オプションの地物）の下に入れる。
    */
   beforeId?: string;
 };

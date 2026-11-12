@@ -190,13 +190,16 @@ function collectPolygonsWithDropped(geojson: unknown): {
         ? [root.geometry]
         : [root];
   const polygons: unknown[] = [];
+  const visited = new Set<unknown>();
   for (let i = 0; i < geometries.length; i++) {
     const geometry = geometries[i] as GeoJSON.Geometry | null | undefined;
-    // GeometryCollection の中のジオメトリも順に見る
+    // GeometryCollection の中のジオメトリも順に見る。JS のオブジェクトが自分自身を含んでいても止まるよう、一度見たものは飛ばす
     if (
       geometry?.type === "GeometryCollection" &&
       Array.isArray(geometry.geometries)
     ) {
+      if (visited.has(geometry)) continue;
+      visited.add(geometry);
       for (const child of geometry.geometries) geometries.push(child);
       continue;
     }
