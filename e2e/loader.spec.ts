@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Route, test } from "@playwright/test";
 import { waitForMapLoad } from "./helper";
 
 test.describe("Loader animation", () => {
@@ -42,18 +42,20 @@ test.describe("Loader animation", () => {
   test("should not leave the loader of a map removed before load", async ({
     page,
   }) => {
-    // 2 つ目の地図の読み込みを遅らせ、その間のローディング表示を数える
-    await page.route("**/sample-basic-style.json", async (route) => {
-      await new Promise((r) => setTimeout(r, 1000));
-      await route.continue();
+    // 2 つ目の地図のスタイルの取得を、数え終わるまで止めておく（時間で遅らせると遅い環境で数え損なう）
+    let pending: Route | undefined;
+    await page.route("**/sample-basic-style.json", (route) => {
+      pending = route;
     });
 
     await page.goto("/loader.html?removeBeforeLoad=true");
+    await expect.poll(() => pending !== undefined).toBe(true);
     // 破棄した地図の表示は外れ、2 つ目の地図の表示だけが残る（2 つ目の表示は消さない）。
     // toHaveCount は数が合うまで待つので、2 つ目の読み込みが終わって数が減るのを待ってしまう。
-    // 2 つ目の読み込みは遅らせてあるので、待たずにいまの数を数える
+    // 2 つ目の読み込みは止めてあるので、待たずにいまの数を数える
     expect(await page.locator(".loading-geolonia-map").count()).toBe(1);
 
+    await pending?.continue();
     await waitForMapLoad(page);
     await expect(page.locator(".loading-geolonia-map")).toHaveCount(0);
   });
