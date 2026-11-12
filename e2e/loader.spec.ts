@@ -50,7 +50,10 @@ test.describe("Loader animation", () => {
     });
 
     await page.goto("/loader.html?removeBeforeLoad=true");
-    await expect.poll(() => pending !== undefined).toBe(true);
+    // テスト全体の timeout（30 秒）に収まるよう、待つ時間を短く区切る
+    await expect
+      .poll(() => pending !== undefined, { timeout: 3000 })
+      .toBe(true);
     // 破棄した地図の表示は外れ、2 つ目の地図の表示だけが残る。
     // 修正前は表示が 2 つ残るので、待たずにいまの数を数えて、すぐに落ちるようにしている
     expect(await page.locator(".loading-geolonia-map").count()).toBe(1);
@@ -59,6 +62,11 @@ test.describe("Loader animation", () => {
     await waitForMapLoad(page);
     await expect(page.locator(".loading-geolonia-map")).toHaveCount(0);
     expect(errors).toEqual([]);
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { mapErrors: string[] }).mapErrors,
+      ),
+    ).toEqual([]);
   });
 
   test("should keep the second map when the first one is removed twice", async ({
@@ -72,7 +80,10 @@ test.describe("Loader animation", () => {
 
     // 1 つ目を破棄し、同じコンテナに 2 つ目を作ってから、1 つ目をもう一度 remove() する
     await page.goto("/loader.html?removeTwice=true");
-    await expect.poll(() => pending !== undefined).toBe(true);
+    // テスト全体の timeout（30 秒）に収まるよう、待つ時間を短く区切る
+    await expect
+      .poll(() => pending !== undefined, { timeout: 3000 })
+      .toBe(true);
     // 2 回目の remove() は、2 つ目の地図の表示もコンテナへの登録も消さない
     expect(await page.locator(".loading-geolonia-map").count()).toBe(1);
     expect(
@@ -96,5 +107,10 @@ test.describe("Loader animation", () => {
     await expect(page.locator(".loading-geolonia-map")).toHaveCount(0);
     await expect(page.locator("#map")).toHaveClass(/maplibregl-map/);
     expect(errors).toEqual([]);
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { mapErrors: string[] }).mapErrors,
+      ),
+    ).toEqual([]);
   });
 });

@@ -24,16 +24,25 @@ if (params.has("loader")) {
 // one in the same container, as React StrictMode does with maps-react's <Map>.
 // ?removeTwice=true does the same, and then calls remove() on the first map
 // again after the second map has been created.
+// GeoloniaMap listens to "error", so MapLibre does not log map errors to the
+// console. Keep them for the E2E tests.
+const mapErrors: string[] = [];
+(window as unknown as Record<string, unknown>).mapErrors = mapErrors;
+const recordErrors = (m: GeoloniaMap) =>
+  m.on("error", (e) => mapErrors.push(String(e.error?.message)));
+
 let first: GeoloniaMap | undefined;
 if (
   params.get("removeBeforeLoad") === "true" ||
   params.get("removeTwice") === "true"
 ) {
   first = new GeoloniaMap(options);
+  recordErrors(first);
   first.remove();
 }
 
 const map = new GeoloniaMap(options);
+recordErrors(map);
 
 if (params.get("removeTwice") === "true") {
   first?.remove();

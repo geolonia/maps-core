@@ -93,7 +93,11 @@ export default class GeoloniaMap extends maplibregl.Map {
    * 同じコンテナに作り直した別の地図の表示を消さないよう、コンテナの中を探さずにこの要素だけを外します。
    */
   private loadingElement: HTMLDivElement | undefined;
-  /** {@link GeoloniaMap.remove | remove} を呼んだかどうかです。2 回目の呼び出しで片付けを繰り返さないために使います。 */
+  /**
+   * {@link GeoloniaMap.remove | remove} を呼んだかどうかです。2 回目の呼び出しで片付けを繰り返さないために使います。
+   * コンストラクタは `super()` を try の中で呼ぶので、初期値つきのフィールドを置けない（TS2401）。宣言だけにして、
+   * 未設定（`undefined`）を「まだ呼んでいない」として扱う。
+   */
   private removed: boolean | undefined;
 
   /**
@@ -494,7 +498,9 @@ export default class GeoloniaMap extends maplibregl.Map {
   remove(): void {
     // MapLibre の remove() は 2 回目の呼び出しを防がず、コンテナから maplibregl-map クラスを外すなどの片付けをもう一度行う。
     // 同じコンテナに作り直した別の地図を壊さないよう、破棄済みなら何もしない。
-    // MapLibre の内部の状態（_removed）には頼らず、片付けを始める前に自分のフラグを立てる
+    // MapLibre の内部の状態（_removed）には頼らず、片付けを始める前に自分のフラグを立てる。
+    // そのため MapLibre の片付けが途中で例外を投げたときは、remove() をもう一度呼んでもやり直さない
+    // （作り直した別の地図を壊さないことを優先する）
     if (this.removed) return;
     this.removed = true;
     const container = this.getContainer() as Container;
