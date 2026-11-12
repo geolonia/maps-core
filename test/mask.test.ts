@@ -1153,4 +1153,35 @@ describe("Mask", () => {
     gc.geometries.push(gc as unknown as GeoJSON.Geometry);
     expect(collectPolygons(gc)).toEqual([[square(0, 0)]]);
   });
+
+  it("counts a polygon without coordinates as skipped", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    new Mask({
+      geojson: {
+        type: "Polygon",
+        coordinates: null,
+      } as unknown as GeoJSON.Polygon,
+    }).addTo(asMap(map));
+    expect(error).toHaveBeenCalledWith(
+      "[Geolonia] All mask polygons were skipped (not closed, no area, or outside longitude/latitude):",
+      1,
+    );
+  });
+
+  it("tells whether it is added to the map", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    map.addLayer({ id: "geolonia-mask", type: "fill", source: "other" });
+    const refused = new Mask({ geojson: polygon(square(0, 0)) }).addTo(
+      asMap(map),
+    );
+    expect(refused.isAddedTo(asMap(map))).toBe(false);
+
+    const other = new MockMap();
+    const added = new Mask({ geojson: polygon(square(0, 0)) }).addTo(
+      asMap(other),
+    );
+    expect(added.isAddedTo(asMap(other))).toBe(true);
+    added.remove();
+    expect(added.isAddedTo(asMap(other))).toBe(false);
+  });
 });

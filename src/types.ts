@@ -306,7 +306,17 @@ export type MaskOptions = {
    * 色と太さを変えるときはオブジェクトで指定する。
    * @defaultValue `false`
    */
-  outline?: boolean | { color?: string; width?: number };
+  outline?:
+    | boolean
+    | {
+        /** 境界線の色（CSS カラー文字列）。省略すると `color` と同じ。 */
+        color?: string;
+        /**
+         * 境界線の太さ（ピクセル）。
+         * @defaultValue `2`
+         */
+        width?: number;
+      };
   /**
    * マスクをこの ID のレイヤーの下に入れる。背景の地図の最初の地名のラベルのレイヤーを指定すると、ラベルを範囲の外でも明るく残せる。
    * そのレイヤーより後ろのレイヤー（スタイルによっては建物や行政界も）は、すべて明るく残る。

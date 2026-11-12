@@ -402,7 +402,7 @@ export default class GeoloniaMap extends maplibregl.Map {
       // ソースだけが写されてレイヤーが無いときは作り直す（前の Mask の remove() が写されたソースを取り除く）。
       // 前に作った Mask が無いとき（初回）は、同じ ID のものがスタイルにあっても Mask.addTo に任せ、断るエラーを出させる
       const carriedOver =
-        mask !== undefined &&
+        mask?.isAddedTo(this) === true &&
         this.getSource(MASK_ID) !== undefined &&
         this.getLayer(MASK_ID) !== undefined;
       if (maskOptions && !carriedOver) {

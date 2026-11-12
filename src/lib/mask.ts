@@ -191,6 +191,7 @@ function collectPolygonsWithDropped(geojson: unknown): {
         : [root];
   const polygons: unknown[] = [];
   const visited = new Set<unknown>();
+  let droppedGeometries = 0;
   for (let i = 0; i < geometries.length; i++) {
     const geometry = geometries[i] as GeoJSON.Geometry | null | undefined;
     // GeometryCollection の中のジオメトリも順に見る。JS のオブジェクトが自分自身を含んでいても止まるよう、一度見たものは飛ばす
@@ -206,8 +207,11 @@ function collectPolygonsWithDropped(geojson: unknown): {
     if (geometry?.type !== "Polygon" && geometry?.type !== "MultiPolygon") {
       continue;
     }
-    // 型のない呼び出し元から coordinates の無いジオメトリが渡されても、地図の初期化を止めない
-    if (!Array.isArray(geometry.coordinates)) continue;
+    // 型のない呼び出し元から coordinates の無いジオメトリが渡されても、地図の初期化を止めない（捨てた数に数える）
+    if (!Array.isArray(geometry.coordinates)) {
+      droppedGeometries++;
+      continue;
+    }
     if (geometry.type === "Polygon") {
       polygons.push(geometry.coordinates);
     } else {
@@ -215,7 +219,7 @@ function collectPolygonsWithDropped(geojson: unknown): {
       for (const rings of geometry.coordinates) polygons.push(rings);
     }
   }
-  let dropped = 0;
+  let dropped = droppedGeometries;
   const result = polygons.flatMap((rings) => {
     if (!Array.isArray(rings) || !isRing(rings[0])) {
       dropped++;
@@ -477,6 +481,14 @@ export class Mask {
     for (const id of [`${MASK_ID}-outline`, MASK_ID]) {
       if (map.getSource(id)) map.removeSource(id);
     }
+  }
+
+  /**
+   * この Mask が地図に追加されているかどうかです（断られたときや、取り除いた後は偽）。
+   * @internal
+   */
+  isAddedTo(map: MaplibreMap): boolean {
+    return attached.get(map) === this;
   }
 
   /** 地図の `geolonia-mask-outline` のソースを、この Mask が使っているかどうかです。 */
