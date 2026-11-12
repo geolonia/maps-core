@@ -95,7 +95,8 @@ export default class GeoloniaMap extends maplibregl.Map {
   private loadingElement: HTMLDivElement | undefined;
   /**
    * {@link GeoloniaMap.remove | remove} を呼んだかどうかです。2 回目の呼び出しで片付けを繰り返さないために使います。
-   * コンストラクタは `super()` を try の中で呼ぶので、初期値つきのフィールドを置けない（TS2401）。宣言だけにして、
+   * コンストラクタは `super()` を try の中で呼ぶので、tsconfig の target が ES2020（useDefineForClassFields が false）の今は、
+   * 初期値つきのフィールドを置けない（TS2401）。宣言だけにして、
    * 未設定（`undefined`）を「まだ呼んでいない」として扱う。
    */
   private removed: boolean | undefined;
@@ -487,7 +488,7 @@ export default class GeoloniaMap extends maplibregl.Map {
    * {@link GeoloniaMap} を生成した際に、破棄済みのインスタンスが返されることを防ぎます。
    * 読み込みが終わる前に破棄したときは、このインスタンスが追加したローディング表示も外します。
    * 一度 `remove()` を呼んだインスタンスで再び呼び出しても何もしません（同じコンテナに作り直した別の地図に影響しません）。
-   * MapLibre の片付けが途中で例外を投げた場合も、やり直しません。
+   * MapLibre の片付けが途中で例外を投げた場合も、やり直しません（解放されないまま残るリソースがありえます）。
    *
    * @example
    * ```typescript
@@ -507,15 +508,13 @@ export default class GeoloniaMap extends maplibregl.Map {
     const container = this.getContainer() as Container;
     // load の前に破棄したときも、ローディング表示を残さない
     this.removeLoader();
-    try {
-      super.remove.call(this);
-    } finally {
-      // MapLibre の片付けが例外を投げても、壊れかけの地図を次の new GeoloniaMap が返さないよう、登録は外す。
-      // コンテナに別の地図が登録されているときは、その登録は消さない（防御のための比較）
-      if (container.geoloniaMap === this) {
-        delete container.geoloniaMap;
-      }
+    // MapLibre の remove() は最後に remove イベントを発火する。そのリスナーが同じコンテナに作り直したとき、
+    // 破棄中のこのインスタンスが返らないよう、登録は MapLibre の片付けより前に外す（MapLibre の片付けが例外を投げても外れている）。
+    // コンテナに別の地図が登録されているときは、その登録は消さない（防御のための比較）
+    if (container.geoloniaMap === this) {
+      delete container.geoloniaMap;
     }
+    super.remove.call(this);
   }
 
   /** このインスタンスが追加したローディング表示を外します。外した後や、表示していないときは何もしません。 */

@@ -5,7 +5,7 @@ import { collectConsoleErrors, waitForMapLoad } from "./helper";
  * スタイルの取得を止め、届くのを待つ関数と進める関数を返します。数え終わるまで地図の読み込みを進めないために使います
  * （時間で遅らせると、遅い環境で数え損なう）。
  * 読み込み前に破棄した地図のスタイル取得は発行される前に中止されるので、届くのは最後に作った地図の 1 本だけのはずです。
- * 2 本目が届いたときは、その前提が崩れているので落とします。
+ * `release()` を呼ぶまでに 2 本目が届いていたら、その前提が崩れているので落とします。
  */
 async function holdStyleRequest(page: Page) {
   const pending: Route[] = [];
@@ -17,7 +17,7 @@ async function holdStyleRequest(page: Page) {
     async waitForRequest() {
       await expect.poll(() => pending.length, { timeout: 3000 }).toBe(1);
     },
-    /** 止めたリクエストを進めます。2 本以上届いていたら落とします。 */
+    /** 止めたリクエストを進めます。この時点で 2 本以上届いていたら落とします。 */
     async release() {
       expect(pending).toHaveLength(1);
       await pending[0].continue();
@@ -152,7 +152,8 @@ test.describe("Loader animation", () => {
         registration: container.geoloniaMap === other,
       };
     });
-    // 自分の表示だけを外し、別の地図の表示と登録は残す
+    // 自分の表示だけを外し、別の地図の表示と登録は残す。
+    // 止めたスタイルの取得は、地図の破棄で中止されるので進めない
     expect(kept).toEqual({ loaders: 1, foreign: true, registration: true });
     expect(errors).toEqual([]);
     expect(await mapErrorsOf(page)).toEqual([]);
