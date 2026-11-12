@@ -15,7 +15,8 @@ async function holdStyleRequest(page: Page) {
   return {
     /**
      * 止めたリクエストが 1 本届くまで待ちます。届かないときは、地図の読み込みを待つ前にここで落とす。
-     * 3 秒は、後に続く地図の読み込みの待ちと合わせてテスト全体の timeout（30 秒）に収まるよう決めた値です。
+     * 3 秒は、テスト全体の timeout（30 秒）に収まるよう決めた値です。後に続く waitForMapLoad の待ちは、canvas がコンストラクタで
+     * すぐに作られるので実質 loaded() の 15 秒だけで、`toHaveCount` の 5 秒と合わせても 3 + 15 + 5 = 23 秒程度です。
      */
     async waitForRequest() {
       await expect.poll(() => pending.length, { timeout: 3000 }).toBe(1);
