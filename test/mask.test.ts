@@ -333,6 +333,7 @@ describe("Mask", () => {
     new Mask("boundary.geojson").addTo(asMap(map));
 
     expect(fetch).not.toHaveBeenCalled();
+    expect(map.getLayersOrder()).toEqual([]);
     expect(error).toHaveBeenCalledWith(
       "[Geolonia] Invalid mask GeoJSON URL:",
       "boundary.geojson",

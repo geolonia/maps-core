@@ -230,7 +230,8 @@ export class Mask {
    * 取得してから中身を入れます。スタイルの読み込みが終わってから呼び出します（MapLibre の `addSource` と同じ）。
    *
    * - この Mask を追加済みのときは、先に取り除いてから追加し直します。
-   * - 同じ地図に別の Mask が追加済みのときと、`geojson` が指定されていないときは、何も追加せずに `console.error` に出します。
+   * - 同じ地図に別の Mask が追加済みのとき、`geojson` が指定されていないとき、`geojson` が URL として不正なときは、
+   *   何も追加せずに `console.error` に出します。
    *
    * @returns メソッドチェーンのための `this` を返します。
    */
@@ -246,22 +247,22 @@ export class Mask {
       ); // eslint-disable-line no-console
       return this;
     }
+    const { geojson } = this.options;
+    const url = typeof geojson === "string" ? isURL(geojson) : undefined;
+    if (url === false) {
+      console.error("[Geolonia] Invalid mask GeoJSON URL:", geojson); // eslint-disable-line no-console
+      return this;
+    }
     const generation = ++this.generation;
     this.map = map;
     this.polygons = undefined;
     this.addLayers();
     this.source = map.getSource(MASK_ID);
 
-    const { geojson } = this.options;
-    if (typeof geojson === "string") {
-      const url = isURL(geojson);
-      if (!url) {
-        console.error("[Geolonia] Invalid mask GeoJSON URL:", geojson); // eslint-disable-line no-console
-        return this;
-      }
+    if (url) {
       this._loadingPromise = this.load(url, generation);
     } else {
-      this.setPolygons(geojson);
+      this.setPolygons(geojson as GeoJSON.Feature | GeoJSON.FeatureCollection);
     }
     return this;
   }
@@ -321,12 +322,12 @@ export class Mask {
     this.setPolygons(data);
   }
 
-  /** 空のソースとレイヤーを追加します。 */
   /** 地図の `geolonia-mask` のソースが、この Mask が追加したものかどうかです。 */
   private owns(map: MaplibreMap): boolean {
     return this.source !== undefined && map.getSource(MASK_ID) === this.source;
   }
 
+  /** 空のソースとレイヤーを追加します。 */
   private addLayers() {
     const map = this.map as MaplibreMap;
     const options = this.options as MaskOptions;
