@@ -1216,4 +1216,57 @@ describe("Mask", () => {
       (sourceData(map, "geolonia-mask") as GeoJSON.Feature).geometry,
     ).toEqual(maskGeometry([[square(0, 0)]]));
   });
+
+  it("drops a pending GeoJSON when another mask has replaced it", async () => {
+    let resolve: (r: Response) => void = () => {};
+    vi.spyOn(window, "fetch").mockImplementationOnce(
+      () =>
+        new Promise<Response>((r) => {
+          resolve = r;
+        }),
+    );
+    const old = new Mask("https://example.com/old.geojson").addTo(asMap(map));
+    // スタイルが差し替えられてソースが消え、その間に取得が終わる
+    map.layers = [];
+    map.sources = {};
+    resolve(new Response(JSON.stringify(polygon(square(0, 0)))));
+    await old._loadingPromise;
+
+    // 新しいスタイルに別の Mask が追加される
+    new Mask({ geojson: polygon(square(5, 5)) }).addTo(asMap(map));
+    map.fire("styledata");
+
+    expect(
+      (sourceData(map, "geolonia-mask") as GeoJSON.Feature).geometry,
+    ).toEqual(maskGeometry([[square(5, 5)]]));
+    expect(old.isAddedTo(asMap(map))).toBe(false);
+  });
+
+  it("re-adds on the same map without being refused by its own outline", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const mask = new Mask({
+      geojson: polygon(square(0, 0)),
+      outline: true,
+    }).addTo(asMap(map));
+
+    mask.addTo(asMap(map));
+
+    expect(error).not.toHaveBeenCalled();
+    expect(map.getLayersOrder()).toEqual([
+      "geolonia-mask",
+      "geolonia-mask-outline",
+    ]);
+  });
+
+  it("stays on the same map when someone else's outline is in the way", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const mask = new Mask({ geojson: polygon(square(0, 0)) }).addTo(asMap(map));
+    map.addLayer({ id: "geolonia-mask-outline", type: "line", source: "x" });
+
+    mask.addTo(asMap(map));
+
+    expect(error).toHaveBeenCalled();
+    expect(map.getLayer("geolonia-mask")).toBeDefined();
+    expect(mask.isAddedTo(asMap(map))).toBe(true);
+  });
 });

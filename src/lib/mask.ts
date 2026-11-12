@@ -380,21 +380,24 @@ export class Mask {
       console.error("[Geolonia] The mask option has no geojson.");
       return this;
     }
-    // 同じ ID のソースかレイヤーが 1 つでも先にあると、追加に失敗したうえ、後の remove で他人のものを消してしまう
+    // 同じ ID のソースかレイヤーが 1 つでも先にあると、追加に失敗したうえ、後の remove で他人のものを消してしまう。
+    // この Mask がいま使っているもの（同じ地図に追加し直すとき）は数えない
     const occupied = () =>
-      [MASK_ID, `${MASK_ID}-outline`].some(
-        (id) => map.getSource(id) || map.getLayer(id),
-      );
+      [MASK_ID, `${MASK_ID}-outline`].some((id) => {
+        if (!map.getSource(id) && !map.getLayer(id)) return false;
+        if (this.map !== map || attached.get(map) !== this) return true;
+        return id === MASK_ID ? false : !this.ownsOutline(map);
+      });
     const refuse = () => {
       console.error(
         "[Geolonia] A mask (or a source or layer with the same ID) has already been added to this map. Only one mask is supported per map.",
       );
       return this;
     };
-    // 追加済みのこの Mask を別の地図に移すとき、移動先で断るなら移動元から取り除かない
-    if (this.map && this.map !== map && occupied()) return refuse();
+    // 追加し直すとき（別の地図への移動を含む）、断るなら取り除かない。先に判定してから取り除く
+    if (this.map && occupied()) return refuse();
     if (this.map) this.remove();
-    // 同じ地図でも、スタイルの差し替えの後に別の Mask が追加されていることがある
+    // 取り除いた後にもう一度確かめる（スタイルの差し替えの後に別の Mask が追加されていることがある）
     if (occupied()) return refuse();
     const { geojson } = this.options;
     const url = typeof geojson === "string" ? isURL(geojson) : undefined;
@@ -566,7 +569,6 @@ export class Mask {
   private addLayers() {
     const map = this.map as MaplibreMap;
     const options = this.options as MaskOptions;
-    const before = layerAboveMask(map, options.beforeId);
     const color = options.color ?? DEFAULT_MASK_COLOR;
     let opacity = options.opacity ?? DEFAULT_MASK_OPACITY;
     if (!(typeof opacity === "number" && opacity >= 0 && opacity <= 1)) {
@@ -581,6 +583,8 @@ export class Mask {
       type: "geojson",
       data: { ...EMPTY, features: [] },
     });
+    // スタイルの読み込み前は addSource が先に例外を投げるので、beforeId の判定（とそのエラー）はその後で行う
+    const before = layerAboveMask(map, options.beforeId);
     map.addLayer(
       {
         id: MASK_ID,

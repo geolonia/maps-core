@@ -118,6 +118,8 @@ test.describe("mask", () => {
   });
 
   test("should add the mask again after setStyle", async ({ page }) => {
+    // 読み込み（15 秒）、差し替えの待ち（5 秒）、poll（5 秒 × 3）を足すと、既定の 30 秒を超えうる
+    test.setTimeout(45000);
     const errors = collectConsoleErrors(page);
     await page.goto("/geojson.html?mask=true");
     await waitForMapLoad(page);
@@ -125,10 +127,10 @@ test.describe("mask", () => {
     await expect.poll(() => isMasked(page, [139.72, 35.695])).toBe(true);
 
     // スタイルを差し替え、新しいスタイルが読み込まれて描画が落ち着くまで待つ。
-    // 差し替えの途中は古いスタイルとマスクが残るので、待たずに確かめると作り直しを確かめられない
+    // GeoloniaMap の setStyle は全体の読み込み直しになり、古いソースは消えて、新しいスタイルの読み込み後に作り直される
     await page.evaluate(
       () =>
-        new Promise<void>((resolve) => {
+        new Promise<void>((resolve, reject) => {
           const w = window as unknown as {
             map: {
               getSource: (id: string) => unknown;
@@ -138,8 +140,11 @@ test.describe("mask", () => {
             oldMaskSource: unknown;
           };
           w.oldMaskSource = w.map.getSource("geolonia-mask");
-          // 止まったときに原因の分かる失敗になるよう、期限を設ける
-          const timer = setTimeout(() => resolve(), 10000);
+          // 止まったときに原因の分かる失敗になるよう、期限を設ける（テスト全体の timeout に収まる値）
+          const timer = setTimeout(
+            () => reject(new Error("style.load / idle timed out")),
+            5000,
+          );
           w.map.once("style.load", () =>
             w.map.once("idle", () => {
               clearTimeout(timer);

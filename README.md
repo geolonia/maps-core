@@ -332,7 +332,7 @@ ss.addTo(map).fitBounds();
 
 ### `Mask`
 
-Darkens everything outside a boundary on an existing map. Takes the same value as the `mask` option. Call `addTo` after the style has loaded. Only one mask can be added to a map; a second one, or a mask on a map that already has a source or layer named `geolonia-mask` or `geolonia-mask-outline` (even without `outline`), is not added and logs an error. Calling `addTo` before the style has loaded throws, as `addSource` does. A removed mask can be added again, and calling `addTo` on a mask that is already added moves it (if adding to the new map throws, for example because its style has not loaded, the mask is left on neither map).
+Darkens everything outside a boundary on an existing map. Takes the same value as the `mask` option. Call `addTo` after the style has loaded. After `map.setStyle()`, the mask is gone with the old style; call `addTo` again to add it to the new style (the `mask` option of `GeoloniaMap` does this for you). Only one mask can be added to a map; a second one, or a mask on a map that already has a source or layer named `geolonia-mask` or `geolonia-mask-outline` (even without `outline`), is not added and logs an error. Calling `addTo` before the style has loaded throws, as `addSource` does. A removed mask can be added again, and calling `addTo` on a mask that is already added moves it (if adding to the new map throws, for example because its style has not loaded, the mask is left on neither map).
 
 ```typescript
 import { Mask } from '@geolonia/maps-core';
