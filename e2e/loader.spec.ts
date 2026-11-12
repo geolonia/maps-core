@@ -2,24 +2,25 @@ import { expect, type Page, type Route, test } from "@playwright/test";
 import { collectConsoleErrors, waitForMapLoad } from "./helper";
 
 /**
- * スタイルの取得を止めておき、止めたリクエストを返します。数え終わるまで地図の読み込みを進めないために使います
+ * スタイルの取得を止め、届くのを待つ関数と進める関数を返します。数え終わるまで地図の読み込みを進めないために使います
  * （時間で遅らせると、遅い環境で数え損なう）。
+ * 読み込み前に破棄した地図のスタイル取得は発行される前に中止されるので、届くのは最後に作った地図の 1 本だけのはずです。
+ * 2 本目が届いたときは、その前提が崩れているので落とします。
  */
 async function holdStyleRequest(page: Page) {
-  let pending: Route | undefined;
+  const pending: Route[] = [];
   await page.route("**/sample-basic-style.json", (route) => {
-    pending = route;
+    pending.push(route);
   });
   return {
-    /** 止めたリクエストが届くまで待ちます。届かないときは、テスト全体の timeout より先にここで落とす。 */
+    /** 止めたリクエストが 1 本届くまで待ちます。届かないときは、地図の読み込みを待つ前にここで落とす。 */
     async waitForRequest() {
-      await expect
-        .poll(() => pending !== undefined, { timeout: 3000 })
-        .toBe(true);
+      await expect.poll(() => pending.length, { timeout: 3000 }).toBe(1);
     },
-    /** 止めたリクエストを進めます。 */
+    /** 止めたリクエストを進めます。2 本以上届いていたら落とします。 */
     async release() {
-      await pending?.continue();
+      expect(pending).toHaveLength(1);
+      await pending[0].continue();
     },
   };
 }
@@ -126,6 +127,7 @@ test.describe("Loader animation", () => {
   test("should remove only its own loader and registration", async ({
     page,
   }) => {
+    const errors = collectConsoleErrors(page);
     const style = await holdStyleRequest(page);
     await page.goto("/loader.html");
     await style.waitForRequest();
@@ -152,5 +154,7 @@ test.describe("Loader animation", () => {
     });
     // 自分の表示だけを外し、別の地図の表示と登録は残す
     expect(kept).toEqual({ loaders: 1, foreign: true, registration: true });
+    expect(errors).toEqual([]);
+    expect(await mapErrorsOf(page)).toEqual([]);
   });
 });
