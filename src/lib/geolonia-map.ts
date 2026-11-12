@@ -93,6 +93,8 @@ export default class GeoloniaMap extends maplibregl.Map {
    * 同じコンテナに作り直した別の地図の表示を消さないよう、コンテナの中を探さずにこの要素だけを外します。
    */
   private loadingElement: HTMLDivElement | undefined;
+  /** {@link GeoloniaMap.remove | remove} を呼んだかどうかです。2 回目の呼び出しで片付けを繰り返さないために使います。 */
+  private removed: boolean | undefined;
 
   /**
    * 地図を生成します。
@@ -491,15 +493,21 @@ export default class GeoloniaMap extends maplibregl.Map {
    */
   remove(): void {
     // MapLibre の remove() は 2 回目の呼び出しを防がず、コンテナから maplibregl-map クラスを外すなどの片付けをもう一度行う。
-    // 同じコンテナに作り直した別の地図を壊さないよう、破棄済みなら何もしない
-    if (this._removed) return;
+    // 同じコンテナに作り直した別の地図を壊さないよう、破棄済みなら何もしない。
+    // MapLibre の内部の状態（_removed）には頼らず、片付けを始める前に自分のフラグを立てる
+    if (this.removed) return;
+    this.removed = true;
     const container = this.getContainer() as Container;
     // load の前に破棄したときも、ローディング表示を残さない
     this.removeLoader();
-    super.remove.call(this);
-    // 同じコンテナに作り直した別の地図の登録は消さない
-    if (container.geoloniaMap === this) {
-      delete container.geoloniaMap;
+    try {
+      super.remove.call(this);
+    } finally {
+      // MapLibre の片付けが例外を投げても、壊れかけの地図を次の new GeoloniaMap が返さないよう、登録は外す。
+      // コンテナに別の地図が登録されているときは、その登録は消さない（防御のための比較）
+      if (container.geoloniaMap === this) {
+        delete container.geoloniaMap;
+      }
     }
   }
 
