@@ -507,7 +507,7 @@ describe("Mask", () => {
     );
   });
 
-  it("does nothing when the source is gone before the GeoJSON arrives", async () => {
+  it("keeps the GeoJSON pending while the source is gone, without errors or fitting", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify(polygon(square(0, 0)))),
     );
@@ -515,7 +515,7 @@ describe("Mask", () => {
     const mask = new Mask("https://example.com/boundary.geojson")
       .addTo(asMap(map))
       .fitBounds();
-    // setStyle でスタイルが差し替えられたときと同じく、ソースとレイヤーが消える
+    // コンテキストを失っている間やスタイルを読み込み直している間のように、ソースとレイヤーが消える
     map.layers = [];
     map.sources = {};
 

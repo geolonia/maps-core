@@ -340,7 +340,14 @@ export class Mask {
   /** ソースが戻ったときに保留中の GeoJSON を書き込む styledata のリスナーです。remove で外します。 */
   private readonly flushPending = () => {
     const map = this.map;
-    if (this.pendingGeoJSON === undefined || !map || !this.owns(map)) return;
+    if (!map) return;
+    // 別の Mask に置き換えられていたら、リスナーを外して保留を捨てる
+    if (attached.get(map) !== this) {
+      map.off("styledata", this.flushPending);
+      this.pendingGeoJSON = undefined;
+      return;
+    }
+    if (this.pendingGeoJSON === undefined || !this.owns(map)) return;
     const geojson = this.pendingGeoJSON;
     this.pendingGeoJSON = undefined;
     this.setPolygons(geojson);
@@ -610,7 +617,10 @@ export class Mask {
     );
   }
 
-  /** 境界の面をソースに入れます。地図が破棄されたかスタイルが差し替えられてソースが無いときは、何もしません。 */
+  /**
+   * 境界の面をソースに入れます。ソースが無いときは、この Mask が地図に追加されたままなら結果を保留し、
+   * ソースが戻った styledata で書き込みます。別の Mask に置き換えられていたら何もしません。
+   */
   private setPolygons(geojson: unknown) {
     const map = this.map;
     if (!map) return;

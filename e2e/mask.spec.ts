@@ -138,7 +138,14 @@ test.describe("mask", () => {
             oldMaskSource: unknown;
           };
           w.oldMaskSource = w.map.getSource("geolonia-mask");
-          w.map.once("style.load", () => w.map.once("idle", () => resolve()));
+          // 止まったときに原因の分かる失敗になるよう、期限を設ける
+          const timer = setTimeout(() => resolve(), 10000);
+          w.map.once("style.load", () =>
+            w.map.once("idle", () => {
+              clearTimeout(timer);
+              resolve();
+            }),
+          );
           // 相対パスにクエリを付けると Geolonia の論理名と判定されるので、絶対 URL で渡す
           w.map.setStyle(
             new URL("/sample-basic-style.json?v=2", location.href).href,

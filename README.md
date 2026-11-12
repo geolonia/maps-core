@@ -299,6 +299,7 @@ new GeoloniaMap({
 - The `geojson` layers are found by `simple-style` in their ID. A `SimpleStyle` added before the mask with a custom `id` that does not contain `simple-style` is drawn below it.
 - The layers are `geolonia-mask` (fill) and `geolonia-mask-outline` (line). Use these IDs as `beforeId` to place your own layers above or below the mask.
 - Adjacent polygons that share an edge may show a faint seam along the shared edge inside the area. Merge them into one polygon to avoid it.
+- If `remove()` is called while the style is being reloaded or the WebGL context is lost (when the mask's source is temporarily gone), the mask's source and layer may come back when MapLibre restores the style, and they are no longer removed by that `Mask`.
 - With `3d: true`, the mask is a flat fill drawn over the 3D buildings of the base map, so tall buildings inside the area may look darkened where they overlap the area outside. The look of 3D buildings with a mask is not guaranteed.
 - A polygon enclosed by a hole of another polygon (such as an area enclosed by a city) is detected when all its vertices and the midpoints of its edges are inside the hole or on its edge, within about 0.2 m. Adjacent polygons should share their vertices or use coordinates rounded to 6 or more decimal places; otherwise an enclosed polygon may be darkened. With very detailed boundaries that have both holes and polygons inside them, this check takes more time.
 - `outline: true` draws a 2-pixel line in the mask `color`.
