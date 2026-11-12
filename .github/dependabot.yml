@@ -12,6 +12,12 @@ updates:
       # ので止めない。typedoc が typescript 7 に対応したら、この ignore を外す。
       - dependency-name: "typescript"
         versions: [">=7.0.0"]
+      # @maplibre/maplibre-gl-style-spec はテストで式を検証するためだけに入れており、
+      # maplibre-gl が宣言する依存範囲（^26）の中にそろえる（test/data-driven.test.ts で確かめている）。
+      # maplibre-gl より先に major が上がると、そのテストが落ちて dev-dependencies グループの
+      # 他の更新も巻き添えで止まる。maplibre-gl が style-spec 27 に上げたら、この ignore を外す。
+      - dependency-name: "@maplibre/maplibre-gl-style-spec"
+        versions: [">=27.0.0"]
     groups:
       # vitest と @vitest/* は必ず同じ PR で同時に動かす。
       #

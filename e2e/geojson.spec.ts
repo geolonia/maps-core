@@ -145,11 +145,27 @@ test.describe("GeoJSON / SimpleStyle", () => {
           ),
         );
       // GeoJSON を URL から読み込んだ後に、式がデータに合わせて設定されること
-      // （既定の simplestyle の式のままではないこと）
+      // （既定の simplestyle の式のままではないこと）。circle-map の対応表の式は読み込み前から設定されるので、下で別に待つ
       await expect
         .poll(paint, { timeout: 5000 })
         .toMatch(/"(value|weight|category)"/);
       if (viz === "circle-map") {
+        // 対応表の式はデータに依存せず、読み込み前から設定される。上の poll はデータの読み込みを待たないので、
+        // ポイントのソースに地物が入る（読み込みと updateData が終わる）まで待ってから検査する
+        await expect
+          .poll(
+            () =>
+              page.evaluate(
+                () =>
+                  (
+                    (window as unknown as Record<string, unknown>).map as {
+                      querySourceFeatures: (source: string) => unknown[];
+                    }
+                  ).querySourceFeatures("geolonia-simple-style-points").length,
+              ),
+            { timeout: 5000 },
+          )
+          .toBeGreaterThan(0);
         // 式に対応表の 3 組がそのまま入り、対応表に無い 公園 はラベルにならないこと
         // （出現順に既定のパレットを割り当てる式になっていないこと）
         const expr = await paint();

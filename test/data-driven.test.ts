@@ -575,7 +575,8 @@ describe("color map keys that a plain match cannot take", () => {
 
   /**
    * MapLibre が色の式として受け付けるかを確かめ、地物を評価した色を返します。
-   * devDependencies の @maplibre/maplibre-gl-style-spec は、maplibre-gl が依存するのと同じ版にそろえてあります。
+   * devDependencies の @maplibre/maplibre-gl-style-spec は、maplibre-gl が宣言する依存範囲の中の版にそろえてあります
+   * （maplibre-gl が同梱している版との一致までは保証しません）。
    */
   const evaluate = (expr: unknown, properties: Record<string, unknown>) => {
     const parsed = styleExpression.createExpression(
@@ -670,6 +671,26 @@ describe("color map keys that a plain match cannot take", () => {
     expect(evaluate(expr, {})).toBe(css(FALLBACK));
     expect(evaluate(expr, { k: null })).toBe(css(FALLBACK));
     expect(evaluate(expr, { k: "a" })).toBe(css("#00ff00"));
+  });
+});
+
+describe("colors that is not an array or an object", () => {
+  // 型のない呼び出し元から文字列などが渡されても、既定の配色にする
+  const bad = "red" as unknown as string[];
+  const nums = [feature({ v: 0 }), feature({ v: 1 })];
+  const cats = [feature({ c: "a" }), feature({ c: "b" })];
+
+  it("falls back to the default colors", () => {
+    expect(
+      choroplethColor({ property: "v", colors: bad }, nums, "red"),
+    ).toEqual(choroplethColor({ property: "v" }, nums, "red"));
+    expect(circleColor({ color: "v", colors: bad }, nums, "red")).toEqual(
+      circleColor({ color: "v" }, nums, "red"),
+    );
+    expect(circleColor({ color: "c", colors: bad }, cats, "red")).toEqual(
+      circleColor({ color: "c" }, cats, "red"),
+    );
+    expect(heatmapColor({ colors: bad })).toEqual(heatmapColor({}));
   });
 });
 
