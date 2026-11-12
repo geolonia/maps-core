@@ -191,9 +191,15 @@ export function handleRestrictedMode(map: {
   if (!map._geolonia_restricted_mode_handled) {
     map._geolonia_restricted_mode_handled = true;
     const container = map.getContainer();
+    // remove イベントのリスナーが同じコンテナに地図を作り直すことがあるので、
+    // 破棄の前からあった子ノードだけを消し、リスナーが足した地図の DOM は残す
+    const ownNodes = Array.from(container.childNodes);
     map.remove();
-    container.innerHTML = "";
-    container.classList.add("geolonia__restricted-mode-image-container");
+    for (const node of ownNodes) node.remove();
+    // リスナーが作り直した地図がコンテナに登録されていれば、その地図の上に制限モードの背景を出さない
+    if (!(container as HTMLElement & { geoloniaMap?: unknown }).geoloniaMap) {
+      container.classList.add("geolonia__restricted-mode-image-container");
+    }
   }
 }
 

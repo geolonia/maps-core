@@ -88,6 +88,18 @@ type Container = HTMLElement & {
 export default class GeoloniaMap extends maplibregl.Map {
   private geoloniaSourcesUrl!: URL;
   private __styleExtensionLoadRequired!: boolean;
+  /**
+   * このインスタンスが追加したローディング表示です。`load` か {@link GeoloniaMap.remove | remove} で外します。
+   * 同じコンテナに作り直した別の地図の表示を消さないよう、コンテナの中を探さずにこの要素だけを外します。
+   */
+  private loadingElement: HTMLDivElement | undefined;
+  /**
+   * {@link GeoloniaMap.remove | remove} を呼んだかどうかです。2 回目の呼び出しで片付けを繰り返さないために使います。
+   * コンストラクタは `super()` を try の中で呼ぶので、tsconfig の target が ES2022 未満（今は ES2020）のあいだは、useDefineForClassFields の設定によらず
+   * 初期値つきのフィールドを置けない（TS2401）。宣言だけにして、
+   * 未設定（`undefined`）を「まだ呼んでいない」として扱う。
+   */
+  private removed: boolean | undefined;
 
   /**
    * 地図を生成します。
@@ -244,13 +256,15 @@ export default class GeoloniaMap extends maplibregl.Map {
     } catch (error) {
       // 初期化に失敗した以上ローディングは終わらないので、先に消す。
       // 消さないと `errorMessage: false` のとき「読み込み中」のまま見えてしまう。
-      container.querySelector(".loading-geolonia-map")?.remove();
+      // 同じコンテナにある別の地図の表示を消さないよう、自分が追加した要素だけを外す。
+      loading?.remove();
       handleErrorMode(container, { message: options.errorMessage });
       throw error;
     }
 
     this.geoloniaSourcesUrl = sourcesUrl;
     this.__styleExtensionLoadRequired = true;
+    this.loadingElement = loading;
 
     // Controls
     // Note: GeoloniaControl should be placed before another controls.
@@ -301,13 +315,7 @@ export default class GeoloniaMap extends maplibregl.Map {
     this.on("load", (event) => {
       const map = event.target;
 
-      if (loading) {
-        try {
-          container.removeChild(loading);
-        } catch {
-          // Already removed
-        }
-      }
+      this.removeLoader();
 
       // Gesture handling
       if (options.gestureHandling !== false) {
@@ -473,11 +481,14 @@ export default class GeoloniaMap extends maplibregl.Map {
   }
 
   /**
-   * 地図を破棄し、関連するリソースやイベントリスナーを解放します。
+   * 地図を破棄し、DOM のイベントや WebGL などの内部のリソースを解放します（`on()` で登録したリスナーは残ります）。
    *
-   * MapLibre GL JS の破棄処理に加えて、コンテナ要素に保持している地図インスタンスへの
-   * 参照（`geoloniaMap`）も削除します。これにより、同じコンテナで再度
+   * MapLibre GL JS の破棄処理に加えて、コンテナ要素に登録されているのがこのインスタンスであれば、
+   * その参照（`geoloniaMap`）を削除します。これにより、同じコンテナで再度
    * {@link GeoloniaMap} を生成した際に、破棄済みのインスタンスが返されることを防ぎます。
+   * 読み込みが終わる前に破棄したときは、このインスタンスが追加したローディング表示も外します。
+   * 一度 `remove()` を呼んだインスタンスで再び呼び出しても何もしません（同じコンテナに作り直した別の地図に影響しません）。
+   * MapLibre の片付けが途中で例外を投げた場合も、やり直しません（解放されないまま残るリソースがありえます）。
    *
    * @example
    * ```typescript
@@ -487,9 +498,29 @@ export default class GeoloniaMap extends maplibregl.Map {
    * ```
    */
   remove(): void {
+    // MapLibre の remove() は 2 回目の呼び出しを防がず、コンテナから maplibregl-map クラスを外すなどの片付けをもう一度行う。
+    // 同じコンテナに作り直した別の地図を壊さないよう、破棄済みなら何もしない。
+    // MapLibre の内部の状態（_removed）には頼らず、片付けを始める前に自分のフラグを立てる。
+    // そのため MapLibre の片付けが途中で例外を投げたときは、remove() をもう一度呼んでもやり直さない
+    // （作り直した別の地図を壊さないことを優先する）
+    if (this.removed) return;
+    this.removed = true;
     const container = this.getContainer() as Container;
+    // load の前に破棄したときも、ローディング表示を残さない
+    this.removeLoader();
+    // MapLibre の remove() は最後に remove イベントを発火する。そのリスナーが同じコンテナに作り直したとき、
+    // 破棄中のこのインスタンスが返らないよう、登録は MapLibre の片付けより前に外す（MapLibre の片付けが例外を投げても外れている）。
+    // コンテナに別の地図が登録されているときは、その登録は消さない（防御のための比較）
+    if (container.geoloniaMap === this) {
+      delete container.geoloniaMap;
+    }
     super.remove.call(this);
-    delete container.geoloniaMap;
+  }
+
+  /** このインスタンスが追加したローディング表示を外します。外した後や、表示していないときは何もしません。 */
+  private removeLoader(): void {
+    this.loadingElement?.remove();
+    this.loadingElement = undefined;
   }
 
   /**
