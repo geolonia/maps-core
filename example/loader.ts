@@ -43,9 +43,23 @@ if (
 
 const map = new GeoloniaMap(options);
 recordErrors(map);
+// ?recreateOnRemove=true replaces this with the recreated map below.
+(window as unknown as Record<string, unknown>).map = map;
 
 if (params.get("removeTwice") === "true") {
   first?.remove();
 }
 
-(window as unknown as Record<string, unknown>).map = map;
+// ?recreateOnRemove=true creates a new map in the same container from a
+// "remove" listener of the first map, before the first map has loaded.
+if (params.get("recreateOnRemove") === "true") {
+  const original = map;
+  original.on("remove", () => {
+    const recreated = new GeoloniaMap(options);
+    recordErrors(recreated);
+    const w = window as unknown as Record<string, unknown>;
+    w.map = recreated;
+    w.recreatedIsNew = recreated !== original;
+  });
+  original.remove();
+}

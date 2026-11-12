@@ -13,7 +13,10 @@ async function holdStyleRequest(page: Page) {
     pending.push(route);
   });
   return {
-    /** 止めたリクエストが 1 本届くまで待ちます。届かないときは、地図の読み込みを待つ前にここで落とす。 */
+    /**
+     * 止めたリクエストが 1 本届くまで待ちます。届かないときは、地図の読み込みを待つ前にここで落とす。
+     * 3 秒は、後に続く地図の読み込みの待ちと合わせてテスト全体の timeout（30 秒）に収まるよう決めた値です。
+     */
     async waitForRequest() {
       await expect.poll(() => pending.length, { timeout: 3000 }).toBe(1);
     },
@@ -124,7 +127,7 @@ test.describe("Loader animation", () => {
     expect(await mapErrorsOf(page)).toEqual([]);
   });
 
-  test("should remove only its own loader and registration", async ({
+  test("should remove only its own loader and keep another map's registration", async ({
     page,
   }) => {
     const errors = collectConsoleErrors(page);
@@ -155,6 +158,31 @@ test.describe("Loader animation", () => {
     // 自分の表示だけを外し、別の地図の表示と登録は残す。
     // 止めたスタイルの取得は、地図の破棄で中止されるので進めない
     expect(kept).toEqual({ loaders: 1, foreign: true, registration: true });
+    expect(errors).toEqual([]);
+    expect(await mapErrorsOf(page)).toEqual([]);
+  });
+
+  test("should not return the removed map to a remove listener that recreates it", async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+    const style = await holdStyleRequest(page);
+
+    // 読み込み前の地図の remove イベントのリスナーで、同じコンテナに地図を作り直す
+    await page.goto("/loader.html?recreateOnRemove=true");
+    await style.waitForRequest();
+    // 登録は MapLibre の片付け（remove イベントの発火）より前に外れているので、破棄中の地図は返らない
+    expect(
+      await page.evaluate(
+        () =>
+          (window as unknown as { recreatedIsNew?: boolean }).recreatedIsNew,
+      ),
+    ).toBe(true);
+    expect(await page.locator(".loading-geolonia-map").count()).toBe(1);
+
+    await style.release();
+    await waitForMapLoad(page);
+    await expect(page.locator(".loading-geolonia-map")).toHaveCount(0);
     expect(errors).toEqual([]);
     expect(await mapErrorsOf(page)).toEqual([]);
   });

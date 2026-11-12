@@ -481,7 +481,7 @@ export default class GeoloniaMap extends maplibregl.Map {
   }
 
   /**
-   * 地図を破棄し、関連するリソースやイベントリスナーを解放します。
+   * 地図を破棄し、DOM のイベントや WebGL などの内部のリソースを解放します（`on()` で登録したリスナーは残ります）。
    *
    * MapLibre GL JS の破棄処理に加えて、コンテナ要素に登録されているのがこのインスタンスであれば、
    * その参照（`geoloniaMap`）を削除します。これにより、同じコンテナで再度
