@@ -61,7 +61,7 @@ function isColorMap(
  * 値と色の割り当てです。地図の式はこの割り当てから組み立てます。
  *
  * - `sequential`: 数値の値を `range` の中で `colors` に線形に補間します。
- * - `categorical`: 値を文字列にして `entries` の値と照合し、一致した色にします。
+ * - `categorical`: 値を文字列にして `entries` の各組のキーと照合し、一致した組の色にします。
  */
 type ColorScale =
   | {
@@ -88,7 +88,7 @@ function colorExpression(
   const value = ["to-string", ["get", scale.property]];
   // match は一致したラベルを素のオブジェクトで重複判定するので、Object.prototype にある名前
   // （constructor、toString、__proto__ など）をラベルにすると式全体が拒否される。
-  // 空文字は、値の無い地物（to-string の結果が空文字になる）にも一致してしまう。
+  // 空文字は、値の無い地物と値が null の地物（to-string の結果が空文字になる）にも一致してしまう。
   // これらは match に入れず、case で個別に判定する
   const special = (key: string) => key === "" || key in Object.prototype;
   const labels = scale.entries.filter(([key]) => !special(key));
@@ -100,9 +100,7 @@ function colorExpression(
   return [
     "case",
     ...others.flatMap(([key, color]) => [
-      key === ""
-        ? ["all", ["has", scale.property], ["==", value, ""]]
-        : ["==", value, key],
+      key === "" ? ["==", ["get", scale.property], ""] : ["==", value, key],
       color,
     ]),
     matched,
@@ -333,7 +331,7 @@ function propertyColorScale(
 }
 
 /**
- * 円の色の式です。`color` の値がすべて数値なら連続した色に、
+ * 円の色の式です。`colors` が値と色の対応表ならその対応に、そうでなければ、`color` の値がすべて数値なら連続した色に、
  * そうでなければ値ごとのカテゴリの色にします。
  */
 export function circleColor(
@@ -387,7 +385,7 @@ export function extrusionHeight(
   );
 }
 
-/** 立体の色の式です。{@link circleColor} と同じく、数値なら連続した色、それ以外はカテゴリの色にします。 */
+/** 立体の色の式です。{@link circleColor} と同じく、`colors` が値と色の対応表ならその対応に、そうでなければ数値は連続した色、それ以外はカテゴリの色にします。 */
 export function extrusionColor(
   option: ExtrusionColorOptions,
   features: GeoJSON.Feature[],

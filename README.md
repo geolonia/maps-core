@@ -227,9 +227,9 @@ new GeoloniaMap({
 - The range and categories are computed again when the GeoJSON is loaded from a URL or replaced with `updateData()`.
 - `colors` is optional. The defaults are Geolonia's orange ramp and a categorical palette.
 - With `choropleth`, polygons without a `fill-opacity` property are drawn at 0.7 opacity instead of 1, so that the base map shows through.
-- With `circle.color`, a property is treated as numeric only when every value is a number. Numeric strings such as `"12"` count as categories. Objects and arrays are not colored.
-- `colors` may also be an object that maps values to colors. It works with `choropleth`, `circle.color` and `extrusion.color`. Each feature's value is converted to a string and looked up in the object, so the colors do not depend on the order of the data, and a key such as `1` matches both `1` and `"1"`. Features whose value is not in the object fall back to the simplestyle look. An empty-string key matches only features whose value is `""`, not features without the property. With an object, `choropleth` colors by category instead of a numeric ramp, and `range` is ignored.
-- Colors are not validated. If any color in `colors` is not a valid CSS color, MapLibre rejects the whole expression and the simplestyle look is kept.
+- With `circle.color`, a property is treated as numeric only when every value is a number. Numeric strings such as `"12"` count as categories. With an array `colors`, objects and arrays are not colored.
+- `colors` may also be an object that maps values to colors. It works with `choropleth.colors`, `circle.colors` and `extrusion.color.colors`. Each feature's value is converted to a string and looked up in the object, so the colors do not depend on the order of the data, and a key such as `1` matches both `1` and `"1"`. Features whose value is not in the object fall back to the simplestyle look. An empty-string key matches only features whose value is `""`, not features without the property or with `null`. With an object, `choropleth` colors by category instead of a numeric ramp, and `range` is ignored.
+- Colors are not validated. If a color used in the expression is not a valid CSS color, MapLibre rejects the whole expression. With an object, every color in it is used.
 
 #### `extrusion`
 

@@ -562,7 +562,10 @@ describe("colors as a color map", () => {
 });
 
 describe("color map keys that a plain match cannot take", () => {
-  /** MapLibre が色の式として受け付けるかを確かめ、地物を評価した色を返します。 */
+  /**
+   * MapLibre が色の式として受け付けるかを確かめ、地物を評価した色を返します。
+   * devDependencies の @maplibre/maplibre-gl-style-spec は、maplibre-gl が依存するのと同じ版にそろえてあります。
+   */
   const evaluate = (expr: unknown, properties: Record<string, unknown>) => {
     const parsed = styleExpression.createExpression(expr, {
       type: "color",
@@ -585,7 +588,6 @@ describe("color map keys that a plain match cannot take", () => {
         colors: {
           constructor: "#ff0000",
           toString: "#00ff00",
-          __proto__: "#0000ff",
           a: "#ffffff",
         } as unknown as Record<string, string>,
       },
@@ -596,6 +598,14 @@ describe("color map keys that a plain match cannot take", () => {
     expect(evaluate(expr, { k: "toString" })).toBe("#00ff00");
     expect(evaluate(expr, { k: "a" })).toBe("#ffffff");
     expect(evaluate(expr, { k: "b" })).toBe("#000000");
+  });
+
+  it("accepts __proto__ as an own key of the color map", () => {
+    // オブジェクトリテラルの __proto__ は自身のプロパティにならないので、JSON から作る
+    const colors = JSON.parse('{"__proto__":"#0000ff","a":"#ffffff"}');
+    const expr = circleColor({ color: "k", colors }, [], "#000000");
+    expect(evaluate(expr, { k: "__proto__" })).toBe("#0000ff");
+    expect(evaluate(expr, { k: "a" })).toBe("#ffffff");
   });
 
   it("accepts Object.prototype names that appear as categories in the data", () => {
@@ -616,6 +626,7 @@ describe("color map keys that a plain match cannot take", () => {
     );
     expect(evaluate(expr, { k: "" })).toBe("#ff0000");
     expect(evaluate(expr, {})).toBe("#000000");
+    expect(evaluate(expr, { k: null })).toBe("#000000");
     expect(evaluate(expr, { k: "a" })).toBe("#00ff00");
   });
 });
