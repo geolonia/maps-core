@@ -156,7 +156,8 @@ export type GeoloniaMapOptions = MapOptions & {
   simpleVector?: string;
   /**
    * 指定した範囲（市区町村の境界など）の外側を暗くする。境界の GeoJSON の URL、または {@link MaskOptions} を指定する。
-   * 背景の地図の地名のラベルと、`geojson` の地物は、マスクの上に表示する。
+   * マスクは背景の地図の文字以外のレイヤーのうち最後のものの直上に入れるので、陸地、道路、建物、行政界などは暗くなり、
+   * それより後ろに並ぶ地名のラベルと、`geojson` の地物はマスクの上に表示する。
    * `center` と `geojson` が未指定のときは、境界の範囲に自動的にフィットする。
    */
   mask?: string | MaskOptions;
