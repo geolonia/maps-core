@@ -287,6 +287,13 @@ export function normalizeMask(
 }
 
 /**
+ * 地図ごとに、いま追加されている Mask です。ソースやレイヤーの所有は、ソースのオブジェクトではなくこれで照合します。
+ * MapLibre はコンテキストの復元や Worker の再起動のときにスタイルを丸ごと作り直し、ソースのオブジェクトが替わるが、
+ * 追加されている Mask は替わらないためです。スタイルの差し替えの後に別の Mask を追加すると、古い Mask は所有を失います。
+ */
+const attached = new WeakMap<MaplibreMap, Mask>();
+
+/**
  * 指定した範囲（市区町村の境界など）の外側を暗くするヘルパークラスです。
  *
  * 世界全体を覆う面から境界のポリゴンをくり抜いた面を、`fill` のレイヤーで塗ります。
@@ -302,15 +309,11 @@ export function normalizeMask(
  * new Mask({ geojson: "./boundary.geojson", outline: true }).addTo(map);
  * ```
  */
-/**
- * 地図ごとに、いま追加されている Mask です。ソースやレイヤーの所有は、ソースのオブジェクトではなくこれで照合します。
- * MapLibre はコンテキストの復元や Worker の再起動のときにスタイルを丸ごと作り直し、ソースのオブジェクトが替わるが、
- * 追加されている Mask は替わらないためです。スタイルの差し替えの後に別の Mask を追加すると、古い Mask は所有を失います。
- */
-const attached = new WeakMap<MaplibreMap, Mask>();
-
 export class Mask {
-  /** URL から GeoJSON を取得しているときの Promise です。 */
+  /**
+   * URL から GeoJSON を取得しているときの Promise です。テストで取得の完了を待つために使います。
+   * @internal
+   */
   public _loadingPromise: Promise<void> | undefined;
   private readonly options: MaskOptions | undefined;
   private polygons: Ring[][] | undefined;
@@ -335,11 +338,13 @@ export class Mask {
    * 取得してから中身を入れます。スタイルの読み込みが終わってから呼び出します（MapLibre の `addSource` と同じ）。
    *
    * - この Mask を追加済みのときは、先に取り除いてから追加し直します（取得中のフィットの予約は取り消します）。
-   *   別の地図への移動を断ったときは、元の地図に追加したままにします。
+   *   移動先に同じ ID のソースかレイヤーがあって断るときは、元の地図に追加したままにします。
+   *   ただし、取り除いた後の追加で例外が出たとき（スタイルの読み込み前の地図など）は、元の地図には戻しません。
    * - 同じ ID（`geolonia-mask`、`geolonia-mask-outline`）のソースかレイヤーがすでにあるとき（別の Mask が追加済みのときを含む。
    *   境界線を引かない設定でも）、`geojson` が指定されていないとき、`geojson` が URL として不正なときは、
    *   何も追加せずに `console.error` に出します。
-   * - スタイルの読み込みが終わる前に呼ぶと、MapLibre の `addSource` と同じく例外を投げます（Mask の状態は追加前に戻します）。
+   * - スタイルの読み込みが終わる前に呼ぶと、MapLibre の `addSource` と同じく例外を投げます。追加しかけたソースとレイヤーは取り除き、
+   *   この Mask はどの地図にも追加されていない状態になります（読み込み後に `addTo` し直せます）。
    *
    * @returns メソッドチェーンのための `this` を返します。
    */

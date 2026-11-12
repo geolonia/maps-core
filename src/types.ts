@@ -271,7 +271,7 @@ export type ExtrusionColorOptions = {
 };
 
 /**
- * {@link GeoloniaMapOptions.mask} の詳細な指定。
+ * `GeoloniaMapOptions` の `mask` の詳細な指定。
  */
 export type MaskOptions = {
   /**

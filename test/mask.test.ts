@@ -1113,4 +1113,16 @@ describe("Mask", () => {
     expect(map.getSource("geolonia-mask")).toBeUndefined();
     expect(map.getSource("geolonia-mask-outline")).toBeUndefined();
   });
+
+  it("is left on neither map when adding to the new map throws", () => {
+    const other = new MockMap();
+    vi.spyOn(other, "addSource").mockImplementation(() => {
+      throw new Error("Style is not done loading");
+    });
+    const mask = new Mask({ geojson: polygon(square(0, 0)) }).addTo(asMap(map));
+
+    expect(() => mask.addTo(asMap(other))).toThrow("Style is not done loading");
+    expect(map.getLayer("geolonia-mask")).toBeUndefined();
+    expect(other.getLayersOrder()).toEqual([]);
+  });
 });
