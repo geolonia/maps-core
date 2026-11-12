@@ -173,6 +173,8 @@ export type GeoloniaMapOptions = MapOptions & {
  * 値と色の対応表。キーを値、値を色（CSS カラー文字列）とする。
  * 地物の値は文字列にしてキーと照合する。`{ 1: "#..." }` のような数値のキーは、値 `1` にも `"1"` にも一致する。
  * 対応表に無い値の地物は、色の指定が無いときと同じ見た目（地物の simplestyle の色、または既定の色）にする。
+ * 空文字のキーは、値が空文字の地物にだけ一致し、プロパティを持たない地物には一致しない。
+ * 色の文字列が CSS カラーとして正しいかは検査しない。解釈できない色が 1 つでもあると、MapLibre が式全体を受け付けない。
  *
  * @example
  * ```typescript
@@ -270,6 +272,7 @@ export type ExtrusionHeightOptions = {
 /**
  * {@link ExtrusionOptions.color} の詳細な指定。
  * 値がすべて数値なら連続した色に、そうでなければ値ごとのカテゴリの色にする（{@link CircleOptions.color} と同じ）。
+ * `colors` に {@link ColorMap} を渡したときは、値の種類によらず対応表のとおりにする。
  */
 export type ExtrusionColorOptions = {
   /** 色に使うプロパティ名。 */

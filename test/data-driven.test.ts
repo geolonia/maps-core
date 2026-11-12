@@ -1,3 +1,4 @@
+import { expression as styleExpression } from "@maplibre/maplibre-gl-style-spec";
 import { describe, expect, it } from "vitest";
 import {
   CATEGORICAL_COLORS,
@@ -557,5 +558,64 @@ describe("colors as a color map", () => {
     expect(choroplethColor({ property: "k", colors: {} }, [], "red")).toBe(
       "red",
     );
+  });
+});
+
+describe("color map keys that a plain match cannot take", () => {
+  /** MapLibre が色の式として受け付けるかを確かめ、地物を評価した色を返します。 */
+  const evaluate = (expr: unknown, properties: Record<string, unknown>) => {
+    const parsed = styleExpression.createExpression(expr, {
+      type: "color",
+      "property-type": "data-driven",
+      expression: { interpolated: false, parameters: ["zoom", "feature"] },
+    } as never);
+    if (parsed.result !== "success") {
+      throw new Error(JSON.stringify(parsed.value));
+    }
+    // 出力の色は、式に書いた文字列のまま返る
+    return String(
+      parsed.value.evaluate({ zoom: 0 }, { type: 1, properties } as never),
+    );
+  };
+
+  it("accepts Object.prototype names as values", () => {
+    const expr = circleColor(
+      {
+        color: "k",
+        colors: {
+          constructor: "#ff0000",
+          toString: "#00ff00",
+          __proto__: "#0000ff",
+          a: "#ffffff",
+        } as unknown as Record<string, string>,
+      },
+      [],
+      "#000000",
+    );
+    expect(evaluate(expr, { k: "constructor" })).toBe("#ff0000");
+    expect(evaluate(expr, { k: "toString" })).toBe("#00ff00");
+    expect(evaluate(expr, { k: "a" })).toBe("#ffffff");
+    expect(evaluate(expr, { k: "b" })).toBe("#000000");
+  });
+
+  it("accepts Object.prototype names that appear as categories in the data", () => {
+    const expr = circleColor(
+      { color: "k", colors: ["#ff0000", "#00ff00"] },
+      [feature({ k: "valueOf" }), feature({ k: "x" })],
+      "#000000",
+    );
+    expect(evaluate(expr, { k: "valueOf" })).toBe("#ff0000");
+    expect(evaluate(expr, { k: "x" })).toBe("#00ff00");
+  });
+
+  it("matches an empty-string key only for features whose value is empty", () => {
+    const expr = circleColor(
+      { color: "k", colors: { "": "#ff0000", a: "#00ff00" } },
+      [],
+      "#000000",
+    );
+    expect(evaluate(expr, { k: "" })).toBe("#ff0000");
+    expect(evaluate(expr, {})).toBe("#000000");
+    expect(evaluate(expr, { k: "a" })).toBe("#00ff00");
   });
 });

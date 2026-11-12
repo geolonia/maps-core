@@ -154,6 +154,26 @@ test.describe("GeoJSON / SimpleStyle", () => {
           { timeout: 5000 },
         )
         .toMatch(/"(value|weight|category)"/);
+      if (viz === "circle-map") {
+        // 対応表のとおりの色になり、対応表に無い 公園 はラベルにしない
+        // （既定のパレットのカテゴリの式になっていないこと）
+        const expr = JSON.stringify(
+          await page.evaluate(
+            ([layer, property]) =>
+              (
+                (window as unknown as Record<string, unknown>).map as {
+                  getPaintProperty: (
+                    layer: string,
+                    property: string,
+                  ) => unknown;
+                }
+              ).getPaintProperty(layer, property),
+            [layer, property] as const,
+          ),
+        );
+        expect(expr).toContain('"書店","#2B6CB0"');
+        expect(expr).not.toContain('"公園"');
+      }
       // 不正な式は MapLibre が拒否して error イベントで報告する
       const mapErrors = await page.evaluate(
         () => (window as unknown as Record<string, unknown>).mapErrors,

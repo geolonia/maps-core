@@ -85,11 +85,27 @@ function colorExpression(
       fallback,
     );
   }
+  const value = ["to-string", ["get", scale.property]];
+  // match は一致したラベルを素のオブジェクトで重複判定するので、Object.prototype にある名前
+  // （constructor、toString、__proto__ など）をラベルにすると式全体が拒否される。
+  // 空文字は、値の無い地物（to-string の結果が空文字になる）にも一致してしまう。
+  // これらは match に入れず、case で個別に判定する
+  const special = (key: string) => key === "" || key in Object.prototype;
+  const labels = scale.entries.filter(([key]) => !special(key));
+  const others = scale.entries.filter(([key]) => special(key));
+  const matched: Expression = labels.length
+    ? (["match", value, ...labels.flat(), fallback] as ExpressionSpecification)
+    : fallback;
+  if (others.length === 0) return matched;
   return [
-    "match",
-    ["to-string", ["get", scale.property]],
-    ...scale.entries.flat(),
-    fallback,
+    "case",
+    ...others.flatMap(([key, color]) => [
+      key === ""
+        ? ["all", ["has", scale.property], ["==", value, ""]]
+        : ["==", value, key],
+      color,
+    ]),
+    matched,
   ] as ExpressionSpecification;
 }
 
