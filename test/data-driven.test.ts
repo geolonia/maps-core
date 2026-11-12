@@ -1,3 +1,9 @@
+import { existsSync, readFileSync } from "node:fs";
+import {
+  Color,
+  latest,
+  expression as styleExpression,
+} from "@maplibre/maplibre-gl-style-spec";
 import { describe, expect, it } from "vitest";
 import {
   CATEGORICAL_COLORS,
@@ -466,5 +472,258 @@ describe("extrusionColor", () => {
       CATEGORICAL_COLORS[1],
       "#f00",
     ]);
+  });
+});
+
+describe("colors as a color map", () => {
+  const status = { normal: "#3b82f6", warning: "#eab308", danger: "#ef4444" };
+  const matchStatus = (property: string, fallback: string) => [
+    "match",
+    ["to-string", ["get", property]],
+    "normal",
+    "#3b82f6",
+    "warning",
+    "#eab308",
+    "danger",
+    "#ef4444",
+    fallback,
+  ];
+
+  it("maps circle colors by value, independent of the order in the data", () => {
+    const features = [feature({ s: "danger" }), feature({ s: "normal" })];
+    expect(
+      circleColor({ color: "s", colors: status }, features, "red"),
+    ).toEqual(matchStatus("s", "red"));
+    expect(
+      circleColor(
+        { color: "s", colors: status },
+        [...features].reverse(),
+        "red",
+      ),
+    ).toEqual(matchStatus("s", "red"));
+  });
+
+  it("builds a data-independent match for empty data and numeric keys", () => {
+    expect(circleColor({ color: "s", colors: status }, [], "red")).toEqual(
+      matchStatus("s", "red"),
+    );
+    expect(
+      circleColor(
+        { color: "v", colors: { 1: "#111", 2: "#222" } },
+        [feature({ v: 1 }), feature({ v: 2 })],
+        "red",
+      ),
+    ).toEqual([
+      "match",
+      ["to-string", ["get", "v"]],
+      "1",
+      "#111",
+      "2",
+      "#222",
+      "red",
+    ]);
+  });
+
+  it("paints choropleth polygons by category and ignores range", () => {
+    expect(
+      choroplethColor(
+        { property: "s", colors: status, range: [0, 1] },
+        [feature({ s: "normal" })],
+        "red",
+      ),
+    ).toEqual(matchStatus("s", "red"));
+  });
+
+  it("maps extrusion colors by value", () => {
+    expect(
+      extrusionColor(
+        { property: "s", colors: status, range: [0, 1] },
+        [feature({ s: "warning" })],
+        "#f00",
+      ),
+    ).toEqual(matchStatus("s", "#f00"));
+  });
+
+  it("ignores entries whose color is not a non-empty string", () => {
+    const colors = { a: "#111", b: "", c: 3 } as unknown as Record<
+      string,
+      string
+    >;
+    expect(circleColor({ color: "k", colors }, [], "red")).toEqual([
+      "match",
+      ["to-string", ["get", "k"]],
+      "a",
+      "#111",
+      "red",
+    ]);
+  });
+
+  it("falls back when the map has no valid entry", () => {
+    expect(circleColor({ color: "k", colors: {} }, [], "red")).toBe("red");
+    expect(choroplethColor({ property: "k", colors: {} }, [], "red")).toBe(
+      "red",
+    );
+  });
+});
+
+describe("color map keys that a plain match cannot take", () => {
+  /**
+   * 各テストのフォールバックの色です。circle-color の既定値（#000000）と違う色にしてあります。
+   * 式の評価に失敗すると MapLibre は既定値を返すので、フォールバックに落ちたことと区別するためです。
+   */
+  const FALLBACK = "#123456";
+
+  /**
+   * MapLibre が色の式として受け付けるかを確かめ、地物を評価した色を返します。
+   * devDependencies の @maplibre/maplibre-gl-style-spec は、maplibre-gl が宣言する依存範囲の中の版にそろえてあります
+   * （maplibre-gl が同梱している版との一致までは保証しません）。
+   */
+  const evaluate = (expr: unknown, properties: Record<string, unknown>) => {
+    const parsed = styleExpression.createExpression(
+      expr,
+      "paint.circle-color",
+      latest.paint_circle["circle-color"],
+    );
+    if (parsed.result !== "success") {
+      // ParsingError の message は列挙できないプロパティなので、JSON.stringify では落ちる
+      throw new Error(parsed.value.map((e) => e.message).join("; "));
+    }
+    return String(parsed.value.evaluate({ zoom: 0 }, { type: 1, properties }));
+  };
+  /** 式を評価した色と比べるため、色の文字列を MapLibre の Color の文字列（`rgba(...)`）にします。 */
+  const css = (color: string) => String(Color.parse(color));
+
+  it("matches a numeric key with both the number and the string", () => {
+    const expr = circleColor(
+      { color: "v", colors: { 1: "#ff0000" } },
+      [],
+      FALLBACK,
+    );
+    expect(evaluate(expr, { v: 1 })).toBe(css("#ff0000"));
+    expect(evaluate(expr, { v: "1" })).toBe(css("#ff0000"));
+    expect(evaluate(expr, { v: 2 })).toBe(css(FALLBACK));
+  });
+
+  it("rejects a color that MapLibre cannot parse", () => {
+    const expr = circleColor(
+      { color: "k", colors: { a: "notacolor" } },
+      [],
+      FALLBACK,
+    );
+    expect(() => evaluate(expr, { k: "a" })).toThrow(/parse color/i);
+  });
+
+  it("accepts Object.prototype names as values", () => {
+    const expr = circleColor(
+      {
+        color: "k",
+        colors: {
+          constructor: "#ff0000",
+          toString: "#00ff00",
+          a: "#ffffff",
+        } as unknown as Record<string, string>,
+      },
+      [],
+      FALLBACK,
+    );
+    expect(evaluate(expr, { k: "constructor" })).toBe(css("#ff0000"));
+    expect(evaluate(expr, { k: "toString" })).toBe(css("#00ff00"));
+    expect(evaluate(expr, { k: "a" })).toBe(css("#ffffff"));
+    expect(evaluate(expr, { k: "b" })).toBe(css(FALLBACK));
+  });
+
+  it("accepts __proto__ as an own key of the color map", () => {
+    // オブジェクトリテラルの __proto__ は自身のプロパティにならないので、JSON から作る
+    const colors = JSON.parse('{"__proto__":"#0000ff","a":"#ffffff"}');
+    const expr = circleColor({ color: "k", colors }, [], FALLBACK);
+    expect(evaluate(expr, { k: "__proto__" })).toBe(css("#0000ff"));
+    expect(evaluate(expr, { k: "a" })).toBe(css("#ffffff"));
+  });
+
+  it("accepts Object.prototype names that appear as categories in the data", () => {
+    const expr = circleColor(
+      { color: "k", colors: ["#ff0000", "#00ff00"] },
+      [feature({ k: "valueOf" }), feature({ k: "x" })],
+      FALLBACK,
+    );
+    expect(evaluate(expr, { k: "valueOf" })).toBe(css("#ff0000"));
+    expect(evaluate(expr, { k: "x" })).toBe(css("#00ff00"));
+  });
+
+  it("matches an empty-string key only for features whose value is empty", () => {
+    const expr = circleColor(
+      { color: "k", colors: { "": "#ff0000", a: "#00ff00" } },
+      [],
+      FALLBACK,
+    );
+    expect(evaluate(expr, { k: "" })).toBe(css("#ff0000"));
+    expect(evaluate(expr, {})).toBe(css(FALLBACK));
+    expect(evaluate(expr, { k: null })).toBe(css(FALLBACK));
+    expect(evaluate(expr, { k: "a" })).toBe(css("#00ff00"));
+  });
+
+  it("does not color features without the property by an empty category in the data", () => {
+    const expr = circleColor(
+      { color: "k", colors: ["#ff0000", "#00ff00"] },
+      [feature({ k: "" }), feature({ k: "a" })],
+      FALLBACK,
+    );
+    expect(evaluate(expr, { k: "" })).toBe(css("#ff0000"));
+    expect(evaluate(expr, {})).toBe(css(FALLBACK));
+    expect(evaluate(expr, { k: null })).toBe(css(FALLBACK));
+    expect(evaluate(expr, { k: "a" })).toBe(css("#00ff00"));
+  });
+});
+
+describe("colors that is not an array or an object", () => {
+  // 型のない呼び出し元から文字列などが渡されても、既定の配色にする
+  const bad = "red" as unknown as string[];
+  const nums = [feature({ v: 0 }), feature({ v: 1 })];
+  const cats = [feature({ c: "a" }), feature({ c: "b" })];
+
+  it("falls back to the default colors", () => {
+    expect(
+      choroplethColor({ property: "v", colors: bad }, nums, "red"),
+    ).toEqual(choroplethColor({ property: "v" }, nums, "red"));
+    expect(circleColor({ color: "v", colors: bad }, nums, "red")).toEqual(
+      circleColor({ color: "v" }, nums, "red"),
+    );
+    expect(circleColor({ color: "c", colors: bad }, cats, "red")).toEqual(
+      circleColor({ color: "c" }, cats, "red"),
+    );
+    expect(heatmapColor({ colors: bad })).toEqual(heatmapColor({}));
+  });
+});
+
+describe("@maplibre/maplibre-gl-style-spec", () => {
+  it("is within the range that maplibre-gl depends on", () => {
+    // maplibre-gl は style-spec をビルド時に取り込んでいるので、実行時に使うのは同梱の版である。
+    // 式の検証に使う devDependencies の style-spec が、maplibre-gl が宣言する依存範囲の外へずれていないことを確かめる
+    // （同梱の版と一致することまでは確かめられない）
+    const readJson = (path: string) =>
+      JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8"));
+    const range: string = readJson("../node_modules/maplibre-gl/package.json")
+      .dependencies["@maplibre/maplibre-gl-style-spec"];
+    const version: string = readJson(
+      "../node_modules/@maplibre/maplibre-gl-style-spec/package.json",
+    ).version;
+    // maplibre-gl はキャレット（^メジャー.マイナー.パッチ）で宣言している
+    const match = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(range);
+    expect(match).not.toBeNull();
+    const [major, minor, patch] = (match as RegExpExecArray)
+      .slice(1)
+      .map(Number);
+    const [vMajor, vMinor, vPatch] = version.split(".").map(Number);
+    expect(vMajor).toBe(major);
+    expect(vMinor > minor || (vMinor === minor && vPatch >= patch)).toBe(true);
+    // maplibre-gl の下に別の版が入っていないこと（1 つの版に解決されていること）
+    expect(
+      existsSync(
+        new URL(
+          "../node_modules/maplibre-gl/node_modules/@maplibre/maplibre-gl-style-spec",
+          import.meta.url,
+        ),
+      ),
+    ).toBe(false);
   });
 });

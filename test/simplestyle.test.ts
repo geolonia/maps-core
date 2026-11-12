@@ -400,6 +400,32 @@ describe("SimpleStyle data-driven options", () => {
     expect(JSON.stringify(fill[2])).toContain('["get","value"]');
   });
 
+  it("should color polygons by category when choropleth colors is a color map", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    new SimpleStyle(
+      { type: "FeatureCollection", features: [square("商業"), square("住居")] },
+      {
+        choropleth: {
+          property: "value",
+          colors: { 住居: "#fde68a", 商業: "#f87171" },
+        },
+      },
+    ).addTo(map);
+
+    const fill = paintOf(map, "polygon")["fill-color"] as unknown[];
+    // 対応表に無い値の地物は、地物の fill で塗る
+    expect(fill.slice(0, 6)).toEqual([
+      "match",
+      ["to-string", ["get", "value"]],
+      "住居",
+      "#fde68a",
+      "商業",
+      "#f87171",
+    ]);
+    expect(JSON.stringify(fill[6])).toContain('"fill"');
+  });
+
   it("should recompute the choropleth range when the data is updated", async () => {
     const { SimpleStyle } = await import("../src/lib/simplestyle");
     const map = new MockMap();

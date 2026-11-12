@@ -17,6 +17,7 @@ export { getLang, getStyle, isGeoloniaTilesHost } from "./lib/util";
 export type {
   ChoroplethOptions,
   CircleOptions,
+  ColorMap,
   ExtrusionColorOptions,
   ExtrusionHeightOptions,
   ExtrusionOptions,

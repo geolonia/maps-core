@@ -206,14 +206,28 @@ new GeoloniaMap({ container: '#map', geojson, heatmap: 'weight' });
 // Size points by `weight` and color them by `category`.
 // Numeric values get a color ramp, other values one color per category.
 new GeoloniaMap({ container: '#map', geojson, circle: { size: 'weight', color: 'category' } });
+
+// Fix the color of each value with an object instead of an array.
+new GeoloniaMap({
+  container: '#map',
+  geojson,
+  circle: { color: 'status', colors: { normal: '#3b82f6', warning: '#eab308', danger: '#ef4444' } },
+});
+new GeoloniaMap({
+  container: '#map',
+  geojson,
+  choropleth: { property: 'zoning', colors: { residential: '#fde68a', commercial: '#f87171' } },
+});
 ```
 
-- These options take precedence over simplestyle properties such as `fill` and `marker-color`. Features without a numeric value fall back to the simplestyle look.
+- These options take precedence over simplestyle properties such as `fill` and `marker-color`. Features without a value that can be colored fall back to the simplestyle look.
 - `heatmap` and `circle` turn clustering off. `heatmap` also hides the point markers. `circle` draws every point as a circle, including points with `marker-symbol`, and hides the icons and titles.
 - The range and categories are computed again when the GeoJSON is loaded from a URL or replaced with `updateData()`.
 - `colors` is optional. The defaults are Geolonia's orange ramp and a categorical palette.
 - With `choropleth`, polygons without a `fill-opacity` property are drawn at 0.7 opacity instead of 1, so that the base map shows through.
-- With `circle.color`, a property is treated as numeric only when every value is a number. Numeric strings such as `"12"` count as categories. Objects and arrays are not colored.
+- With `circle.color`, a property is treated as numeric only when every value is a number. Numeric strings such as `"12"` count as categories. Unless `colors` is an object, objects and arrays are not colored, and an empty-string category does not color features without the property or with `null`.
+- `colors` may also be an object that maps values to colors. It works with `choropleth.colors`, `circle.colors` and `extrusion.color.colors`. Each feature's value is converted to a string and looked up in the object, so the colors do not depend on the order of the data, and a key such as `1` matches both `1` and `"1"`. Features whose value is not in the object get their simplestyle color (`marker-color` for `circle`, `fill` for `choropleth` and `extrusion`), or the default color. If no entry is valid, no feature is colored by value (unlike an empty array, which falls back to the default palette). An empty-string key matches only features whose value is `""`, not features without the property or with `null`. With an object, `choropleth` colors by category instead of a numeric ramp, and `range` is ignored. The same applies to `extrusion.color` (see below).
+- Colors are not validated. If a color used in the expression is not a valid CSS color, MapLibre rejects the whole expression. With an object, every entry whose color is a non-empty string is used; entries with an empty or non-string color are ignored.
 
 #### `extrusion`
 
@@ -241,8 +255,8 @@ new GeoloniaMap({
 - Height is set in one of two ways:
   - `maxHeight` (meters, default `3000`): the range is mapped proportionally to 0 to `maxHeight`, so the columns fit whatever the values are. The range defaults to 0 to the maximum of the data, or to the minimum and maximum when the minimum is negative. This is the default.
   - `heightScale`: meters per unit of the value. The height does not depend on the data range, so maps with different grid sizes or years can be compared at the same scale. When `heightScale` is set, `maxHeight` is ignored. Negative heights are drawn flat.
-- A `range` whose minimum is not below its maximum is ignored, and the range is taken from the data.
-- `color` defaults to the height property. Like `circle.color`, numeric values get a color ramp and other values one color per category.
+- A height `range` whose minimum is not below its maximum is ignored, and the range is taken from the data.
+- `color` defaults to the height property. Like `circle.color`, numeric values get a color ramp and other values one color per category, unless `colors` is an object that maps values to colors. In that case `range` is ignored.
 - `extrusion` takes precedence over `choropleth` and the simplestyle `fill`. The flat polygon fill is not drawn, so the simplestyle `fill-opacity` and `stroke` do not apply either. The columns are drawn at 0.9 opacity.
 - Polygons without a numeric height value are drawn flat.
 - The range is computed again when the GeoJSON is loaded from a URL or replaced with `updateData()`.
@@ -290,7 +304,7 @@ GeoJSON visualization based on [simplestyle-spec](https://github.com/mapbox/simp
 import { SimpleStyle } from '@geolonia/maps-core';
 
 const ss = new SimpleStyle(geojson, { cluster: true });
-// Also accepts `choropleth`, `heatmap` and `circle` (see GeoloniaMap options)
+// Also accepts `choropleth`, `heatmap`, `circle` and `extrusion` (see GeoloniaMap options)
 ss.addTo(map).fitBounds();
 ```
 
