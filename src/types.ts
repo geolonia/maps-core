@@ -226,12 +226,12 @@ export type CircleOptions = {
   /**
    * 円の色に使うプロパティ名。値がすべて数値なら連続した色に、
    * そうでなければ値ごとに別の色にする。`"12"` のような数字の文字列もカテゴリとして扱う。
-   * オブジェクトや配列の値は色分けしない。`colors` に {@link ColorMap} を渡したときは、値の種類によらず対応表のとおりに塗る。
+   * オブジェクトや配列の値は色分けしない。`colors` に {@link ColorMap} を渡したときは、値の種類によらず対応表のとおりに塗る（照合の規則は {@link ColorMap} を参照）。
    */
   color?: string;
   /**
    * `color` に使う色。配列なら、数値は小さい側から大きい側へ、カテゴリは出現順に割り当てる。
-   * {@link ColorMap} なら、値の種類によらず対応表のとおりに割り当てる。
+   * {@link ColorMap} なら、値の種類によらず対応表のとおりに割り当てる（照合の規則は {@link ColorMap} を参照）。
    */
   colors?: string[] | ColorMap;
 };
@@ -274,14 +274,14 @@ export type ExtrusionHeightOptions = {
 /**
  * {@link ExtrusionOptions.color} の詳細な指定。
  * 値がすべて数値なら連続した色に、そうでなければ値ごとのカテゴリの色にする（{@link CircleOptions.color} と同じ）。
- * `colors` に {@link ColorMap} を渡したときは、値の種類によらず対応表のとおりにする。
+ * `colors` に {@link ColorMap} を渡したときは、値の種類によらず対応表のとおりにする（照合の規則は {@link ColorMap} を参照）。
  */
 export type ExtrusionColorOptions = {
   /** 色に使うプロパティ名。 */
   property: string;
   /**
    * 色。配列なら、数値は小さい側から大きい側へ並べて値の範囲に等間隔で割り当て、カテゴリは出現順に割り当てる。
-   * {@link ColorMap} なら、値の種類によらず対応表のとおりに割り当てる。
+   * {@link ColorMap} なら、値の種類によらず対応表のとおりに割り当てる（照合の規則は {@link ColorMap} を参照）。
    * @defaultValue 数値は `['#FFF2CC', '#FFAB40', '#EA5C0D', '#B3261E']`
    */
   colors?: string[] | ColorMap;

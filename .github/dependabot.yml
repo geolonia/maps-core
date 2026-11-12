@@ -15,7 +15,10 @@ updates:
       # @maplibre/maplibre-gl-style-spec はテストで式を検証するためだけに入れており、
       # maplibre-gl が宣言する依存範囲（^26）の中にそろえる（test/data-driven.test.ts で確かめている）。
       # maplibre-gl より先に major が上がると、そのテストが落ちて dev-dependencies グループの
-      # 他の更新も巻き添えで止まる。maplibre-gl が style-spec 27 に上げたら、この ignore を外す。
+      # 他の更新も巻き添えで止まる。逆に maplibre-gl が先に style-spec 27 へ上げると、
+      # グループの PR で maplibre-gl の下に 27 が入れ子で入り、同じテストが落ちる。それがこの
+      # ignore を外す合図になる（外せば同じ PR で両方が上がる）。ignore はバージョン更新にだけ効き、
+      # セキュリティ更新は対象外。
       - dependency-name: "@maplibre/maplibre-gl-style-spec"
         versions: [">=27.0.0"]
     groups:

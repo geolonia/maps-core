@@ -503,7 +503,7 @@ describe("colors as a color map", () => {
     ).toEqual(matchStatus("s", "red"));
   });
 
-  it("builds the same match when the data is empty or numeric", () => {
+  it("builds a data-independent match for empty data and numeric keys", () => {
     expect(circleColor({ color: "s", colors: status }, [], "red")).toEqual(
       matchStatus("s", "red"),
     );
@@ -585,7 +585,8 @@ describe("color map keys that a plain match cannot take", () => {
       latest.paint_circle["circle-color"],
     );
     if (parsed.result !== "success") {
-      throw new Error(JSON.stringify(parsed.value));
+      // ParsingError の message は列挙できないプロパティなので、JSON.stringify では落ちる
+      throw new Error(parsed.value.map((e) => e.message).join("; "));
     }
     return String(parsed.value.evaluate({ zoom: 0 }, { type: 1, properties }));
   };
@@ -609,7 +610,7 @@ describe("color map keys that a plain match cannot take", () => {
       [],
       FALLBACK,
     );
-    expect(() => evaluate(expr, { k: "a" })).toThrow();
+    expect(() => evaluate(expr, { k: "a" })).toThrow(/parse color/i);
   });
 
   it("accepts Object.prototype names as values", () => {
