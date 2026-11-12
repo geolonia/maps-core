@@ -16,6 +16,9 @@ export const DEFAULT_MASK_OPACITY = 0.3;
 /** 境界線の太さの既定値（ピクセル）です。 */
 export const DEFAULT_MASK_OUTLINE_WIDTH = 2;
 
+/** URL から境界の GeoJSON を取得するときの期限（ミリ秒）です。 */
+export const MASK_FETCH_TIMEOUT = 30000;
+
 /** マスクのソースとレイヤーの ID です。境界線は `-outline` を付けた ID を使います。 */
 export const MASK_ID = "geolonia-mask";
 
@@ -67,20 +70,30 @@ function isRing(ring: unknown): ring is Ring {
   );
 }
 
+/**
+ * 点が線分の上にあるとみなす、線分からの距離の上限（度）です。約 0.1 メートルにあたります。
+ * 座標を小数 6 桁に丸めたデータでは、頂点を共有しない接点（T 字の接点）が線分から最大で約 5e-7 度ずれるためです。
+ */
+const ON_SEGMENT_TOLERANCE = 1e-6;
+
 /** 点が線分の上にあるかどうかです。 */
 function onSegment(
   [x, y]: GeoJSON.Position,
   [x1, y1]: GeoJSON.Position,
   [x2, y2]: GeoJSON.Position,
 ): boolean {
-  const cross = (x2 - x1) * (y - y1) - (y2 - y1) * (x - x1);
-  const scale = Math.abs(x2 - x1) + Math.abs(y2 - y1);
+  const length = Math.hypot(x2 - x1, y2 - y1);
+  if (length === 0) return Math.hypot(x - x1, y - y1) <= ON_SEGMENT_TOLERANCE;
+  // 外積を線分の長さで割ると、点と線分を含む直線との距離になる
+  const distance =
+    Math.abs((x2 - x1) * (y - y1) - (y2 - y1) * (x - x1)) / length;
+  const t = ON_SEGMENT_TOLERANCE;
   return (
-    Math.abs(cross) <= 1e-12 * Math.max(1, scale) &&
-    Math.min(x1, x2) <= x &&
-    x <= Math.max(x1, x2) &&
-    Math.min(y1, y2) <= y &&
-    y <= Math.max(y1, y2)
+    distance <= t &&
+    Math.min(x1, x2) - t <= x &&
+    x <= Math.max(x1, x2) + t &&
+    Math.min(y1, y2) - t <= y &&
+    y <= Math.max(y1, y2) + t
   );
 }
 
@@ -154,8 +167,16 @@ export function collectPolygons(geojson: unknown): Ring[][] {
         ? [root.geometry]
         : [root];
   const polygons: unknown[] = [];
-  for (const item of geometries) {
-    const geometry = item as GeoJSON.Geometry | null | undefined;
+  for (let i = 0; i < geometries.length; i++) {
+    const geometry = geometries[i] as GeoJSON.Geometry | null | undefined;
+    // GeometryCollection の中のジオメトリも順に見る
+    if (
+      geometry?.type === "GeometryCollection" &&
+      Array.isArray(geometry.geometries)
+    ) {
+      for (const child of geometry.geometries) geometries.push(child);
+      continue;
+    }
     if (geometry?.type !== "Polygon" && geometry?.type !== "MultiPolygon") {
       continue;
     }
@@ -240,7 +261,7 @@ export function normalizeMask(
  *
  * 世界全体を覆う面から境界のポリゴンをくり抜いた面を、`fill` のレイヤーで塗ります。
  * レイヤーは既定では、背景の地図のすべてのレイヤー（地名のラベルを含む）の上で、既定の ID の `SimpleStyle` と
- * `SimpleStyleVector` のレイヤー（ID に `simple-style` を含むもの）の下に入れます。範囲の外は、地名のラベルも含めて暗くなります。
+ * `SimpleStyleVector` のレイヤー（ID に `simple-style` を含む最初のレイヤー）の下に入れます。範囲の外は、地名のラベルも含めて暗くなります。
  * {@link MaskOptions.beforeId} を指定すると、そのレイヤーの下に入れます（最初のラベルのレイヤーを指定すれば、ラベルを明るく残せます）。
  * マスクより後に `beforeId` を指定せずに追加したレイヤーは最前面に入るので、マスクの上に表示されます。
  *
@@ -263,6 +284,8 @@ export class Mask {
    * そちらに書き込んだり消したりしないよう、同じオブジェクトのときだけ扱います。
    */
   private source: unknown;
+  /** 取得中の GeoJSON の取得を止めます。remove で呼びます。 */
+  private abortLoading: (() => void) | undefined;
   /** addTo と remove のたびに増やします。古い取得の結果を捨てるのに使います。 */
   private generation = 0;
 
@@ -286,21 +309,21 @@ export class Mask {
   addTo(map: MaplibreMap) {
     if (this.map) this.remove();
     if (!this.options) {
-      console.error("[Geolonia] The mask option has no geojson."); // eslint-disable-line no-console
+      console.error("[Geolonia] The mask option has no geojson.");
       return this;
     }
     // 同じ ID のソースかレイヤーが 1 つでも先にあると、追加に失敗したうえ、後の remove で他人のものを消してしまう
     const ids = [MASK_ID, `${MASK_ID}-outline`];
     if (ids.some((id) => map.getSource(id) || map.getLayer(id))) {
       console.error(
-        "[Geolonia] A mask has already been added to this map. Only one mask is supported per map.",
-      ); // eslint-disable-line no-console
+        "[Geolonia] A mask (or a source or layer with the same ID) has already been added to this map. Only one mask is supported per map.",
+      );
       return this;
     }
     const { geojson } = this.options;
     const url = typeof geojson === "string" ? isURL(geojson) : undefined;
     if (url === false) {
-      console.error("[Geolonia] Invalid mask GeoJSON URL:", geojson); // eslint-disable-line no-console
+      console.error("[Geolonia] Invalid mask GeoJSON URL:", geojson);
       return this;
     }
     const generation = ++this.generation;
@@ -310,7 +333,7 @@ export class Mask {
     if (!map.getLayer(MASK_ID)) {
       // MapLibre は不正な paint の値（解釈できない色など）のレイヤーを追加せず、error イベントで知らせるだけなので、
       // ここで気づいて取り除く。GeoloniaMap は error を購読しているので、コンソールには出ない
-      console.error("[Geolonia] Failed to add the mask layer. Check `color`."); // eslint-disable-line no-console
+      console.error("[Geolonia] Failed to add the mask layer. Check `color`.");
       this.removeLayers(map);
       this.map = undefined;
       return this;
@@ -319,7 +342,7 @@ export class Mask {
       // 境界線だけが追加できなかったときは、塗りのマスクは残す
       console.error(
         "[Geolonia] Failed to add the mask outline layer. Check `outline.color` and `outline.width`.",
-      ); // eslint-disable-line no-console
+      );
     }
     this.source = map.getSource(MASK_ID);
 
@@ -352,6 +375,8 @@ export class Mask {
    */
   remove() {
     this.generation++;
+    this.abortLoading?.();
+    this.abortLoading = undefined;
     const map = this.map;
     this.map = undefined;
     this.polygons = undefined;
@@ -377,8 +402,15 @@ export class Mask {
   private async load(url: string, generation: number) {
     // 取得した JSON の形は分からないので、collectPolygons で確かめる
     let data: unknown;
+    const controller = new AbortController();
+    this.abortLoading = () => controller.abort();
+    // 応答が返らないまま待ち続けないよう、期限を設ける
+    const timer = setTimeout(
+      () => controller.abort(new Error("Timed out")),
+      MASK_FETCH_TIMEOUT,
+    );
     try {
-      const response = await window.fetch(url);
+      const response = await window.fetch(url, { signal: controller.signal });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -386,9 +418,11 @@ export class Mask {
     } catch (error) {
       // remove や addTo のやり直しで捨てた取得の失敗は報告しない
       if (generation === this.generation) {
-        console.error("[Geolonia] Failed to load mask GeoJSON:", error); // eslint-disable-line no-console
+        console.error("[Geolonia] Failed to load mask GeoJSON:", error);
       }
       return;
+    } finally {
+      clearTimeout(timer);
     }
     // 取得中に remove や addTo がやり直されていたら、この結果は使わない
     if (generation !== this.generation) return;
@@ -411,11 +445,14 @@ export class Mask {
       console.error(
         "[Geolonia] The mask opacity must be a number from 0 to 1. The default is used:",
         opacity,
-      ); // eslint-disable-line no-console
+      );
       opacity = DEFAULT_MASK_OPACITY;
     }
 
-    map.addSource(MASK_ID, { type: "geojson", data: EMPTY });
+    map.addSource(MASK_ID, {
+      type: "geojson",
+      data: { ...EMPTY, features: [] },
+    });
     map.addLayer(
       {
         id: MASK_ID,
@@ -433,7 +470,10 @@ export class Mask {
     if (!outline) return;
     // 境界線はくり抜いた面ではなく元の面に引く。くり抜いた面に引くと、世界の外周（経度 ±180 度）にも線が出る
     const style = typeof outline === "object" ? outline : {};
-    map.addSource(`${MASK_ID}-outline`, { type: "geojson", data: EMPTY });
+    map.addSource(`${MASK_ID}-outline`, {
+      type: "geojson",
+      data: { ...EMPTY, features: [] },
+    });
     map.addLayer(
       {
         id: `${MASK_ID}-outline`,
@@ -461,7 +501,7 @@ export class Mask {
     if (polygons.length === 0) {
       console.error(
         "[Geolonia] The mask GeoJSON has no Polygon or MultiPolygon.",
-      ); // eslint-disable-line no-console
+      );
       return;
     }
     this.polygons = polygons;
@@ -494,6 +534,7 @@ export class Mask {
     window.requestAnimationFrame(() => {
       // 次のフレームまでに remove されていたら、地図を動かさない
       if (generation !== this.generation) return;
+      if ((map as { _removed?: boolean })._removed) return;
       map.fitBounds(bounds, options);
     });
   }
@@ -503,7 +544,7 @@ export class Mask {
  * マスクをその下に入れるレイヤーの ID です。
  *
  * `beforeId` が地図にあればそのレイヤーを返します。指定されていないときと、地図に無いときは、
- * SimpleStyle と SimpleStyleVector のレイヤー（ID に `simple-style` を含む）のうち最初のものを返します。
+ * ID に `simple-style` を含む最初のレイヤー（既定の ID の SimpleStyle と SimpleStyleVector のレイヤーを想定）を返します。
  * つまり既定では、背景の地図のすべてのレイヤーの上で、`geojson` と `simpleVector` の地物の下に入れます。
  * どちらも無いときは `undefined`（最前面に追加する）を返します。
  *
@@ -517,9 +558,9 @@ function layerAboveMask(
   if (beforeId !== undefined) {
     if (map.getLayer(beforeId)) return beforeId;
     console.error(
-      "[Geolonia] The mask beforeId layer does not exist. The mask is added below the geojson layers:",
+      "[Geolonia] The mask beforeId layer does not exist. The default position is used:",
       beforeId,
-    ); // eslint-disable-line no-console
+    );
   }
   return map.getLayersOrder().find((id) => id.includes("simple-style"));
 }

@@ -293,12 +293,12 @@ new GeoloniaMap({
 ```
 
 - `geojson` as a string is a URL (the response may also be a bare Polygon or MultiPolygon geometry) starting with `http://` or `https://`, or a path starting with `/` or `.` (such as `./boundary.geojson`).
-- Every Polygon and MultiPolygon is cut out, so exclaves and islands work. Holes inside a polygon, such as another area enclosed by the boundary, stay dark, and polygons inside such a hole (an island in a lake) are cut out again. Other geometries are ignored. A polygon whose outer ring is broken is skipped.
+- Every Polygon and MultiPolygon, including those inside a GeometryCollection, is cut out, so exclaves and islands work. Holes inside a polygon, such as another area enclosed by the boundary, stay dark, and polygons inside such a hole (an island in a lake) are cut out again. Other geometries are ignored. A polygon whose outer ring is broken is skipped.
 - The polygons should not overlap each other, or the cut-out may be drawn incorrectly. Polygons that cross the antimeridian (longitude ±180°), and polygons with coordinates outside longitude ±180° or latitude ±90° (such as projected coordinates), are not supported. A polygon whose outer ring has coordinates outside that range is skipped, and such a hole is dropped. MapLibre fills at most 500 rings of one polygon per tile, so when a tile contains more than about 500 boundary polygons, small ones may not be cut out.
 - By default the mask is drawn above every layer of the base map, labels included, and below the `geojson` and `simpleVector` data, so place names outside the area are darkened too. To keep labels bright, set `beforeId` to the first label layer of the style; the mask is inserted below that layer, and every layer after it (including buildings and boundaries in some styles) stays bright. A `beforeId` that is not in the map logs an error and the default position is used. Layers added later without `beforeId` are drawn above the mask.
 - The `geojson` layers are found by their default ID. A `SimpleStyle` with a custom `id` that was added before the mask is drawn below it.
 - `outline: true` draws a 2-pixel line in the mask `color`.
-- An `opacity` outside 0 to 1 logs an error and the default is used. If MapLibre rejects the fill layer (for example, a color it cannot parse), nothing is added and an error is logged. If only the outline is rejected, the fill is kept and an error is logged.
+- An `opacity` that is not a number from 0 to 1 logs an error and the default is used. A URL that does not respond within 30 seconds logs an error. If MapLibre rejects the fill layer (for example, a color it cannot parse), nothing is added and an error is logged. If only the outline is rejected, the fill is kept and an error is logged.
 - Without `center`, `geojson` and `simpleVector`, the map fits to the boundary.
 
 ### `GeoloniaMarker`

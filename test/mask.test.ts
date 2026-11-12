@@ -7,6 +7,7 @@ import {
   collectPolygons,
   DEFAULT_MASK_COLOR,
   DEFAULT_MASK_OPACITY,
+  MASK_FETCH_TIMEOUT,
   Mask,
   maskGeometry,
   normalizeMask,
@@ -107,6 +108,25 @@ describe("collectPolygons", () => {
     ]);
   });
 
+  it("collects faces inside a GeometryCollection", () => {
+    expect(
+      collectPolygons({
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "GeometryCollection",
+          geometries: [
+            { type: "Polygon", coordinates: [square(0, 0)] },
+            {
+              type: "GeometryCollection",
+              geometries: [{ type: "Polygon", coordinates: [square(2, 0)] }],
+            },
+          ],
+        },
+      }),
+    ).toEqual([[square(0, 0)], [square(2, 0)]]);
+  });
+
   it("ignores geometries without coordinates from untyped callers", () => {
     const bad = {
       type: "FeatureCollection",
@@ -190,6 +210,29 @@ describe("maskGeometry with shared boundaries", () => {
     expect(maskGeometry([[square(0, 0), lake], [lake]]).coordinates).toEqual([
       [WORLD, square(0, 0)],
       [lake, lake],
+    ]);
+  });
+
+  it("cuts an area out of the hole when its vertex touches a hole edge with rounding", () => {
+    // 頂点を共有しない T 字の接点。座標を小数 6 桁に丸めたので、穴の辺からわずかにずれている
+    const hole: Ring = [
+      [0.2, 0.2],
+      [0.8, 0.2],
+      [0.8, 0.8],
+      [0.2, 0.8],
+      [0.2, 0.2],
+    ];
+    const enclosed: Ring = [
+      [0.2000004, 0.5],
+      [0.5, 0.2000003],
+      [0.6, 0.6],
+      [0.2000004, 0.5],
+    ];
+    expect(
+      maskGeometry([[square(0, 0), hole], [enclosed]]).coordinates,
+    ).toEqual([
+      [WORLD, square(0, 0)],
+      [hole, enclosed],
     ]);
   });
 
@@ -287,7 +330,7 @@ describe("Mask", () => {
 
     expect(map.getLayersOrder().at(-1)).toBe("geolonia-mask");
     expect(error).toHaveBeenCalledWith(
-      "[Geolonia] The mask beforeId layer does not exist. The mask is added below the geojson layers:",
+      "[Geolonia] The mask beforeId layer does not exist. The default position is used:",
       "nope",
     );
   });
@@ -688,5 +731,113 @@ describe("Mask", () => {
     expect(error).toHaveBeenCalled();
     expect(map.getLayersOrder()).toEqual(["geolonia-mask-outline"]);
     expect(map.getSource("geolonia-mask")).toBeUndefined();
+  });
+
+  it("keeps the result of the latest fetch when an older one arrives later", async () => {
+    let resolveFirst: (r: Response) => void = () => {};
+    vi.spyOn(window, "fetch")
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(polygon(square(5, 5)))),
+      );
+    const mask = new Mask("https://example.com/boundary.geojson");
+    mask.addTo(asMap(map));
+    const first = mask._loadingPromise;
+    mask.addTo(asMap(map));
+    await mask._loadingPromise;
+    resolveFirst(new Response(JSON.stringify(polygon(square(0, 0)))));
+    await first;
+
+    expect(
+      (sourceData(map, "geolonia-mask") as GeoJSON.Feature).geometry,
+    ).toEqual(maskGeometry([[square(5, 5)]]));
+  });
+
+  it("does not write an old fetch into the map it was moved away from", async () => {
+    let resolveFirst: (r: Response) => void = () => {};
+    vi.spyOn(window, "fetch")
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(polygon(square(5, 5)))),
+      );
+    const other = new MockMap();
+    const mask = new Mask("https://example.com/boundary.geojson");
+    mask.addTo(asMap(map));
+    const first = mask._loadingPromise;
+    mask.addTo(asMap(other));
+    await mask._loadingPromise;
+    resolveFirst(new Response(JSON.stringify(polygon(square(0, 0)))));
+    await first;
+
+    expect(map.getSource("geolonia-mask")).toBeUndefined();
+    expect(
+      (sourceData(other, "geolonia-mask") as GeoJSON.Feature).geometry,
+    ).toEqual(maskGeometry([[square(5, 5)]]));
+  });
+
+  it("aborts the fetch on remove", () => {
+    const fetch = vi
+      .spyOn(window, "fetch")
+      .mockImplementation(() => new Promise<Response>(() => {}));
+    const mask = new Mask("https://example.com/boundary.geojson").addTo(
+      asMap(map),
+    );
+    const signal = (fetch.mock.calls[0][1] as RequestInit)
+      .signal as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    mask.remove();
+    expect(signal.aborted).toBe(true);
+  });
+
+  it("gives up a fetch that does not respond in time", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(window, "fetch").mockImplementation(
+        (_url, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            (init as RequestInit).signal?.addEventListener("abort", () =>
+              reject((init as RequestInit).signal?.reason),
+            );
+          }),
+      );
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const mask = new Mask("https://example.com/boundary.geojson").addTo(
+        asMap(map),
+      );
+      await vi.advanceTimersByTimeAsync(MASK_FETCH_TIMEOUT);
+      await mask._loadingPromise;
+
+      expect(error).toHaveBeenCalledWith(
+        "[Geolonia] Failed to load mask GeoJSON:",
+        expect.any(Error),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("inserts the layers below SimpleStyleVector layers", () => {
+    map.addLayer({ id: "background", type: "background" });
+    map.addLayer({ id: "vt-geolonia-simple-style-polygon", type: "fill" });
+    map.addLayer({ id: "vt-circle-simple-style-points", type: "circle" });
+
+    new Mask({ geojson: polygon(square(0, 0)) }).addTo(asMap(map));
+
+    expect(map.getLayersOrder()).toEqual([
+      "background",
+      "geolonia-mask",
+      "vt-geolonia-simple-style-polygon",
+      "vt-circle-simple-style-points",
+    ]);
   });
 });

@@ -64,10 +64,7 @@ test.describe("mask", () => {
     // 境界の穴の中にある面（島）は、穴の面からくり抜く
     expect(await isMasked(page, [139.708, 35.688])).toBe(false);
 
-    const mapErrors = await page.evaluate(
-      () => (window as unknown as { mapErrors: string[] }).mapErrors,
-    );
-    expect(mapErrors).toEqual([]);
+    expect(await mapErrorsOf(page)).toEqual([]);
     expect(errors).toEqual([]);
   });
 
@@ -109,9 +106,13 @@ test.describe("mask", () => {
     const order = await page.evaluate(() =>
       (window as unknown as { map: TestMap }).map.getLayersOrder(),
     );
-    expect(order.indexOf("geolonia-mask")).toBeLessThan(
-      order.indexOf("fixture"),
-    );
+    // マスクと境界線が、この順で beforeId のレイヤーの直前に入る
+    const mask = order.indexOf("geolonia-mask");
+    expect(order.slice(mask, mask + 3)).toEqual([
+      "geolonia-mask",
+      "geolonia-mask-outline",
+      "fixture",
+    ]);
     expect(await mapErrorsOf(page)).toEqual([]);
     expect(errors).toEqual([]);
   });
