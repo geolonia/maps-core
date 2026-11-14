@@ -28,6 +28,9 @@ if (params.has("lang")) {
   options.lang = params.get("lang") as "ja" | "en" | "auto";
 }
 if (params.has("apiKey")) options.apiKey = params.get("apiKey") ?? "";
+if (params.has("projection")) {
+  options.projection = params.get("projection") as "mercator" | "globe";
+}
 
 const map = new GeoloniaMap(options);
 

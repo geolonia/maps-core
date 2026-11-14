@@ -156,6 +156,7 @@ const map = new GeoloniaMap({
   fullscreenControl: false,
   scaleControl: false,
   geoloniaControl: true,        // Geolonia logo
+  projection: 'globe',          // 'mercator' | 'globe' (see below)
   geojson: 'https://example.com/data.geojson',
   cluster: true,
   clusterColor: '#ff0000',
@@ -186,6 +187,19 @@ new GeoloniaMap({ container: '#map', errorMessage: 'Sorry, the map is unavailabl
 // Show nothing at all, e.g. when the page renders its own fallback.
 new GeoloniaMap({ container: '#map', errorMessage: false });
 ```
+
+#### `projection`
+
+Show the map as a globe with `projection: 'globe'`, or force a flat map with `'mercator'`.
+
+```typescript
+new GeoloniaMap({ container: '#map', projection: 'globe', zoom: 2 });
+```
+
+- In MapLibre the projection is part of the style, so the option is applied again every time a style is loaded, including `setStyle()` (whether it is applied as a diff or rebuilt) and a restored WebGL context.
+- The option takes precedence over the `projection` of the style.
+- A projection changed later with `map.setProjection()` stays until the next style is loaded, and then the option applies again.
+- Without the option, the projection of the style is used (mercator if the style has none). Any other value logs an error and is ignored.
 
 #### `choropleth`, `heatmap` and `circle`
 

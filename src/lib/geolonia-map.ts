@@ -213,6 +213,7 @@ export default class GeoloniaMap extends maplibregl.Map {
       "apiKey",
       "stage",
       "lang",
+      "projection",
       "marker",
       "markerColor",
       "openPopup",
@@ -294,6 +295,20 @@ export default class GeoloniaMap extends maplibregl.Map {
       this.addControl(
         new maplibregl.ScaleControl({}),
         scale.position as ControlPosition,
+      );
+    }
+
+    // 投影は MapLibre ではスタイルの設定で、スタイルを差し替えるとスタイルの投影（無ければ mercator）に戻る。
+    // style.load は最初の読み込み、setStyle（差分の適用を含む）、コンテキストの復元のたびに発火するので、そこで指定し直す
+    const projection = options.projection;
+    if (projection === "mercator" || projection === "globe") {
+      this.on("style.load", () => {
+        this.setProjection({ type: projection });
+      });
+    } else if (projection !== undefined) {
+      console.error(
+        '[Geolonia] The projection must be "mercator" or "globe". It is ignored:',
+        projection,
       );
     }
 
