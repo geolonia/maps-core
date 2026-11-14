@@ -156,6 +156,7 @@ const map = new GeoloniaMap({
   fullscreenControl: false,
   scaleControl: false,
   geoloniaControl: true,        // Geolonia logo
+  projection: 'globe',          // 'mercator' | 'globe' (see below)
   geojson: 'https://example.com/data.geojson',
   cluster: true,
   clusterColor: '#ff0000',
@@ -186,6 +187,22 @@ new GeoloniaMap({ container: '#map', errorMessage: 'Sorry, the map is unavailabl
 // Show nothing at all, e.g. when the page renders its own fallback.
 new GeoloniaMap({ container: '#map', errorMessage: false });
 ```
+
+#### `projection`
+
+Show the map as a globe with `projection: 'globe'`, or force a flat map with `'mercator'`.
+
+```typescript
+new GeoloniaMap({ container: '#map', apiKey: 'YOUR-API-KEY', projection: 'globe', zoom: 2 });
+```
+
+- In MapLibre the projection is part of the style, so the option is applied again every time a style is applied: by `setStyle()` (whether it is applied as a diff or rebuilt), and when MapLibre rebuilds the style after the WebGL context is lost or, from MapLibre 6.16, after its workers are restarted.
+- Where possible, the option is written into the `projection` of the style before it is applied, so the map does not switch to the projection of the style on the way. This is done for a style object (including the style MapLibre rebuilds), for the style returned by a `transformStyle` you pass to `setStyle()`, and for a style given by URL to `setStyle()` after the current style has loaded. The first style gets it only when you pass a `transformStyle` to `GeoloniaMap` with MapLibre 6.16 or later (earlier versions do not use that `transformStyle`).
+- Otherwise, such as for the first style or a style given by URL while the previous style is still loading, the projection is set right after the style is loaded; if the projection of the style (mercator if the style has none) is different, the map switches to it first.
+- When the option is applied, it takes precedence over the `projection` of the style, including a style returned by your `transformStyle`.
+- A projection changed later with `map.setProjection()` stays until a style is applied again, and then the option applies again. If MapLibre does not apply a style at all (a diff with no changes other than camera properties such as `center` and `zoom`), the projection is left as it is.
+- Without the option, the projection of the style is used (mercator if the style has none). Any other value logs an error and is ignored.
+- MapLibre limits the initial camera before the style is loaded, as for a flat map, so a `center` near a pole may be moved toward the equator (a flat map cannot show beyond about 85° of latitude).
 
 #### `choropleth`, `heatmap` and `circle`
 

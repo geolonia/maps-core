@@ -112,6 +112,27 @@ export type GeoloniaMapOptions = MapOptions & {
    */
   geoloniaControl?: boolean | ControlPosition;
   /**
+   * 地図の投影。`'globe'` で地球儀、`'mercator'` で平面の地図にする。
+   *
+   * 投影は MapLibre ではスタイルの設定なので、スタイルを適用するたびにこの値を指定し直す。
+   * スタイルを適用するのは、`setStyle`（差分の適用か作り直しかによらない）と、WebGL のコンテキストの復元と
+   * Worker の再起動（MapLibre 6.16 以降）で MapLibre がスタイルを作り直すときである。
+   *
+   * できるときは、適用する前にスタイルの `projection` に書き込むので、途中でスタイルの投影に切り替わらない。
+   * 書き込むのは、スタイルのオブジェクト（復元で作り直すスタイルを含む）、`setStyle` に渡した `transformStyle` が返したスタイル、
+   * 今のスタイルの読み込みが終わった後に `setStyle` に渡した URL のスタイルである。最初のスタイルに書き込むのは、
+   * 地図を作るときに `transformStyle` を渡したときだけである（MapLibre 6.16 以降。6.15 以前は MapLibre がそれを使わない）。
+   * それ以外（最初のスタイル、前のスタイルの読み込み中に渡した URL のスタイルなど）は、読み込んだ後に `setProjection` で
+   * 指定し直す。このときは、スタイルの投影（無ければ mercator）がこの値と違えば、いったんそれに切り替わる。
+   *
+   * この値を指定し直すときは、スタイル自身の `projection` と、`transformStyle` が返したスタイルの `projection` より優先する。
+   * 地図を作った後に `setProjection` で変えた投影は、次にスタイルを適用したときにこの値へ戻る。
+   * MapLibre がスタイルを適用しなかったとき（差分の適用で、カメラの値のほかに違いが無いとき）は、投影はそのまま。
+   * 未指定のときは、スタイルの `projection`（無ければ mercator）のまま。JavaScript から `null` を渡したときも未指定として扱う。
+   * それ以外の値は `console.error` に出して無視する。
+   */
+  projection?: "mercator" | "globe";
+  /**
    * SimpleStyle で表示する GeoJSON。URL、または GeoJSON オブジェクトを指定する。
    * `center` が未指定のときは、この GeoJSON の範囲に自動的にフィットする。
    */

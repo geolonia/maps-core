@@ -4,6 +4,7 @@ import type {
   StyleOptions,
   StyleSpecification,
   StyleSwapOptions,
+  TransformStyleFunction,
 } from "maplibre-gl";
 import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
@@ -38,6 +39,25 @@ import {
   parseControlOption,
   parseSimpleVector,
 } from "./util";
+
+type Projection = NonNullable<GeoloniaMapOptions["projection"]>;
+
+/** スタイルの `projection` を書き換えた複製を返します。渡されたスタイルは変えません。 */
+function withProjection(
+  style: StyleSpecification,
+  projection: Projection,
+): StyleSpecification {
+  return { ...style, projection: { type: projection } };
+}
+
+/** 利用者の transformStyle の結果に、投影を書き込む transformStyle を返します。 */
+function transformWithProjection(
+  transformStyle: TransformStyleFunction,
+  projection: Projection,
+): TransformStyleFunction {
+  return (previous, next) =>
+    withProjection(transformStyle(previous, next), projection);
+}
 
 type Container = HTMLElement & {
   geoloniaMap?: GeoloniaMap;
@@ -86,6 +106,8 @@ type Container = HTMLElement & {
  * ```
  */
 export default class GeoloniaMap extends maplibregl.Map {
+  /** `projection` オプションの値です。`setStyle` で、スタイルのオブジェクトか transformStyle の結果に投影を書き込むときに使います。 */
+  private projectionOption: Projection | undefined;
   private geoloniaSourcesUrl!: URL;
   private __styleExtensionLoadRequired!: boolean;
 
@@ -213,6 +235,7 @@ export default class GeoloniaMap extends maplibregl.Map {
       "apiKey",
       "stage",
       "lang",
+      "projection",
       "marker",
       "markerColor",
       "openPopup",
@@ -237,6 +260,25 @@ export default class GeoloniaMap extends maplibregl.Map {
       "errorMessage",
     ] as const) {
       delete (mapOptions as Record<string, unknown>)[key];
+    }
+
+    let projection: Projection | undefined;
+    if (options.projection === "mercator" || options.projection === "globe") {
+      projection = options.projection;
+      // 利用者が地図を作るときに transformStyle を渡したら、その結果に投影を書き込む。MapLibre 6.16 以降はこれを地図に保存し、
+      // 最初の読み込みと、setStyle に transformStyle が渡されないときに使う（6.15 以前は使わない）。
+      // 利用者の transformStyle なので、MapLibre の「前のスタイルの読み込みを待つ」挙動はこれによって増えない
+      if (typeof options.transformStyle === "function") {
+        mapOptions.transformStyle = transformWithProjection(
+          options.transformStyle,
+          projection,
+        );
+      }
+    } else if (options.projection != null) {
+      console.error(
+        '[Geolonia] The projection must be "mercator" or "globe". It is ignored:',
+        options.projection,
+      );
     }
 
     try {
@@ -295,6 +337,21 @@ export default class GeoloniaMap extends maplibregl.Map {
         new maplibregl.ScaleControl({}),
         scale.position as ControlPosition,
       );
+    }
+
+    // 投影は MapLibre ではスタイルの設定で、スタイルを差し替えると、スタイルの投影（無ければ mercator）に戻る。
+    // できるときは、スタイルを適用する前に投影を書き込む（上のコンストラクタの処理と下の setStyle）。
+    // 書き込めなかったとき（最初の URL のスタイルなど）のために、読み込んだ後（style.load）にも、違っていれば指定し直す。
+    // 利用者が transformStyle を渡していないときに、地図を作るときの transformStyle を足して書き込む方式は採らない。
+    // MapLibre は transformStyle があると前のスタイルの読み込みを待つので、最初のスタイルの取得に失敗すると以後の setStyle が
+    // 適用されず、読み込み前の remove() でもスタイルの破棄が遅れるため
+    this.projectionOption = projection;
+    if (projection) {
+      this.on("style.load", () => {
+        if (this.getProjection()?.type !== projection) {
+          this.setProjection({ type: projection });
+        }
+      });
     }
 
     // On load
@@ -443,7 +500,12 @@ export default class GeoloniaMap extends maplibregl.Map {
    * など）、style.json の URL、相対パスのいずれかとして解釈し、実際の URL に
    * 解決してから適用します。解決の際の言語はブラウザ言語に従い、API キーは
    * キーリングに設定済みの値を使います。`StyleSpecification` オブジェクトを
-   * 直接渡した場合はそのまま適用します。
+   * 直接渡した場合は、`projection` オプションが無ければそのまま適用します。
+   *
+   * `projection` オプションを指定した地図では、スタイルの投影をオプションの値にします。
+   * `options.transformStyle` を渡したときはその結果に、渡さずにスタイルのオブジェクトを渡したときは複製に、
+   * `projection` を書き込んでから適用します（渡したオブジェクトは変えません）。
+   * どの場合にどう指定し直すかは、{@link GeoloniaMapOptions.projection} を参照してください。
    *
    * @param style 新しいスタイルです。スタイル論理名や URL などの文字列、または
    *   `StyleSpecification` オブジェクトを指定します。
@@ -464,6 +526,42 @@ export default class GeoloniaMap extends maplibregl.Map {
   ): this {
     if (style !== null && typeof style === "string") {
       style = getStyle(style, { lang: getLang(), apiKey: keyring.apiKey });
+    }
+
+    // projection オプションがあれば、できるときはスタイルを適用する前に投影を書き込む。途中でスタイルの投影に切り替わらず、
+    // 利用者が setProjection で変えた投影も、差分の適用で確実に戻る。書き込めないときは style.load で指定し直す（コンストラクタを参照）。
+    // コンテキストの復元と Worker の再起動も、MapLibre がスタイルのオブジェクトでこの setStyle を呼ぶので、ここを通る
+    const projection = this.projectionOption;
+    if (projection) {
+      const transformStyle = options.transformStyle;
+      if (typeof transformStyle === "function") {
+        // 渡された transformStyle の結果に書き込む
+        options = {
+          ...options,
+          transformStyle: transformWithProjection(transformStyle, projection),
+        };
+      } else if (style !== null && typeof style === "object") {
+        style = withProjection(style, projection);
+      } else if (typeof style === "string" && this.style?._loaded === true) {
+        // URL のスタイルは、今のスタイルの読み込みが終わっていれば、この呼び出しにだけ投影を書き込む transformStyle を渡す。
+        // MapLibre が前のスタイルの読み込みを待つのは、今のスタイルの読み込みが終わっていないとき
+        // （Map._updateStyle の `options.transformStyle && this.style && !this.style._loaded`）だけなので、待ちは起きない。
+        // 公開の isStyleLoaded() はソースと画像の読み込みまで見るので、この判定とは揃わない。そのため内部の _loaded を見る。
+        // MapLibre 6.16 以降は、地図を作るときの transformStyle を地図に保存し（_transformStyle）、setStyle に transformStyle が
+        // 渡されないときに使う。それを土台にして書き込み、利用者の transformStyle を落とさない（6.15 以前は保存しないので土台は無い）。
+        // `transformStyle: undefined` を明示したときは、MapLibre も保存したものを使わないので、土台にしない
+        const mapTransformStyle =
+          "transformStyle" in options
+            ? undefined
+            : (this as unknown as { _transformStyle?: TransformStyleFunction })
+                ._transformStyle;
+        options = {
+          ...options,
+          transformStyle: mapTransformStyle
+            ? transformWithProjection(mapTransformStyle, projection)
+            : (_previous, next) => withProjection(next, projection),
+        };
+      }
     }
 
     this.__styleExtensionLoadRequired = true;
