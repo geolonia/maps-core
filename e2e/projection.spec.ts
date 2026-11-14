@@ -63,7 +63,7 @@ async function transitionsOf(page: Page): Promise<string[]> {
  * 待たずに確かめると、新しいスタイルを適用する前の投影を見てしまうためです。
  *
  * - `full`: サンプルのスタイルを URL で、作り直し（`diff: false`）で適用する
- * - `urlDiff`: サンプルのスタイルを URL で、差分で適用する
+ * - `urlDiff`: サンプルのスタイル（今と同じ URL）を、差分で適用する
  * - `object`: 今のスタイルから `projection` を除いたオブジェクトを、作り直しで適用する
  * - `styleGlobe`: 今のスタイルに `projection: globe` を足し、作り直しで適用する
  * - `diff`: 今のスタイルから `projection` を除いてレイヤーを 1 つ足し、差分で適用する
@@ -188,19 +188,78 @@ test.describe("projection option", () => {
     expect(errors).toEqual([]);
   });
 
-  for (const kind of ["full", "urlDiff"] as const) {
-    test(`should apply the projection again after setStyle with a URL (${kind})`, async ({
-      page,
-    }) => {
-      const errors = await openMap(page, "?projection=globe");
+  test("should write the projection into a style given by URL after the current style has loaded", async ({
+    page,
+  }) => {
+    const errors = await openMap(page, "?projection=globe");
 
-      await setStyleAndWait(page, kind);
+    await setStyleAndWait(page, "full");
 
-      // URL のスタイルは取得の前に投影を書き込めないので、読み込んだ後に指定し直す
-      expect(await projectionOf(page)).toBe("globe");
-      expect(errors).toEqual([]);
+    expect(await projectionOf(page)).toBe("globe");
+    // 今のスタイルの読み込みが終わっているので、取得したスタイルに書き込んでから適用し、途中で mercator に切り替わらない
+    expect(await transitionsOf(page)).not.toContain("mercator");
+    expect(errors).toEqual([]);
+  });
+
+  test("should apply the projection to a style given by URL before the first style loads", async ({
+    page,
+  }) => {
+    // 最初のスタイルの応答を止めておき、その読み込み中に、projection: globe を持つ別の URL のスタイルを渡す
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
     });
-  }
+    await page.route("**/sample-basic-style.json", async (route) => {
+      await held;
+      await route.continue().catch(() => {});
+    });
+    const errors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text());
+    });
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto("/options.html?projection=mercator");
+    await page.waitForFunction(
+      () => (window as unknown as Partial<TestWindow>).map !== undefined,
+    );
+    await page.evaluate(() => {
+      const map = (window as unknown as TestWindow).map;
+      map.setStyle("/sample-globe-style.json");
+    });
+    release();
+    await waitForMapLoad(page);
+
+    // 読み込み中は書き込めないので、読み込んだ後にオプションの mercator を指定し直す
+    expect(await projectionOf(page)).toBe("mercator");
+    expect(errors).toEqual([]);
+  });
+
+  test("should set mercator even when the style has no projection", async ({
+    page,
+  }) => {
+    const errors = await openMap(page, "?projection=mercator");
+
+    expect(await projectionOf(page)).toBe("mercator");
+    expect(errors).toEqual([]);
+  });
+
+  test("should apply the projection again when the same URL is applied as a diff after setProjection", async ({
+    page,
+  }) => {
+    const errors = await openMap(page, "?projection=globe");
+    await page.evaluate(() => {
+      const w = window as unknown as TestWindow;
+      w.map.setProjection({ type: "mercator" });
+      w.transitions = [];
+    });
+
+    // 取得したスタイルに書き込むので、投影だけが今のスタイルと違う差分になり、オプションの値に戻る
+    await setStyleAndWait(page, "urlDiff");
+
+    expect(await projectionOf(page)).toBe("globe");
+    expect(await transitionsOf(page)).toEqual(["globe"]);
+    expect(errors).toEqual([]);
+  });
 
   test("should write the projection into a style object, without switching to mercator on the way", async ({
     page,
@@ -353,63 +412,70 @@ test.describe("projection option", () => {
     expect(errors).toEqual([]);
   });
 
-  test("should apply a fallback style after the first style fails to load", async ({
-    page,
-  }) => {
-    // 取得を止めておき、地図の error を待ち受けてから 404 を返す。失敗を確かめてから次の setStyle を呼ぶため
-    let fail: () => void = () => {};
-    const failed = new Promise<void>((resolve) => {
-      fail = resolve;
-    });
-    await page.route("**/sample-basic-style.json", async (route) => {
-      await failed;
-      await route.fulfill({ status: 404, body: "not found" });
-    });
-    await page.goto("/options.html?projection=globe");
-    await page.waitForFunction(
-      () => (window as unknown as Partial<TestWindow>).map !== undefined,
-    );
-    const errored = page.evaluate(
-      () =>
-        new Promise<void>((resolve) => {
-          const map = (window as unknown as TestWindow).map;
-          map.once("error", () => resolve());
-        }),
-    );
-    fail();
-    await errored;
+  for (const fallback of ["object", "url"] as const) {
+    test(`should apply a fallback style after the first style fails to load (${fallback})`, async ({
+      page,
+    }) => {
+      // 取得を止めておき、地図の error を待ち受けてから 404 を返す。失敗を確かめてから次の setStyle を呼ぶため
+      let fail: () => void = () => {};
+      const failed = new Promise<void>((resolve) => {
+        fail = resolve;
+      });
+      await page.route("**/sample-basic-style.json", async (route) => {
+        await failed;
+        await route.fulfill({ status: 404, body: "not found" });
+      });
+      await page.goto("/options.html?projection=globe");
+      await page.waitForFunction(
+        () => (window as unknown as Partial<TestWindow>).map !== undefined,
+      );
+      const errored = page.evaluate(
+        () =>
+          new Promise<void>((resolve) => {
+            const map = (window as unknown as TestWindow).map;
+            map.once("error", () => resolve());
+          }),
+      );
+      fail();
+      await errored;
 
-    // 最初のスタイルの取得に失敗しても、次の setStyle は前のスタイルの読み込みを待たずに適用される
-    const projection = await page.evaluate(
-      () =>
-        new Promise<unknown>((resolve, reject) => {
-          const map = (window as unknown as TestWindow).map;
-          const timer = setTimeout(
-            () => reject(new Error("style.load timed out")),
-            10000,
-          );
-          map.once("style.load", () => {
-            clearTimeout(timer);
-            resolve(map.getProjection()?.type);
-          });
-          map.setStyle(
-            {
-              version: 8,
-              sources: {},
-              layers: [
-                {
-                  id: "fallback",
-                  type: "background",
-                  paint: { "background-color": "#cccccc" },
-                },
-              ],
-            },
-            { diff: false },
-          );
-        }),
-    );
-    expect(projection).toBe("globe");
-  });
+      // 最初のスタイルの取得に失敗しても、次の setStyle は前のスタイルの読み込みを待たずに適用される
+      const projection = await page.evaluate(
+        (fallback) =>
+          new Promise<unknown>((resolve, reject) => {
+            const map = (window as unknown as TestWindow).map;
+            const timer = setTimeout(
+              () => reject(new Error("style.load timed out")),
+              10000,
+            );
+            map.once("style.load", () => {
+              clearTimeout(timer);
+              resolve(map.getProjection()?.type);
+            });
+            if (fallback === "url") {
+              map.setStyle("/sample-globe-style.json");
+              return;
+            }
+            map.setStyle(
+              {
+                version: 8,
+                sources: {},
+                layers: [
+                  {
+                    id: "fallback",
+                    type: "background",
+                    paint: { "background-color": "#cccccc" },
+                  },
+                ],
+              },
+              { diff: false },
+            );
+          }),
+        fallback,
+      );
+      expect(projection).toBe("globe");
+    });
+  }
 
   test("should release the style when the map is removed before it loads", async ({
     page,

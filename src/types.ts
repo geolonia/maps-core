@@ -115,16 +115,19 @@ export type GeoloniaMapOptions = MapOptions & {
    * 地図の投影。`'globe'` で地球儀、`'mercator'` で平面の地図にする。
    *
    * 投影は MapLibre ではスタイルの設定なので、スタイルを適用するたびにこの値を指定し直す。
-   * - 次のスタイルは、適用する前に `projection` に書き込む: `setStyle` に渡したスタイルのオブジェクト（差分の適用か作り直しかによらない）、
-   *   `transformStyle`（地図を作るときか `setStyle` で渡したもの）が返したスタイル、WebGL のコンテキストの復元で
-   *   MapLibre が作り直すスタイル（オブジェクトで `setStyle` を呼ぶため）。
-   * - `transformStyle` が無いときの URL のスタイル（最初の読み込みを含む）は、取得する前に書き込めないので、
-   *   読み込んだ後に `setProjection` で指定し直す（MapLibre がいったんスタイルの投影に切り替える）。
+   * スタイルを適用するのは、`setStyle`（差分の適用か作り直しかによらない）と、WebGL のコンテキストの復元と
+   * Worker の再起動（MapLibre 6.16 以降）で MapLibre がスタイルを作り直すときである。
    *
-   * どの経路でも、スタイル自身の `projection` と、`transformStyle` が返したスタイルの `projection` より、この値を優先する。
-   * 地図を作った後に `setProjection` で変えた投影は、次にスタイルを適用したとき（`setStyle`、コンテキストの復元）にこの値へ戻る。
-   * ただし、`transformStyle` が無いときの URL のスタイルを差分で適用して、今のスタイルとの違いがカメラの値
-   * （`center`、`zoom`、`bearing`、`pitch`、`roll`）だけのときは、MapLibre が適用しないので、投影はそのまま。
+   * できるときは、適用する前にスタイルの `projection` に書き込むので、途中でスタイルの投影に切り替わらない。
+   * 書き込むのは、スタイルのオブジェクト（復元で作り直すスタイルを含む）、利用者が渡した `transformStyle` が返したスタイル、
+   * 今のスタイルの読み込みが終わった後に `setStyle` に渡した URL のスタイルである。地図を作るときに渡した
+   * `transformStyle` は、MapLibre 6.16 以降でだけ使われる。
+   * それ以外（最初のスタイル、前のスタイルの読み込み中に渡した URL のスタイルなど）は、読み込んだ後に `setProjection` で
+   * 指定し直す。このときは、スタイルの投影が違えば、いったんそれに切り替わる。
+   *
+   * この値を指定し直すときは、スタイル自身の `projection` と、`transformStyle` が返したスタイルの `projection` より優先する。
+   * 地図を作った後に `setProjection` で変えた投影は、次にスタイルを適用したときにこの値へ戻る。
+   * MapLibre がスタイルを適用しなかったとき（差分の適用で、カメラの値のほかに違いが無いとき）は、投影はそのまま。
    * 未指定のときは、スタイルの `projection`（無ければ mercator）のまま。JavaScript から `null` を渡したときも未指定として扱う。
    * それ以外の値は `console.error` に出して無視する。
    */
