@@ -155,6 +155,28 @@ test.describe("projection option", () => {
     expect(errors).toEqual([]);
   });
 
+  test("should prefer the option to the projection of a style given by URL", async ({
+    page,
+  }) => {
+    // projection: globe を持つスタイルを URL で読み込む（地図を作るときの最初のスタイル）
+    const errors = await openMap(
+      page,
+      "?style=/sample-globe-style.json&projection=mercator",
+    );
+
+    expect(await projectionOf(page)).toBe("mercator");
+    expect(errors).toEqual([]);
+  });
+
+  test("should keep the projection of a style given by URL without the option", async ({
+    page,
+  }) => {
+    const errors = await openMap(page, "?style=/sample-globe-style.json");
+
+    expect(await projectionOf(page)).toBe("globe");
+    expect(errors).toEqual([]);
+  });
+
   test("should prefer the option to the projection of the style", async ({
     page,
   }) => {
@@ -294,8 +316,11 @@ test.describe("projection option", () => {
     await page.evaluate(
       () =>
         new Promise<void>((resolve, reject) => {
-          const map = (window as unknown as TestWindow).map;
+          const w = window as unknown as TestWindow;
+          const map = w.map;
           map.setProjection({ type: "mercator" });
+          // 復元のときの切り替えだけを見るため、ここまでの記録を捨てる
+          w.transitions = [];
           const timer = setTimeout(
             () => reject(new Error("style.load timed out")),
             10000,
@@ -323,6 +348,8 @@ test.describe("projection option", () => {
     );
 
     expect(await projectionOf(page)).toBe("globe");
+    // 作り直すスタイルに書き込んでから適用するので、復元したスタイルが利用者の投影（mercator）で読み込まれない
+    expect(await transitionsOf(page)).not.toContain("mercator");
     expect(errors).toEqual([]);
   });
 

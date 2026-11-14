@@ -340,10 +340,11 @@ export default class GeoloniaMap extends maplibregl.Map {
     }
 
     // 投影は MapLibre ではスタイルの設定で、スタイルを差し替えると、スタイルの投影（無ければ mercator）に戻る。
-    // スタイルのオブジェクトは setStyle で投影を書き込んでから適用する（下の setStyle）。URL のスタイル（最初の読み込みを含む）は
-    // 取得の前に書き込めないので、読み込んだ後（style.load）に指定し直す。
-    // 地図を作るときの transformStyle で書き込む方式は採らない。MapLibre は transformStyle があると前のスタイルの読み込みを待つので、
-    // 最初のスタイルの取得に失敗すると以後の setStyle が適用されず、読み込み前の remove() でもスタイルの破棄が遅れるため
+    // スタイルのオブジェクトと、利用者が渡した transformStyle の結果は、適用する前に書き込む（上のコンストラクタの処理と下の setStyle）。
+    // transformStyle が無いときの URL のスタイル（最初の読み込みを含む）は取得の前に書き込めないので、読み込んだ後（style.load）に指定し直す。
+    // 利用者が transformStyle を渡していないときに、地図を作るときの transformStyle を足して書き込む方式は採らない。
+    // MapLibre は transformStyle があると前のスタイルの読み込みを待つので、最初のスタイルの取得に失敗すると以後の setStyle が
+    // 適用されず、読み込み前の remove() でもスタイルの破棄が遅れるため
     this.projectionOption = projection;
     if (projection) {
       this.on("style.load", () => {
@@ -499,12 +500,12 @@ export default class GeoloniaMap extends maplibregl.Map {
    * など）、style.json の URL、相対パスのいずれかとして解釈し、実際の URL に
    * 解決してから適用します。解決の際の言語はブラウザ言語に従い、API キーは
    * キーリングに設定済みの値を使います。`StyleSpecification` オブジェクトを
-   * 直接渡した場合はそのまま適用します。
+   * 直接渡した場合はそのまま適用します（`projection` オプションを指定した地図では、次のとおり投影を書き換えます）。
    *
-   * `projection` オプションを指定した地図では、適用する前にスタイルの `projection` を
-   * オプションの値に書き換えます（渡したオブジェクトは変えず、複製を適用します）。
-   * `options.transformStyle` を渡したときは、その結果の `projection` を書き換えます。
-   * URL のスタイルは取得する前に書き換えられないので、読み込んだ後に指定し直します。
+   * `projection` オプションを指定した地図では、スタイルの `projection` をオプションの値にします。
+   * スタイルのオブジェクトは、`projection` を書き換えた複製を適用します（渡したオブジェクトは変えません）。
+   * `transformStyle`（`options.transformStyle`、無ければ地図を作るときに渡したもの）があれば、その結果を書き換えます。
+   * どちらでもない URL のスタイルは、取得する前に書き換えられないので、読み込んだ後に指定し直します。
    *
    * @param style 新しいスタイルです。スタイル論理名や URL などの文字列、または
    *   `StyleSpecification` オブジェクトを指定します。
