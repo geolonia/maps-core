@@ -29,6 +29,13 @@
       "paint": {
         "fill-color": "#cccccc"
       }
+    },
+    {
+      "id": "sample-globe-style",
+      "type": "background",
+      "paint": {
+        "background-opacity": 0
+      }
     }
   ]
 }

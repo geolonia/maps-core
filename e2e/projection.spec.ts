@@ -69,6 +69,7 @@ async function transitionsOf(page: Page): Promise<string[]> {
  * - `diff`: 今のスタイルから `projection` を除いてレイヤーを 1 つ足し、差分で適用する
  * - `same`: 今のスタイル（`getStyle()`）をそのまま差分で適用する
  * - `userTransform`: サンプルのスタイルを、レイヤーを 1 つ足す transformStyle 付きで、作り直しで適用する
+ * - `noTransform`: サンプルのスタイルを、`transformStyle: undefined` を明示して、作り直しで適用する
  *
  * 待つ上限は 10 秒です。地図の読み込みの待ち（`waitForMapLoad` は最悪 15 秒 × 2）と足すとテストの既定の timeout（30 秒）を超えるので、
  * このファイルのテストの timeout は 45 秒にしています（`test.describe.configure`）。
@@ -82,7 +83,8 @@ async function setStyleAndWait(
     | "styleGlobe"
     | "diff"
     | "same"
-    | "userTransform",
+    | "userTransform"
+    | "noTransform",
 ): Promise<void> {
   await page.evaluate(
     (kind) =>
@@ -121,6 +123,11 @@ async function setStyleAndWait(
           });
         } else if (kind === "same") {
           map.setStyle(map.getStyle());
+        } else if (kind === "noTransform") {
+          map.setStyle("/sample-basic-style.json", {
+            diff: false,
+            transformStyle: undefined,
+          });
         } else {
           map.setStyle("/sample-basic-style.json", {
             diff: false,
@@ -228,6 +235,16 @@ test.describe("projection option", () => {
     });
     release();
     await waitForMapLoad(page);
+    // 渡したスタイル（固有のレイヤーを持つ）が適用されたことを確かめてから投影を見る
+    await page.waitForFunction(() => {
+      const map = (window as unknown as TestWindow).map as unknown as {
+        getLayer: (id: string) => unknown;
+        isStyleLoaded: () => boolean;
+      };
+      return (
+        map.getLayer("sample-globe-style") !== undefined && map.isStyleLoaded()
+      );
+    });
 
     // 読み込み中は書き込めないので、読み込んだ後にオプションの mercator を指定し直す
     expect(await projectionOf(page)).toBe("mercator");
@@ -362,6 +379,37 @@ test.describe("projection option", () => {
     // 地図を作るときの transformStyle にも投影を書き込むので、URL の setStyle でも途中で mercator に切り替わらない
     await setStyleAndWait(page, "full");
     expect(await projectionOf(page)).toBe("globe");
+    // 投影を書き込むときも、地図を作るときの transformStyle は落とさない
+    expect(
+      await page.evaluate(
+        () =>
+          (window as unknown as TestWindow).map.getLayer(
+            "added-by-constructor-transform",
+          ) !== undefined,
+      ),
+    ).toBe(true);
+    expect(await transitionsOf(page)).not.toContain("mercator");
+    expect(errors).toEqual([]);
+  });
+
+  test("should write the projection when transformStyle: undefined is given to setStyle", async ({
+    page,
+  }) => {
+    const errors = await openMap(page, "?projection=globe&transformStyle=true");
+
+    // transformStyle: undefined を明示すると、MapLibre は地図を作るときの transformStyle を使わない。
+    // そのうえで、URL のスタイルに投影を書き込んでから適用する
+    await setStyleAndWait(page, "noTransform");
+
+    const state = await page.evaluate(() => {
+      const map = (window as unknown as TestWindow).map;
+      return {
+        transformed:
+          map.getLayer("added-by-constructor-transform") !== undefined,
+        projection: map.getProjection()?.type,
+      };
+    });
+    expect(state).toEqual({ transformed: false, projection: "globe" });
     expect(await transitionsOf(page)).not.toContain("mercator");
     expect(errors).toEqual([]);
   });
