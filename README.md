@@ -196,9 +196,12 @@ Show the map as a globe with `projection: 'globe'`, or force a flat map with `'m
 new GeoloniaMap({ container: '#map', apiKey: 'YOUR-API-KEY', projection: 'globe', zoom: 2 });
 ```
 
-- In MapLibre the projection is part of the style, so the option is written into the `projection` of every style before it is applied: the first style, every `setStyle()` (whether it is applied as a diff or rebuilt), and the style restored after the WebGL context is lost.
+- In MapLibre the projection is part of the style, so the option is applied again every time a style is applied.
+  - A style object passed to `setStyle()` (whether it is applied as a diff or rebuilt), and the style returned by a `transformStyle` you pass, get the option written into their `projection` before they are applied.
+  - A style given by URL, including the first style, cannot be changed before it is fetched, so the projection is set right after the style is loaded. MapLibre switches to the projection of the style first.
+  - The style restored after the WebGL context is lost is a style object, so it gets the option too.
 - The option takes precedence over the `projection` of the style, including a style returned by your `transformStyle`.
-- A projection changed later with `map.setProjection()` stays until the next `setStyle()`, and then the option applies again.
+- A projection changed later with `map.setProjection()` stays until a style is applied again (`setStyle()` or a restored WebGL context), and then the option applies again. The exception is a style given by URL that is applied as a diff and is identical to the current style, including its `projection`: MapLibre skips it, so the projection stays.
 - Without the option, the projection of the style is used (mercator if the style has none). Any other value logs an error and is ignored.
 - MapLibre limits the initial camera before the style is loaded, as for a flat map, so a `center` near a pole may be moved toward the equator (a flat map cannot show beyond about 85° of latitude).
 

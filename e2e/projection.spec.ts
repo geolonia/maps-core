@@ -63,6 +63,8 @@ async function transitionsOf(page: Page): Promise<string[]> {
  * 待たずに確かめると、新しいスタイルを適用する前の投影を見てしまうためです。
  *
  * - `full`: サンプルのスタイルを URL で、作り直し（`diff: false`）で適用する
+ * - `urlDiff`: サンプルのスタイルを URL で、差分で適用する
+ * - `object`: 今のスタイルから `projection` を除いたオブジェクトを、作り直しで適用する
  * - `styleGlobe`: 今のスタイルに `projection: globe` を足し、作り直しで適用する
  * - `diff`: 今のスタイルから `projection` を除いてレイヤーを 1 つ足し、差分で適用する
  * - `same`: 今のスタイル（`getStyle()`）をそのまま差分で適用する
@@ -72,7 +74,14 @@ async function transitionsOf(page: Page): Promise<string[]> {
  */
 async function setStyleAndWait(
   page: Page,
-  kind: "full" | "styleGlobe" | "diff" | "same" | "userTransform",
+  kind:
+    | "full"
+    | "urlDiff"
+    | "object"
+    | "styleGlobe"
+    | "diff"
+    | "same"
+    | "userTransform",
 ): Promise<void> {
   await page.evaluate(
     (kind) =>
@@ -93,6 +102,11 @@ async function setStyleAndWait(
         };
         if (kind === "full") {
           map.setStyle("/sample-basic-style.json", { diff: false });
+        } else if (kind === "urlDiff") {
+          map.setStyle("/sample-basic-style.json");
+        } else if (kind === "object") {
+          const { projection: _, ...style } = map.getStyle();
+          map.setStyle(style, { diff: false });
         } else if (kind === "styleGlobe") {
           map.setStyle(
             { ...map.getStyle(), projection: { type: "globe" } },
@@ -149,12 +163,26 @@ test.describe("projection option", () => {
     expect(errors).toEqual([]);
   });
 
-  test("should apply the projection again after a full setStyle, without switching to mercator on the way", async ({
+  for (const kind of ["full", "urlDiff"] as const) {
+    test(`should apply the projection again after setStyle with a URL (${kind})`, async ({
+      page,
+    }) => {
+      const errors = await openMap(page, "?projection=globe");
+
+      await setStyleAndWait(page, kind);
+
+      // URL のスタイルは取得の前に投影を書き込めないので、読み込んだ後に指定し直す
+      expect(await projectionOf(page)).toBe("globe");
+      expect(errors).toEqual([]);
+    });
+  }
+
+  test("should write the projection into a style object, without switching to mercator on the way", async ({
     page,
   }) => {
     const errors = await openMap(page, "?projection=globe");
 
-    await setStyleAndWait(page, "full");
+    await setStyleAndWait(page, "object");
 
     expect(await projectionOf(page)).toBe("globe");
     // スタイルを適用する前に投影を書き込むので、途中でスタイルの投影（mercator）に切り替わらない
@@ -227,6 +255,8 @@ test.describe("projection option", () => {
       };
     });
     expect(state).toEqual({ transformed: true, projection: "globe" });
+    // transformStyle の結果に投影を書き込むので、URL のスタイルでも途中で mercator に切り替わらない
+    expect(await transitionsOf(page)).not.toContain("mercator");
     expect(errors).toEqual([]);
   });
 
@@ -245,6 +275,120 @@ test.describe("projection option", () => {
     });
     expect(state).toEqual({ transformed: true, projection: "globe" });
     expect(errors).toEqual([]);
+  });
+
+  test("should apply the projection again after the WebGL context is restored", async ({
+    page,
+  }) => {
+    const errors = await openMap(page, "?projection=globe");
+
+    // 利用者が変えた投影も、コンテキストの復元でスタイルを作り直すとオプションの値に戻る
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          const map = (window as unknown as TestWindow).map;
+          map.setProjection({ type: "mercator" });
+          const timer = setTimeout(
+            () => reject(new Error("style.load timed out")),
+            10000,
+          );
+          map.once("style.load", () => {
+            clearTimeout(timer);
+            resolve();
+          });
+          const canvas = document.querySelector(
+            "canvas.maplibregl-canvas",
+          ) as HTMLCanvasElement;
+          const gl = canvas.getContext("webgl2");
+          const lose = gl?.getExtension("WEBGL_lose_context");
+          if (!lose) {
+            reject(new Error("WEBGL_lose_context is not available"));
+            return;
+          }
+          canvas.addEventListener(
+            "webglcontextlost",
+            () => setTimeout(() => lose.restoreContext(), 0),
+            { once: true },
+          );
+          lose.loseContext();
+        }),
+    );
+
+    expect(await projectionOf(page)).toBe("globe");
+    expect(errors).toEqual([]);
+  });
+
+  test("should apply a fallback style after the first style fails to load", async ({
+    page,
+  }) => {
+    await page.route("**/sample-basic-style.json", (route) =>
+      route.fulfill({ status: 404, body: "not found" }),
+    );
+    await page.goto("/options.html?projection=globe");
+    await page.waitForFunction(
+      () => (window as unknown as Partial<TestWindow>).map !== undefined,
+    );
+
+    // 最初のスタイルの取得に失敗しても、次の setStyle は前のスタイルの読み込みを待たずに適用される
+    const projection = await page.evaluate(
+      () =>
+        new Promise<unknown>((resolve, reject) => {
+          const map = (window as unknown as TestWindow).map;
+          const timer = setTimeout(
+            () => reject(new Error("style.load timed out")),
+            10000,
+          );
+          map.once("style.load", () => {
+            clearTimeout(timer);
+            resolve(map.getProjection()?.type);
+          });
+          map.setStyle(
+            {
+              version: 8,
+              sources: {},
+              layers: [
+                {
+                  id: "fallback",
+                  type: "background",
+                  paint: { "background-color": "#cccccc" },
+                },
+              ],
+            },
+            { diff: false },
+          );
+        }),
+    );
+    expect(projection).toBe("globe");
+  });
+
+  test("should release the style when the map is removed before it loads", async ({
+    page,
+  }) => {
+    // スタイルの応答を止めておき、読み込みの前に破棄する
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/sample-basic-style.json", async (route) => {
+      await held;
+      await route.continue().catch(() => {});
+    });
+    await page.goto("/options.html?projection=globe");
+    await page.waitForFunction(
+      () => (window as unknown as Partial<TestWindow>).map !== undefined,
+    );
+
+    const styleAfterRemove = await page.evaluate(() => {
+      const map = (window as unknown as TestWindow).map as unknown as {
+        style?: object;
+        remove: () => void;
+      };
+      map.remove();
+      return map.style;
+    });
+    release();
+
+    expect(styleAfterRemove).toBeUndefined();
   });
 
   test("should log an error and ignore an unsupported projection", async ({

@@ -29,6 +29,7 @@ if (params.has("lang")) {
 }
 if (params.has("apiKey")) options.apiKey = params.get("apiKey") ?? "";
 if (params.has("projection")) {
+  // 対応しない値を渡したときの振る舞いも確かめるので、値は検査せずにそのまま渡す
   options.projection = params.get("projection") as "mercator" | "globe";
 }
 if (params.get("transformStyle") === "true") {

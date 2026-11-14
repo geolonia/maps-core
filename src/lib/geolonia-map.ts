@@ -4,7 +4,6 @@ import type {
   StyleOptions,
   StyleSpecification,
   StyleSwapOptions,
-  TransformStyleFunction,
 } from "maplibre-gl";
 import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
@@ -42,18 +41,12 @@ import {
 
 type Projection = NonNullable<GeoloniaMapOptions["projection"]>;
 
-/**
- * スタイルを地図に適用する前に、投影を書き込む transformStyle を作ります。
- * 利用者の transformStyle があれば、その結果に書き込みます。
- */
+/** スタイルの `projection` を書き換えた複製を返します。渡されたスタイルは変えません。 */
 function withProjection(
+  style: StyleSpecification,
   projection: Projection,
-  transformStyle: TransformStyleFunction | undefined,
-): TransformStyleFunction {
-  return (previous, next) => ({
-    ...(transformStyle ? transformStyle(previous, next) : next),
-    projection: { type: projection },
-  });
+): StyleSpecification {
+  return { ...style, projection: { type: projection } };
 }
 
 type Container = HTMLElement & {
@@ -259,16 +252,9 @@ export default class GeoloniaMap extends maplibregl.Map {
       delete (mapOptions as Record<string, unknown>)[key];
     }
 
-    // 投影は MapLibre ではスタイルの設定で、setStyle でスタイルを差し替えると、スタイルの投影（無ければ mercator）に戻る。
-    // そこで、スタイルを地図に適用する前に投影を書き込む。transformStyle は、最初の読み込み、setStyle（差分の適用を含む）、
-    // コンテキストの復元と Worker の再起動（どちらも setStyle(snapshot)）のすべてで通る
     let projection: Projection | undefined;
     if (options.projection === "mercator" || options.projection === "globe") {
       projection = options.projection;
-      mapOptions.transformStyle = withProjection(
-        projection,
-        options.transformStyle,
-      );
     } else if (options.projection != null) {
       console.error(
         '[Geolonia] The projection must be "mercator" or "globe". It is ignored:',
@@ -334,7 +320,19 @@ export default class GeoloniaMap extends maplibregl.Map {
       );
     }
 
+    // 投影は MapLibre ではスタイルの設定で、スタイルを差し替えると、スタイルの投影（無ければ mercator）に戻る。
+    // スタイルのオブジェクトは setStyle で投影を書き込んでから適用する（下の setStyle）。URL のスタイル（最初の読み込みを含む）は
+    // 取得の前に書き込めないので、読み込んだ後（style.load）に指定し直す。
+    // 地図を作るときの transformStyle で書き込む方式は採らない。MapLibre は transformStyle があると前のスタイルの読み込みを待つので、
+    // 最初のスタイルの取得に失敗すると以後の setStyle が適用されず、読み込み前の remove() でもスタイルの破棄が遅れるため
     this.projectionOption = projection;
+    if (projection) {
+      this.on("style.load", () => {
+        if (this.getProjection()?.type !== projection) {
+          this.setProjection({ type: projection });
+        }
+      });
+    }
 
     // On load
     this.on("load", (event) => {
@@ -505,16 +503,22 @@ export default class GeoloniaMap extends maplibregl.Map {
       style = getStyle(style, { lang: getLang(), apiKey: keyring.apiKey });
     }
 
-    // setStyle に transformStyle を渡すと、MapLibre は地図を作るときの transformStyle（投影を書き込むもの）を使わないので、
-    // 渡された transformStyle にも投影を書き込む。渡されなければ、MapLibre が地図を作るときの transformStyle を使う
-    if (this.projectionOption && options.transformStyle) {
-      options = {
-        ...options,
-        transformStyle: withProjection(
-          this.projectionOption,
-          options.transformStyle,
-        ),
-      };
+    // projection オプションがあれば、スタイルを適用する前に投影を書き込む。途中でスタイルの投影に切り替わらず、
+    // 差分の適用でも投影の差分が出ない。transformStyle が渡されたら、その結果に書き込む。
+    // URL のスタイルで transformStyle が無いときは、ここでは何もせず style.load で指定し直す（コンストラクタを参照）。
+    // コンテキストの復元と Worker の再起動も、MapLibre がスタイルのオブジェクトでこの setStyle を呼ぶので、ここを通る
+    const projection = this.projectionOption;
+    if (projection) {
+      const transformStyle = options.transformStyle;
+      if (typeof transformStyle === "function") {
+        options = {
+          ...options,
+          transformStyle: (previous, next) =>
+            withProjection(transformStyle(previous, next), projection),
+        };
+      } else if (style !== null && typeof style === "object") {
+        style = withProjection(style, projection);
+      }
     }
 
     this.__styleExtensionLoadRequired = true;
