@@ -197,8 +197,8 @@ new GeoloniaMap({ container: '#map', apiKey: 'YOUR-API-KEY', projection: 'globe'
 ```
 
 - In MapLibre the projection is part of the style, so the option is applied again every time a style is applied.
-  - A style object passed to `setStyle()` (whether it is applied as a diff or rebuilt), and the style returned by a `transformStyle` you pass, get the option written into their `projection` before they are applied.
-  - A style given by URL, including the first style, cannot be changed before it is fetched, so the projection is set right after the style is loaded. MapLibre switches to the projection of the style first.
+  - A style object passed to `setStyle()` (whether it is applied as a diff or rebuilt), and the style returned by a `transformStyle` you pass (to `GeoloniaMap` or to `setStyle()`), get the option written into their `projection` before they are applied.
+  - Without a `transformStyle`, a style given by URL, including the first style, cannot be changed before it is fetched, so the projection is set right after the style is loaded. MapLibre switches to the projection of the style first.
   - The style restored after the WebGL context is lost is a style object, so it gets the option too.
 - The option takes precedence over the `projection` of the style, including a style returned by your `transformStyle`.
 - A projection changed later with `map.setProjection()` stays until a style is applied again (`setStyle()` or a restored WebGL context), and then the option applies again. The exception is a style given by URL that is applied as a diff and is identical to the current style, including its `projection`: MapLibre skips it, so the projection stays.

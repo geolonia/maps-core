@@ -70,7 +70,8 @@ async function transitionsOf(page: Page): Promise<string[]> {
  * - `same`: 今のスタイル（`getStyle()`）をそのまま差分で適用する
  * - `userTransform`: サンプルのスタイルを、レイヤーを 1 つ足す transformStyle 付きで、作り直しで適用する
  *
- * 待つ上限の 10 秒は、地図の読み込みの待ち（`waitForMapLoad`）と合わせて、テストの timeout（30 秒）に収まる値です。
+ * 待つ上限は 10 秒です。地図の読み込みの待ち（`waitForMapLoad` は最悪 15 秒 × 2）と足すとテストの既定の timeout（30 秒）を超えるので、
+ * このファイルのテストの timeout は 45 秒にしています（`test.describe.configure`）。
  */
 async function setStyleAndWait(
   page: Page,
@@ -135,6 +136,8 @@ async function setStyleAndWait(
 }
 
 test.describe("projection option", () => {
+  test.describe.configure({ timeout: 45000 });
+
   test("should show the map as a globe", async ({ page }) => {
     const errors = await openMap(page, "?projection=globe");
 
@@ -274,6 +277,11 @@ test.describe("projection option", () => {
       };
     });
     expect(state).toEqual({ transformed: true, projection: "globe" });
+
+    // 地図を作るときの transformStyle にも投影を書き込むので、URL の setStyle でも途中で mercator に切り替わらない
+    await setStyleAndWait(page, "full");
+    expect(await projectionOf(page)).toBe("globe");
+    expect(await transitionsOf(page)).not.toContain("mercator");
     expect(errors).toEqual([]);
   });
 
@@ -321,13 +329,28 @@ test.describe("projection option", () => {
   test("should apply a fallback style after the first style fails to load", async ({
     page,
   }) => {
-    await page.route("**/sample-basic-style.json", (route) =>
-      route.fulfill({ status: 404, body: "not found" }),
-    );
+    // 取得を止めておき、地図の error を待ち受けてから 404 を返す。失敗を確かめてから次の setStyle を呼ぶため
+    let fail: () => void = () => {};
+    const failed = new Promise<void>((resolve) => {
+      fail = resolve;
+    });
+    await page.route("**/sample-basic-style.json", async (route) => {
+      await failed;
+      await route.fulfill({ status: 404, body: "not found" });
+    });
     await page.goto("/options.html?projection=globe");
     await page.waitForFunction(
       () => (window as unknown as Partial<TestWindow>).map !== undefined,
     );
+    const errored = page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const map = (window as unknown as TestWindow).map;
+          map.once("error", () => resolve());
+        }),
+    );
+    fail();
+    await errored;
 
     // 最初のスタイルの取得に失敗しても、次の setStyle は前のスタイルの読み込みを待たずに適用される
     const projection = await page.evaluate(
