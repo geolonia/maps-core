@@ -114,10 +114,11 @@ export type GeoloniaMapOptions = MapOptions & {
   /**
    * 地図の投影。`'globe'` で地球儀、`'mercator'` で平面の地図にする。
    *
-   * 投影は MapLibre ではスタイルの設定なので、スタイルを読み込むたび（`setStyle` の差分の適用、
-   * WebGL のコンテキストの復元を含む）にこの値を指定し直す。スタイル自身の `projection` よりこの値を優先する。
-   * 地図を作った後に `setProjection` で変えた投影は、次にスタイルを読み込んだときにこの値へ戻る。
-   * 未指定のときは、スタイルの `projection`（無ければ mercator）のまま。
+   * 投影は MapLibre ではスタイルの設定なので、スタイルを地図に適用する前に、この値をスタイルの `projection` に書き込む。
+   * 最初の読み込み、`setStyle`（差分の適用か作り直しかによらない）、WebGL のコンテキストの復元のすべてで書き込む。
+   * スタイル自身の `projection` と、`transformStyle` が返したスタイルの `projection` より、この値を優先する。
+   * 地図を作った後に `setProjection` で変えた投影は、次の `setStyle` でこの値へ戻る。
+   * 未指定（`undefined` か `null`）のときは、スタイルの `projection`（無ければ mercator）のまま。
    * それ以外の値は `console.error` に出して無視する。
    */
   projection?: "mercator" | "globe";

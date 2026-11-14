@@ -4,6 +4,7 @@ import type {
   StyleOptions,
   StyleSpecification,
   StyleSwapOptions,
+  TransformStyleFunction,
 } from "maplibre-gl";
 import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
@@ -38,6 +39,22 @@ import {
   parseControlOption,
   parseSimpleVector,
 } from "./util";
+
+type Projection = NonNullable<GeoloniaMapOptions["projection"]>;
+
+/**
+ * スタイルを地図に適用する前に、投影を書き込む transformStyle を作ります。
+ * 利用者の transformStyle があれば、その結果に書き込みます。
+ */
+function withProjection(
+  projection: Projection,
+  transformStyle: TransformStyleFunction | undefined,
+): TransformStyleFunction {
+  return (previous, next) => ({
+    ...(transformStyle ? transformStyle(previous, next) : next),
+    projection: { type: projection },
+  });
+}
 
 type Container = HTMLElement & {
   geoloniaMap?: GeoloniaMap;
@@ -86,6 +103,8 @@ type Container = HTMLElement & {
  * ```
  */
 export default class GeoloniaMap extends maplibregl.Map {
+  /** `projection` オプションの値です。`setStyle` に渡された transformStyle に投影を書き込むときに使います。 */
+  private projectionOption: Projection | undefined;
   private geoloniaSourcesUrl!: URL;
   private __styleExtensionLoadRequired!: boolean;
 
@@ -240,6 +259,23 @@ export default class GeoloniaMap extends maplibregl.Map {
       delete (mapOptions as Record<string, unknown>)[key];
     }
 
+    // 投影は MapLibre ではスタイルの設定で、setStyle でスタイルを差し替えると、スタイルの投影（無ければ mercator）に戻る。
+    // そこで、スタイルを地図に適用する前に投影を書き込む。transformStyle は、最初の読み込み、setStyle（差分の適用を含む）、
+    // コンテキストの復元と Worker の再起動（どちらも setStyle(snapshot)）のすべてで通る
+    let projection: Projection | undefined;
+    if (options.projection === "mercator" || options.projection === "globe") {
+      projection = options.projection;
+      mapOptions.transformStyle = withProjection(
+        projection,
+        options.transformStyle,
+      );
+    } else if (options.projection != null) {
+      console.error(
+        '[Geolonia] The projection must be "mercator" or "globe". It is ignored:',
+        options.projection,
+      );
+    }
+
     try {
       super(mapOptions);
     } catch (error) {
@@ -298,19 +334,7 @@ export default class GeoloniaMap extends maplibregl.Map {
       );
     }
 
-    // 投影は MapLibre ではスタイルの設定で、スタイルを差し替えるとスタイルの投影（無ければ mercator）に戻る。
-    // style.load は最初の読み込み、setStyle（差分の適用を含む）、コンテキストの復元のたびに発火するので、そこで指定し直す
-    const projection = options.projection;
-    if (projection === "mercator" || projection === "globe") {
-      this.on("style.load", () => {
-        this.setProjection({ type: projection });
-      });
-    } else if (projection !== undefined) {
-      console.error(
-        '[Geolonia] The projection must be "mercator" or "globe". It is ignored:',
-        projection,
-      );
-    }
+    this.projectionOption = projection;
 
     // On load
     this.on("load", (event) => {
@@ -479,6 +503,18 @@ export default class GeoloniaMap extends maplibregl.Map {
   ): this {
     if (style !== null && typeof style === "string") {
       style = getStyle(style, { lang: getLang(), apiKey: keyring.apiKey });
+    }
+
+    // setStyle に transformStyle を渡すと、MapLibre は地図を作るときの transformStyle（投影を書き込むもの）を使わないので、
+    // 渡された transformStyle にも投影を書き込む。渡されなければ、MapLibre が地図を作るときの transformStyle を使う
+    if (this.projectionOption && options.transformStyle) {
+      options = {
+        ...options,
+        transformStyle: withProjection(
+          this.projectionOption,
+          options.transformStyle,
+        ),
+      };
     }
 
     this.__styleExtensionLoadRequired = true;

@@ -193,13 +193,14 @@ new GeoloniaMap({ container: '#map', errorMessage: false });
 Show the map as a globe with `projection: 'globe'`, or force a flat map with `'mercator'`.
 
 ```typescript
-new GeoloniaMap({ container: '#map', projection: 'globe', zoom: 2 });
+new GeoloniaMap({ container: '#map', apiKey: 'YOUR-API-KEY', projection: 'globe', zoom: 2 });
 ```
 
-- In MapLibre the projection is part of the style, so the option is applied again every time a style is loaded, including `setStyle()` (whether it is applied as a diff or rebuilt) and a restored WebGL context.
-- The option takes precedence over the `projection` of the style.
-- A projection changed later with `map.setProjection()` stays until the next style is loaded, and then the option applies again.
+- In MapLibre the projection is part of the style, so the option is written into the `projection` of every style before it is applied: the first style, every `setStyle()` (whether it is applied as a diff or rebuilt), and the style restored after the WebGL context is lost.
+- The option takes precedence over the `projection` of the style, including a style returned by your `transformStyle`.
+- A projection changed later with `map.setProjection()` stays until the next `setStyle()`, and then the option applies again.
 - Without the option, the projection of the style is used (mercator if the style has none). Any other value logs an error and is ignored.
+- MapLibre limits the initial camera before the style is loaded, as for a flat map, so a `center` near a pole may be moved toward the equator (a flat map cannot show beyond about 85° of latitude).
 
 #### `choropleth`, `heatmap` and `circle`
 

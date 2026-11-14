@@ -31,6 +31,20 @@ if (params.has("apiKey")) options.apiKey = params.get("apiKey") ?? "";
 if (params.has("projection")) {
   options.projection = params.get("projection") as "mercator" | "globe";
 }
+if (params.get("transformStyle") === "true") {
+  // 地図を作るときの transformStyle。レイヤーを 1 つ足す
+  options.transformStyle = (_previous, next) => ({
+    ...next,
+    layers: [
+      ...next.layers,
+      {
+        id: "added-by-constructor-transform",
+        type: "background",
+        paint: { "background-opacity": 0 },
+      },
+    ],
+  });
+}
 
 const map = new GeoloniaMap(options);
 
