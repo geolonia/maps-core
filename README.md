@@ -164,6 +164,7 @@ const map = new GeoloniaMap({
   circle: { size: 'weight', color: 'category' }, // Size and color points (see below)
   extrusion: 'population',      // Extrude polygons by a property (see below)
   simpleVector: 'my-tileset',   // Vector tile URL or tileset ID
+  mask: './boundary.geojson',   // Darken outside a boundary (see below)
   '3d': false,
   errorMessage: undefined,      // Message shown when the map fails to initialize
 });
@@ -284,6 +285,41 @@ new GeoloniaMap({
 
 Replacing the function later with `map.setTransformRequest()` also removes the maps-core rewriting, including `key` and `sessionId`.
 
+#### `mask`
+
+Darken everything outside a boundary, such as a city's, so that the area inside stands out.
+
+```typescript
+// A GeoJSON URL with the boundary polygons.
+new GeoloniaMap({ container: '#map', mask: './boundary.geojson' });
+
+// Fine-grained settings.
+new GeoloniaMap({
+  container: '#map',
+  mask: {
+    geojson: boundary,   // URL, Feature, FeatureCollection or a Polygon/MultiPolygon/GeometryCollection geometry
+    color: '#000000',    // default
+    opacity: 0.3,        // default
+    outline: true,       // draw the boundary line too; or { color: '#333333', width: 3 }
+    beforeId: 'waterway-name', // optional: insert below this layer (the first label layer of geolonia/basic-v2)
+  },
+});
+```
+
+- `geojson` as a string is a URL starting with `http://` or `https://`, or a path starting with `/` or `.` (such as `./boundary.geojson`). The response may also be a bare Polygon, MultiPolygon or GeometryCollection geometry, and so may an object passed directly.
+- Every Polygon and MultiPolygon, including those inside a GeometryCollection, is cut out, so exclaves and islands work. Holes inside a polygon, such as another area enclosed by the boundary, stay dark, and polygons inside such a hole (an island in a lake) are cut out again. Other geometries are ignored. A polygon whose outer ring is broken is skipped.
+- The polygons should not overlap each other, or the cut-out may be drawn incorrectly. Polygons that cross the antimeridian (longitude ±180°), and polygons with coordinates outside longitude ±180° or latitude ±90° (such as projected coordinates), are not supported. A polygon whose outer ring has coordinates outside that range is skipped, and such a hole is dropped. MapLibre fills at most 500 rings of one polygon per tile, so when a tile contains more than about 500 boundary polygons, small ones may not be cut out.
+- By default the mask is drawn above every layer of the base map, labels included, and below the first layer whose ID contains `simple-style` (the data of the `geojson` and `simpleVector` options), so place names outside the area are darkened too. To keep labels bright, set `beforeId` to the first label layer of the style; the mask is inserted below that layer, and every layer after it (including buildings and boundaries in some styles) stays bright. A `beforeId` that is not in the map logs an error and the default position is used. Layers added later without `beforeId` are drawn above the mask.
+- The `geojson` layers are found by `simple-style` in their ID. A `SimpleStyle` added before the mask with a custom `id` that does not contain `simple-style` is drawn below it.
+- The layers are `geolonia-mask` (fill) and, only with `outline`, `geolonia-mask-outline` (line), drawn right above the fill. `beforeId` inserts a layer below the given layer, so these IDs place your own layers below the mask: `beforeId: 'geolonia-mask'` puts a layer below the whole mask, and `beforeId: 'geolonia-mask-outline'` puts it between the fill and the outline. To draw a layer above the mask, add it after the mask without `beforeId`; it goes on top of every layer.
+- Adjacent polygons that share an edge may show a faint seam along the shared edge inside the area. Merge them into one polygon to avoid it.
+- If `remove()` is called while the style is being reloaded or the WebGL context is lost (when the mask's source is temporarily gone), the mask's source and layer may come back when MapLibre restores the style, and they are no longer removed by that `Mask`.
+- With `3d: true`, the mask is a flat fill drawn over the 3D buildings of the base map, so tall buildings inside the area may look darkened where they overlap the area outside. The look of 3D buildings with a mask is not guaranteed.
+- A polygon enclosed by a hole of another polygon (such as an area enclosed by a city) is detected when all its vertices and the midpoints of its edges are inside the hole or on its edge, within about 0.2 m. Adjacent polygons should share their vertices or use coordinates rounded to 6 or more decimal places; otherwise an enclosed polygon may be darkened. With very detailed boundaries that have both holes and polygons inside them, this check takes more time.
+- `outline: true` draws a 2-pixel line in the mask `color`.
+- An `opacity` that is not a number from 0 to 1 logs an error and the default is used. If loading the URL (including the response body) does not finish within 30 seconds, it is aborted and an error is logged. Skipped polygons or holes are reported with a warning, or with an error when every polygon is skipped. If MapLibre rejects the fill layer (for example, a color it cannot parse), nothing is added and an error is logged. If only the outline is rejected, the fill is kept and an error is logged.
+- Without `center`, `bounds`, `geojson` and `simpleVector`, the map fits to the boundary. This also happens again after `setStyle()`, since the mask is added again for the new style (unless `transformStyle` carried the mask's source and layer over to the new style, in which case it is kept as is). As with `geojson`, a position restored by `hash` or a `zoom` without `center` does not prevent the fit.
+
 ### `GeoloniaMarker`
 
 Extends `maplibregl.Marker` with Geolonia's default marker style.
@@ -306,6 +342,18 @@ import { SimpleStyle } from '@geolonia/maps-core';
 const ss = new SimpleStyle(geojson, { cluster: true });
 // Also accepts `choropleth`, `heatmap`, `circle` and `extrusion` (see GeoloniaMap options)
 ss.addTo(map).fitBounds();
+```
+
+### `Mask`
+
+Darkens everything outside a boundary on an existing map. Takes the same value as the `mask` option. Call `addTo` after the style has loaded. After `map.setStyle()`, the mask is gone with the old style; call `addTo` again to add it to the new style (the `mask` option of `GeoloniaMap` does this for you). Only one mask can be added to a map; a second one, or a mask on a map that already has a source or layer named `geolonia-mask` or `geolonia-mask-outline` (even without `outline`), is not added and logs an error. Calling `addTo` before the style has loaded throws, as `addSource` does. A removed mask can be added again, and calling `addTo` on a mask that is already added moves it (if adding to the new map throws, for example because its style has not loaded, the mask is left on neither map).
+
+```typescript
+import { Mask } from '@geolonia/maps-core';
+
+const mask = new Mask({ geojson: './boundary.geojson', outline: true });
+mask.addTo(map).fitBounds();
+mask.remove();
 ```
 
 ### `keyring`

@@ -3,7 +3,7 @@
 // Catches named-export breakage from deps (e.g. maplibre-gl).
 const m = await import(new URL("../dist/npm/index.js", import.meta.url));
 
-const requiredClasses = ["GeoloniaMap", "GeoloniaMarker", "CustomAttributionControl", "GeoloniaControl", "SimpleStyle", "SimpleStyleVector"];
+const requiredClasses = ["GeoloniaMap", "GeoloniaMarker", "CustomAttributionControl", "GeoloniaControl", "SimpleStyle", "SimpleStyleVector", "Mask"];
 const requiredFunctions = ["getLang", "getStyle", "isGeoloniaTilesHost"];
 const requiredValues = ["keyring", "coreVersion", "DEFAULT_STAGE"];
 

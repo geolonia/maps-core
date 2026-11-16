@@ -11,6 +11,7 @@ import CustomAttributionControl from "./controls/attribution";
 import { GeoloniaControl } from "./controls/geolonia-logo";
 import GeoloniaMarker from "./geolonia-marker";
 
+import { MASK_ID, Mask, normalizeMask } from "./mask";
 import { SimpleStyle } from "./simplestyle";
 import SimpleStyleVector from "./simplestyle-vector";
 
@@ -233,6 +234,7 @@ export default class GeoloniaMap extends maplibregl.Map {
       "circle",
       "extrusion",
       "simpleVector",
+      "mask",
       "3d",
       "errorMessage",
     ] as const) {
@@ -378,7 +380,11 @@ export default class GeoloniaMap extends maplibregl.Map {
       }
     });
 
-    // Style extensions (SimpleStyle, SimpleVector, 3D)
+    // Style extensions (SimpleStyle, SimpleVector, Mask, 3D)
+    // 前のスタイルで作った Mask。作り直す前に取り除き、取得中の境界の GeoJSON を止める
+    let mask: Mask | undefined;
+    // 地図を破棄したら、取得中の境界の GeoJSON も止める
+    this.once("remove", () => mask?.remove());
     this.on("styledata", async () => {
       if (!this.__styleExtensionLoadRequired) {
         return;
@@ -388,6 +394,35 @@ export default class GeoloniaMap extends maplibregl.Map {
       if (options.simpleVector) {
         const url = parseSimpleVector(options.simpleVector);
         new SimpleStyleVector(url).addTo(this);
+      }
+
+      const maskOptions = normalizeMask(options.mask);
+      // setStyle の transformStyle で、前に作った Mask のソースとレイヤーが新しいスタイルに写されたときは、作り直さない。
+      // 前の Mask は地図に追加されたままなので、取得中の GeoJSON もそちらが書き込む。
+      // ソースだけが写されてレイヤーが無いときは作り直す（前の Mask の remove() が写されたソースを取り除く）。
+      // 前に作った Mask が無いとき（初回）は、同じ ID のものがスタイルにあっても Mask.addTo に任せ、断るエラーを出させる
+      const carriedOver =
+        mask?.isAddedTo(this) === true &&
+        this.getSource(MASK_ID) !== undefined &&
+        this.getLayer(MASK_ID) !== undefined;
+      if (maskOptions && !carriedOver) {
+        // マスクの指定が不正でも、後に続く geojson と 3D の処理は止めない
+        try {
+          mask?.remove();
+          mask = new Mask(maskOptions).addTo(this);
+          // geojson と simpleVector はそれぞれの範囲にフィットするので、どちらも無いときだけ境界にフィットする。
+          // MapLibre の bounds で表示範囲を指定したときも、それを上書きしない
+          if (
+            !options.center &&
+            !options.bounds &&
+            !options.geojson &&
+            !options.simpleVector
+          ) {
+            mask.fitBounds();
+          }
+        } catch (error) {
+          console.error("[Geolonia] Failed to add the mask:", error);
+        }
       }
 
       if (options.geojson) {
