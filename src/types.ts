@@ -165,7 +165,7 @@ export type GeoloniaMapOptions = MapOptions & {
   /**
    * 他の配信元のラスタタイル（ハザードマップ、地理院タイルなど）を 1 枚重ねる。
    * スタイルの最初の symbol レイヤの下（ラベルの下）に重ね、symbol レイヤが無いスタイルでは一番上に重ねる。
-   * `setStyle` でスタイルを差し替えた後も重ね直す。
+   * `setStyle` でスタイルを差し替えた後も重ね直す（重ね直されない場合があることは #175 を参照）。
    */
   rasterTiles?: RasterTilesOptions;
   /**
@@ -217,7 +217,7 @@ export type RasterTilesOptions = {
    * 含まないときは、コンソールに警告を出して重ねない（TileJSON の URL は受け付けない）。
    */
   url: string;
-  /** 地図の出典表示に加える出典。HTML として表示する。 */
+  /** 地図の出典表示に加える出典。HTML として表示するので、URL のパラメータなど信頼できない入力を渡さない。 */
   attribution?: string;
   /**
    * 不透明度。0 から 1 の範囲を超える値は範囲内に収める。
