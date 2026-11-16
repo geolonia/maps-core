@@ -166,6 +166,7 @@ const map = new GeoloniaMap({
   extrusion: 'population',      // Extrude polygons by a property (see below)
   simpleVector: 'my-tileset',   // Vector tile URL or tileset ID
   mask: './boundary.geojson',   // Darken outside a boundary (see below)
+  rasterTiles: { url: 'https://example.com/{z}/{x}/{y}.png' }, // Overlay raster tiles (see below)
   '3d': false,
   errorMessage: undefined,      // Message shown when the map fails to initialize
 });
@@ -277,6 +278,33 @@ new GeoloniaMap({
 - `extrusion` takes precedence over `choropleth` and the simplestyle `fill`. The flat polygon fill is not drawn, so the simplestyle `fill-opacity` and `stroke` do not apply either. The columns are drawn at 0.9 opacity.
 - Polygons without a numeric height value are drawn flat.
 - The range is computed again when the GeoJSON is loaded from a URL or replaced with `updateData()`.
+
+#### `rasterTiles`
+
+Overlay raster tiles from another provider, such as a hazard map or GSI tiles, without waiting for `load` and calling `addSource` and `addLayer` yourself.
+
+```typescript
+new GeoloniaMap({
+  container: '#map',
+  rasterTiles: {
+    url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
+    attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>',
+    opacity: 0.7,  // 0 to 1. Defaults to 1
+    tileSize: 256, // Defaults to 256
+    minZoom: 2,
+    maxZoom: 18,   // Highest zoom served. Tiles are stretched beyond it
+  },
+});
+```
+
+- `url` must be a template containing `{z}`, `{x}` and `{y}`. Any other URL, including a TileJSON URL, logs a warning and is not overlaid.
+- `tileSize` defaults to 256, the size of common XYZ tiles. With MapLibre's own default of 512, each 256-pixel tile would be stretched to twice its size and look blurry.
+- `attribution` is added to the map's attribution and rendered as HTML. Do not pass untrusted input such as URL parameters.
+- The tiles are placed below the first symbol layer of the style, so labels stay on top. In a style without symbol layers they are placed above the style's layers. Style layers below that position, such as 3D buildings (`fill-extrusion`) in some styles, are covered by the tiles unless `opacity` is lowered.
+- Layers added by `geojson` and `simpleVector` are drawn above the tiles, and so is `mask` unless its `beforeId` names the tiles' layer or a layer below it. This order holds when the style is loaded without `transformStyle`. Layers that `transformStyle` carries over into a new style keep the position it gave them, so a carried-over `mask` may end up below newly added tiles.
+- The source and the layer both have the ID `geolonia-raster-tiles`. Use it as `beforeId` to place your own layers or the `mask` relative to the tiles.
+- The overlay is added again when the style is replaced with `setStyle()`, also when `transformStyle` carries over only its source. When `transformStyle` carries over both the source and the layer, the carried layer is kept where `transformStyle` put it. One case where this is missed is tracked in [#175](https://github.com/geolonia/maps-core/issues/175).
+- `opacity` outside 0 to 1 is clamped, and an `opacity` that is not a finite number falls back to 1. A `tileSize` that is not a positive finite number falls back to 256. A `minZoom` or `maxZoom` that is not a finite number is ignored.
 
 #### `transformRequest`
 

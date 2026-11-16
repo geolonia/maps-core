@@ -180,6 +180,13 @@ export type GeoloniaMapOptions = MapOptions & {
    */
   mask?: string | MaskOptions;
   /**
+   * 他の配信元のラスタタイル（ハザードマップ、地理院タイルなど）を 1 枚重ねる。
+   * スタイルの最初の symbol レイヤの下（ラベルの下）に重ね、symbol レイヤが無いスタイルでは一番上に重ねる。
+   * ソースとレイヤの ID はどちらも `geolonia-raster-tiles`。
+   * `setStyle` でスタイルを差し替えた後も重ね直す（重ね直されない場合があることは https://github.com/geolonia/maps-core/issues/175 を参照）。
+   */
+  rasterTiles?: RasterTilesOptions;
+  /**
    * 3D モード（対応スタイルの建物などの 3D 表示）を有効にするかどうか。
    * @defaultValue `false`
    */
@@ -208,6 +215,43 @@ export type GeoloniaMapOptions = MapOptions & {
  * ```
  */
 export type ColorMap = Record<string, string>;
+
+/**
+ * {@link GeoloniaMapOptions.rasterTiles} の指定。
+ *
+ * @example
+ * ```typescript
+ * {
+ *   url: "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg",
+ *   attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>',
+ *   opacity: 0.7,
+ *   maxZoom: 18,
+ * }
+ * ```
+ */
+export type RasterTilesOptions = {
+  /**
+   * タイルの URL のテンプレート。`{z}`、`{x}`、`{y}` を含める。
+   * 含まないときは、コンソールに警告を出して重ねない（TileJSON の URL は受け付けない）。
+   */
+  url: string;
+  /** 地図の出典表示に加える出典。HTML として表示するので、URL のパラメータなど信頼できない入力を渡さない。 */
+  attribution?: string;
+  /**
+   * 不透明度。0 から 1 の範囲を超える値は範囲内に収め、有限数でない値は `1` にする。
+   * @defaultValue `1`
+   */
+  opacity?: number;
+  /**
+   * タイル 1 枚の大きさ（ピクセル）。一般の XYZ タイルは 256。正の有限数でない値は `256` にする。
+   * @defaultValue `256`
+   */
+  tileSize?: number;
+  /** 配信されている最小ズーム。これより小さいズームではタイルを読み込まない。有限数でない値は無視する。 */
+  minZoom?: number;
+  /** 配信されている最大ズーム。これより大きいズームでは、このズームのタイルを引き伸ばして表示する。有限数でない値は無視する。 */
+  maxZoom?: number;
+};
 
 /**
  * {@link GeoloniaMapOptions.choropleth} の詳細な指定。

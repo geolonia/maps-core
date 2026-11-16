@@ -25,6 +25,7 @@ export type {
   GeoloniaMapOptions,
   HeatmapOptions,
   MaskOptions,
+  RasterTilesOptions,
 } from "./types";
 
 // Version
