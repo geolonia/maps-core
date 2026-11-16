@@ -473,7 +473,9 @@ test.describe("projection option", () => {
         await failed;
         await route.fulfill({ status: 404, body: "not found" });
       });
-      await page.goto("/options.html?projection=globe");
+      await page.goto(
+        `/options.html?projection=${fallback === "url" ? "mercator" : "globe"}`,
+      );
       await page.waitForFunction(
         () => (window as unknown as Partial<TestWindow>).map !== undefined,
       );
@@ -521,7 +523,8 @@ test.describe("projection option", () => {
           }),
         fallback,
       );
-      expect(projection).toBe("globe");
+      // URL は projection: globe を持つスタイルなので、オプションの mercator になることで、投影の指定も確かめる
+      expect(projection).toBe(fallback === "url" ? "mercator" : "globe");
     });
   }
 

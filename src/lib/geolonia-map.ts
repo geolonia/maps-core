@@ -502,10 +502,8 @@ export default class GeoloniaMap extends maplibregl.Map {
    * キーリングに設定済みの値を使います。`StyleSpecification` オブジェクトを
    * 直接渡した場合は、`projection` オプションが無ければそのまま適用します。
    *
-   * `projection` オプションを指定した地図では、スタイルの投影をオプションの値にします。
-   * `options.transformStyle` を渡したときはその結果に、渡さずにスタイルのオブジェクトを渡したときは複製に、
-   * `projection` を書き込んでから適用します（渡したオブジェクトは変えません）。
-   * どの場合にどう指定し直すかは、{@link GeoloniaMapOptions.projection} を参照してください。
+   * `projection` オプションを指定した地図では、スタイルの投影をオプションの値にします（渡したオブジェクトは変えません）。
+   * 詳しくは {@link GeoloniaMapOptions.projection} を参照してください。
    *
    * @param style 新しいスタイルです。スタイル論理名や URL などの文字列、または
    *   `StyleSpecification` オブジェクトを指定します。
@@ -546,15 +544,13 @@ export default class GeoloniaMap extends maplibregl.Map {
         // URL のスタイルは、今のスタイルの読み込みが終わっていれば、この呼び出しにだけ投影を書き込む transformStyle を渡す。
         // MapLibre が前のスタイルの読み込みを待つのは、今のスタイルの読み込みが終わっていないとき
         // （Map._updateStyle の `options.transformStyle && this.style && !this.style._loaded`）だけなので、待ちは起きない。
-        // 公開の isStyleLoaded() はソースと画像の読み込みまで見るので、この判定とは揃わない。そのため内部の _loaded を見る。
+        // 公開の isStyleLoaded() はソースと画像の読み込みまで見るので、この判定とは揃わない。そのため内部の _loaded を見る
+        // （将来の版で無くなれば、ここでは書き込まず、style.load で指定し直す経路になる）。
         // MapLibre 6.16 以降は、地図を作るときの transformStyle を地図に保存し（_transformStyle）、setStyle に transformStyle が
         // 渡されないときに使う。それを土台にして書き込み、利用者の transformStyle を落とさない（6.15 以前は保存しないので土台は無い）。
         // `transformStyle: undefined` を明示したときは、MapLibre も保存したものを使わないので、土台にしない
         const mapTransformStyle =
-          "transformStyle" in options
-            ? undefined
-            : (this as unknown as { _transformStyle?: TransformStyleFunction })
-                ._transformStyle;
+          "transformStyle" in options ? undefined : this._transformStyle;
         options = {
           ...options,
           transformStyle: mapTransformStyle
