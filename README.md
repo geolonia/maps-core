@@ -286,7 +286,7 @@ new GeoloniaMap({
 - `attribution` is added to the map's attribution and rendered as HTML. Do not pass untrusted input such as URL parameters.
 - The tiles are placed below the first symbol layer of the style, so labels stay on top. In a style without symbol layers they are placed above the style's layers. Layers added by `geojson` and `simpleVector` are drawn above the tiles in either case, and so is `mask` unless its `beforeId` names the tiles' layer or a layer below it.
 - The source and the layer both have the ID `geolonia-raster-tiles`. Use it as `beforeId` to place your own layers or the `mask` relative to the tiles.
-- The overlay is added again when the style is replaced with `setStyle()`, also when `transformStyle` carries over only its source. One case where this is missed is tracked in [#175](https://github.com/geolonia/maps-core/issues/175).
+- The overlay is added again when the style is replaced with `setStyle()`, also when `transformStyle` carries over only its source. When `transformStyle` carries over both the source and the layer, the carried layer is kept where `transformStyle` put it. One case where this is missed is tracked in [#175](https://github.com/geolonia/maps-core/issues/175).
 - `opacity` outside 0 to 1 is clamped, and an `opacity` that is not a finite number falls back to 1. A `tileSize` that is not a positive finite number falls back to 256. A `minZoom` or `maxZoom` that is not a finite number is ignored.
 
 #### `transformRequest`
