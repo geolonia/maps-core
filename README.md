@@ -165,6 +165,7 @@ const map = new GeoloniaMap({
   extrusion: 'population',      // Extrude polygons by a property (see below)
   simpleVector: 'my-tileset',   // Vector tile URL or tileset ID
   mask: './boundary.geojson',   // Darken outside a boundary (see below)
+  rasterTiles: { url: 'https://example.com/{z}/{x}/{y}.png' }, // Overlay raster tiles (see below)
   '3d': false,
   errorMessage: undefined,      // Message shown when the map fails to initialize
 });
@@ -261,6 +262,31 @@ new GeoloniaMap({
 - `extrusion` takes precedence over `choropleth` and the simplestyle `fill`. The flat polygon fill is not drawn, so the simplestyle `fill-opacity` and `stroke` do not apply either. The columns are drawn at 0.9 opacity.
 - Polygons without a numeric height value are drawn flat.
 - The range is computed again when the GeoJSON is loaded from a URL or replaced with `updateData()`.
+
+#### `rasterTiles`
+
+Overlay raster tiles from another provider, such as a hazard map or GSI tiles, without waiting for `load` and calling `addSource` and `addLayer` yourself.
+
+```typescript
+new GeoloniaMap({
+  container: '#map',
+  rasterTiles: {
+    url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
+    attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>',
+    opacity: 0.7,  // 0 to 1. Defaults to 1
+    tileSize: 256, // Defaults to 256
+    minZoom: 2,
+    maxZoom: 18,   // Highest zoom served. Tiles are stretched beyond it
+  },
+});
+```
+
+- `url` must be a template containing `{z}`, `{x}` and `{y}`. Any other URL, including a TileJSON URL, logs a warning and is not overlaid.
+- `tileSize` defaults to 256, the size of common XYZ tiles. MapLibre's own default of 512 would show them small and blurry.
+- `attribution` is added to the map's attribution and rendered as HTML.
+- The tiles are placed below the first symbol layer of the style, so labels stay on top. In a style without symbol layers they are placed on top.
+- The overlay is added again whenever the style is loaded, so it survives `setStyle()`.
+- `opacity` outside 0 to 1 is clamped. A `tileSize` that is not a positive number falls back to 256.
 
 #### `transformRequest`
 

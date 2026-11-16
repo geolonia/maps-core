@@ -27,6 +27,7 @@ function ensurePMTiles(): void {
 import type { GeoloniaMapOptions } from "../types";
 import { keyring } from "./keyring";
 import { normalizeConstructorArg } from "./legacy-options";
+import { addRasterTiles } from "./raster-tiles";
 import { createTransformRequest } from "./transform-request";
 import {
   type GetImageCallback,
@@ -247,6 +248,7 @@ export default class GeoloniaMap extends maplibregl.Map {
       "extrusion",
       "simpleVector",
       "mask",
+      "rasterTiles",
       "3d",
       "errorMessage",
     ] as const) {
@@ -388,7 +390,7 @@ export default class GeoloniaMap extends maplibregl.Map {
       }
     });
 
-    // Style extensions (SimpleStyle, SimpleVector, Mask, 3D)
+    // Style extensions (RasterTiles, SimpleStyle, SimpleVector, Mask, 3D)
     // 前のスタイルで作った Mask。作り直す前に取り除き、取得中の境界の GeoJSON を止める
     let mask: Mask | undefined;
     // 地図を破棄したら、取得中の境界の GeoJSON も止める
@@ -398,6 +400,12 @@ export default class GeoloniaMap extends maplibregl.Map {
         return;
       }
       this.__styleExtensionLoadRequired = false;
+
+      // simpleVector や geojson より先に重ねる。後に重ねると、symbol レイヤの無い
+      // スタイルで geojson のラベルが「最初の symbol レイヤ」になり、その下に入ってしまう。
+      if (options.rasterTiles) {
+        addRasterTiles(this, options.rasterTiles);
+      }
 
       if (options.simpleVector) {
         const url = parseSimpleVector(options.simpleVector);
