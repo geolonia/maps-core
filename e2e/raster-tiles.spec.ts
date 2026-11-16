@@ -191,6 +191,20 @@ test.describe("rasterTiles", () => {
     }
   });
 
+  test("既定の位置の mask はラスタタイルより上に重なる", async ({ page }) => {
+    await page.goto("/raster-tiles.html?mask=true");
+    await waitForMapLoad(page);
+    await expect
+      .poll(async () => (await layerIds(page)).includes("geolonia-mask"))
+      .toBe(true);
+
+    const ids = await layerIds(page);
+    expect(ids.indexOf("geolonia-raster-tiles")).toBeGreaterThan(-1);
+    expect(ids.indexOf("geolonia-mask")).toBeGreaterThan(
+      ids.indexOf("geolonia-raster-tiles"),
+    );
+  });
+
   test("{z}/{x}/{y} を含まない URL は警告して重ねない", async ({ page }) => {
     const warnings: string[] = [];
     page.on("console", (msg) => {

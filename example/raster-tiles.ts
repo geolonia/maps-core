@@ -48,6 +48,10 @@ const map = new GeoloniaMap({
         },
       }
     : {}),
+  // 重なり順の E2E のため。既定の位置のマスクはラスタタイルより上に入る。
+  ...(params.get("mask") === "true"
+    ? { mask: { geojson: "/sample-boundary.geojson", outline: true } }
+    : {}),
 });
 
 (window as unknown as Record<string, unknown>).map = map;
