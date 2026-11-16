@@ -286,7 +286,7 @@ new GeoloniaMap({
 - `attribution` is added to the map's attribution and rendered as HTML. Do not pass untrusted input such as URL parameters.
 - The tiles are placed below the first symbol layer of the style, so labels stay on top. In a style without symbol layers they are placed above the style's layers. Layers added by `geojson` and `simpleVector` are drawn above the tiles in either case.
 - The overlay is added again when the style is replaced with `setStyle()`. One case where this is missed is tracked in [#175](https://github.com/geolonia/maps-core/issues/175).
-- `opacity` outside 0 to 1 is clamped. A `tileSize` that is not a positive number falls back to 256.
+- `opacity` outside 0 to 1 is clamped, and an `opacity` that is not a finite number falls back to 1. A `tileSize` that is not a positive finite number falls back to 256. A `minZoom` or `maxZoom` that is not a finite number is ignored.
 
 #### `transformRequest`
 

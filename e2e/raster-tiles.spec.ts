@@ -172,6 +172,25 @@ test.describe("rasterTiles", () => {
     ]);
   });
 
+  test("geojson のレイヤはラスタタイルより上に重なる", async ({ page }) => {
+    await page.goto("/raster-tiles.html?geojson=true");
+    await waitForMapLoad(page);
+
+    const ids = await layerIds(page);
+    const raster = ids.indexOf("geolonia-raster-tiles");
+    const geojsonLayers = ids.filter(
+      (id) =>
+        id !== "background" &&
+        id !== "fixture" &&
+        id !== "geolonia-raster-tiles",
+    );
+    expect(raster).toBeGreaterThan(-1);
+    expect(geojsonLayers.length).toBeGreaterThan(0);
+    for (const id of geojsonLayers) {
+      expect(ids.indexOf(id)).toBeGreaterThan(raster);
+    }
+  });
+
   test("{z}/{x}/{y} を含まない URL は警告して重ねない", async ({ page }) => {
     const warnings: string[] = [];
     page.on("console", (msg) => {

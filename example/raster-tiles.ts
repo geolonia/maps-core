@@ -23,6 +23,31 @@ const map = new GeoloniaMap({
     opacity: Number(params.get("opacity") ?? 1),
     maxZoom: 12,
   },
+  // 重なり順の E2E のため。geojson のレイヤはラスタタイルより上に描かれる。
+  ...(params.get("geojson") === "true"
+    ? {
+        geojson: {
+          type: "FeatureCollection" as const,
+          features: [
+            {
+              type: "Feature" as const,
+              properties: {},
+              geometry: {
+                type: "Polygon" as const,
+                coordinates: [
+                  [
+                    [139.7, 35.65],
+                    [139.8, 35.65],
+                    [139.8, 35.7],
+                    [139.7, 35.65],
+                  ],
+                ],
+              },
+            },
+          ],
+        },
+      }
+    : {}),
 });
 
 (window as unknown as Record<string, unknown>).map = map;
