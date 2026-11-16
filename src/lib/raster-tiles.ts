@@ -19,13 +19,17 @@ const isFiniteNumber = (value: unknown): value is number =>
  *
  * スタイルの最初の symbol レイヤの下（ラベルの下）に重ね、symbol レイヤが無いスタイルでは一番上に重ねます。
  * `url` が `{z}`、`{x}`、`{y}` を含まないときは警告して重ねません。
- * 同じ ID のソースが既にあるときは何もしません。
+ * 同じ ID のソースとレイヤが既にあるときは何もしません。`setStyle` の `transformStyle` でソースだけが新しいスタイルに写されたときは、
+ * 写されたソースを使ってレイヤだけを足します。ソースの設定は地図を作るときのオプションから変わらないので、写されたものをそのまま使えます。
  *
  * @param map 重ねる対象の地図です。
  * @param options 重ねるラスタタイルの指定です。
  */
 export function addRasterTiles(
-  map: Pick<MaplibreMap, "getStyle" | "getSource" | "addSource" | "addLayer">,
+  map: Pick<
+    MaplibreMap,
+    "getStyle" | "getSource" | "getLayer" | "addSource" | "addLayer"
+  >,
   options: RasterTilesOptions,
 ): void {
   const url = options.url;
@@ -39,7 +43,7 @@ export function addRasterTiles(
     return;
   }
 
-  if (map.getSource(RASTER_TILES_SOURCE_ID)) return;
+  if (map.getLayer(RASTER_TILES_LAYER_ID)) return;
 
   const source: RasterSourceSpecification = {
     type: "raster",
@@ -61,7 +65,9 @@ export function addRasterTiles(
     .getStyle()
     ?.layers?.find((layer) => layer.type === "symbol");
 
-  map.addSource(RASTER_TILES_SOURCE_ID, source);
+  if (!map.getSource(RASTER_TILES_SOURCE_ID)) {
+    map.addSource(RASTER_TILES_SOURCE_ID, source);
+  }
   map.addLayer(
     {
       id: RASTER_TILES_LAYER_ID,

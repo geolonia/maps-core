@@ -165,7 +165,8 @@ export type GeoloniaMapOptions = MapOptions & {
   /**
    * 他の配信元のラスタタイル（ハザードマップ、地理院タイルなど）を 1 枚重ねる。
    * スタイルの最初の symbol レイヤの下（ラベルの下）に重ね、symbol レイヤが無いスタイルでは一番上に重ねる。
-   * `setStyle` でスタイルを差し替えた後も重ね直す（重ね直されない場合があることは #175 を参照）。
+   * ソースとレイヤの ID はどちらも `geolonia-raster-tiles`。
+   * `setStyle` でスタイルを差し替えた後も重ね直す（重ね直されない場合があることは https://github.com/geolonia/maps-core/issues/175 を参照）。
    */
   rasterTiles?: RasterTilesOptions;
   /**

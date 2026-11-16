@@ -172,6 +172,56 @@ test.describe("rasterTiles", () => {
     ]);
   });
 
+  test("transformStyle でソースだけを写したときも、レイヤを足して重ね直す", async ({
+    page,
+  }) => {
+    await page.goto("/raster-tiles.html");
+    await waitForMapLoad(page);
+
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const map = (
+            window as unknown as {
+              map: MapLike & {
+                setStyle: (
+                  style: unknown,
+                  options: {
+                    transformStyle: (
+                      prev: { sources: Record<string, unknown> } | undefined,
+                      next: { sources: Record<string, unknown> },
+                    ) => unknown;
+                  },
+                ) => void;
+              };
+            }
+          ).map;
+          map.once("idle", () => resolve());
+          map.setStyle(
+            {
+              version: 8,
+              sources: {},
+              layers: [
+                {
+                  id: "bg",
+                  type: "background",
+                  paint: { "background-color": "#eeeeee" },
+                },
+              ],
+            },
+            {
+              transformStyle: (prev, next) => ({
+                ...next,
+                sources: { ...prev?.sources, ...next.sources },
+              }),
+            },
+          );
+        }),
+    );
+
+    expect(await layerIds(page)).toEqual(["bg", "geolonia-raster-tiles"]);
+  });
+
   test("geojson のレイヤはラスタタイルより上に重なる", async ({ page }) => {
     await page.goto("/raster-tiles.html?geojson=true");
     await waitForMapLoad(page);

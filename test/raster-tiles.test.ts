@@ -18,6 +18,10 @@ function createMap(layers: Layer[] = []) {
     added,
     getStyle: () => ({ layers }),
     getSource: (id: string) => sources[id],
+    getLayer: (id: string) =>
+      [...layers, ...added.map((a) => a.layer as Layer)].find(
+        (l) => l.id === id,
+      ),
     addSource: vi.fn((id: string, source: unknown) => {
       sources[id] = source;
     }),
@@ -151,12 +155,31 @@ describe("addRasterTiles", () => {
     expect(map.addLayer).not.toHaveBeenCalled();
   });
 
-  it("ソースが既にあれば何もしない", () => {
-    const map = createMap();
+  it("ソースとレイヤが既にあれば何もしない", () => {
+    const map = createMap([{ id: RASTER_TILES_LAYER_ID, type: "raster" }]);
     map.sources[RASTER_TILES_SOURCE_ID] = { type: "raster" };
     addRasterTiles(map as never, { url: URL_TEMPLATE });
 
     expect(map.addSource).not.toHaveBeenCalled();
     expect(map.addLayer).not.toHaveBeenCalled();
+  });
+
+  it("ソースだけが写されてレイヤが無いときは、レイヤだけを足す", () => {
+    const map = createMap([{ id: "road-label", type: "symbol" }]);
+    map.sources[RASTER_TILES_SOURCE_ID] = { type: "raster" };
+    addRasterTiles(map as never, { url: URL_TEMPLATE, opacity: 0.5 });
+
+    expect(map.addSource).not.toHaveBeenCalled();
+    expect(map.added).toEqual([
+      {
+        layer: {
+          id: RASTER_TILES_LAYER_ID,
+          type: "raster",
+          source: RASTER_TILES_SOURCE_ID,
+          paint: { "raster-opacity": 0.5 },
+        },
+        beforeId: "road-label",
+      },
+    ]);
   });
 });
