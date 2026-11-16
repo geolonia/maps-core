@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { waitForMapLoad } from "./helper";
+import { collectConsoleErrors, waitForMapLoad } from "./helper";
 
 // 1x1 の赤い PNG。タイルの大きさに引き伸ばされて描かれる。
 const RED_PNG = Buffer.from(
@@ -45,13 +45,19 @@ function centerPixel(page: Page): Promise<number[]> {
 
 test.describe("rasterTiles", () => {
   let tileUrls: string[];
+  let errors: string[];
 
   test.beforeEach(async ({ page }) => {
     tileUrls = [];
+    errors = collectConsoleErrors(page);
     await page.route("https://raster.example.com/tiles/**", (route) => {
       tileUrls.push(route.request().url());
       route.fulfill({ status: 200, contentType: "image/png", body: RED_PNG });
     });
+  });
+
+  test.afterEach(() => {
+    expect(errors).toEqual([]);
   });
 
   test("テンプレートの {z}/{x}/{y} を埋めてタイルを読み込み、地図に描く", async ({

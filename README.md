@@ -282,7 +282,7 @@ new GeoloniaMap({
 ```
 
 - `url` must be a template containing `{z}`, `{x}` and `{y}`. Any other URL, including a TileJSON URL, logs a warning and is not overlaid.
-- `tileSize` defaults to 256, the size of common XYZ tiles. MapLibre's own default of 512 would show them small and blurry.
+- `tileSize` defaults to 256, the size of common XYZ tiles. With MapLibre's own default of 512, each 256-pixel tile would be stretched to twice its size and look blurry.
 - `attribution` is added to the map's attribution and rendered as HTML.
 - The tiles are placed below the first symbol layer of the style, so labels stay on top. In a style without symbol layers they are placed on top.
 - The overlay is added again whenever the style is loaded, so it survives `setStyle()`.
