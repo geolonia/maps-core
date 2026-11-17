@@ -115,6 +115,11 @@ export class SimpleStyle {
   public _loadingPromise: Promise<unknown> | undefined;
   /** URL から GeoJSON を取得している間は true です。 */
   private loading = false;
+  /**
+   * {@link SimpleStyle.addTo | addTo} から {@link SimpleStyle.remove | remove} までの間は true です。
+   * 取り除かれている間に取得し終えた GeoJSON は、地図に書き込みません（同じ ID で作り直した別の SimpleStyle のソースに書き込まないため）。
+   */
+  private added = false;
   /** {@link SimpleStyle.addTo | addTo} で追加したレイヤーの ID です。 */
   private addedLayerIds: string[] = [];
   private callFitBounds = false;
@@ -218,6 +223,7 @@ export class SimpleStyle {
    */
   addTo(map: MaplibreMap) {
     this.map = map;
+    this.added = true;
 
     const features = this.geojson.features;
     const polygonAndLines = features.filter(
@@ -758,12 +764,14 @@ export class SimpleStyle {
    * {@link SimpleStyle.setPopup | setPopup} や {@link SimpleStyle.setCluster | setCluster}
    * で登録したイベントハンドラーをすべて解除し、ポリゴン、ライン、ポイント、クラスターの各レイヤーと、
    * それらのソースを削除します。カーソルのスタイルも元に戻します。まだ地図に追加されていない場合は何もしません。
+   * URL から GeoJSON を取得している間に取り除いた場合、取得した GeoJSON は地図に書き込まず、次に {@link SimpleStyle.addTo | addTo} したときに使います。
    *
    * @returns メソッドチェーンのための `this` を返します。
    */
   remove() {
     if (!this.map) return this;
     const id = this.options.id;
+    this.added = false;
 
     for (const { event, layer, handler } of this._eventHandlers) {
       this.map.off(event, layer, handler);
@@ -826,6 +834,8 @@ export class SimpleStyle {
           const response = await window.fetch(geojson);
           const data = response.ok ? await response.json() : template;
           this.geojson = data;
+          // 取り除かれていたら、地図には書き込まず、次の addTo で使う
+          if (!this.added) return;
           this.updateData(data);
 
           if (this.callFitBounds) {

@@ -151,26 +151,32 @@ test.describe("style extensions after a style change (#175)", () => {
       await route.continue();
     });
 
-    // 差分（既定）で差し替え、取得中に古いスタイルを変えて styledata を出させる
-    await page.evaluate(() => {
-      const w = window as unknown as TestWindow;
-      const baseLayer = w.map
-        .getStyle()
-        .layers.find((layer) => !layer.id.includes("simple-style"));
-      w.map.setStyle(
-        new URL("/sample-basic-style.json?v=held", location.href).href,
-      );
-      if (baseLayer) {
-        w.map.setLayoutProperty(baseLayer.id, "visibility", "visible");
-      }
-    });
+    // 差分（既定）で差し替え、取得中に古いスタイルを変えて styledata を出させる。
+    // 取りこぼさないよう、変える前に styledata の待ちを登録しておく
     await page.evaluate(
       () =>
-        new Promise<void>((resolve) =>
-          (window as unknown as TestWindow).map.once("styledata", () =>
-            resolve(),
-          ),
-        ),
+        new Promise<void>((resolve, reject) => {
+          const w = window as unknown as TestWindow;
+          const baseLayer = w.map
+            .getStyle()
+            .layers.find((layer) => !layer.id.includes("simple-style"));
+          if (!baseLayer) {
+            reject(new Error("no base layer"));
+            return;
+          }
+          w.map.setStyle(
+            new URL("/sample-basic-style.json?v=held", location.href).href,
+          );
+          const timer = setTimeout(
+            () => reject(new Error("styledata timed out")),
+            10000,
+          );
+          w.map.once("styledata", () => {
+            clearTimeout(timer);
+            resolve();
+          });
+          w.map.setLayoutProperty(baseLayer.id, "visibility", "visible");
+        }),
     );
 
     // 取得を進め、差分が適用されて落ち着くまで待つ
@@ -300,7 +306,12 @@ test.describe("style extensions after a style change (#175)", () => {
         },
       );
     });
-    await styleRequestSeen;
+    await Promise.race([
+      styleRequestSeen,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("style request timed out")), 10000),
+      ),
+    ]);
 
     // 新しいスタイルを取得している間に GeoJSON が届く
     const geojsonDone = page.waitForResponse("**/sample.geojson");

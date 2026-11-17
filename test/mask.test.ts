@@ -1269,4 +1269,28 @@ describe("Mask", () => {
     expect(map.getLayer("geolonia-mask")).toBeDefined();
     expect(mask.isAddedTo(asMap(map))).toBe(true);
   });
+
+  it("isPresentOn() requires the outline as well when the mask draws one", () => {
+    const mask = new Mask({
+      geojson: polygon(square(0, 0)),
+      outline: true,
+    }).addTo(asMap(map));
+    expect(mask.isPresentOn(asMap(map))).toBe(true);
+
+    // 塗りだけが写され、境界線が無い
+    map.removeLayer("geolonia-mask-outline");
+    map.removeSource("geolonia-mask-outline");
+    expect(mask.isPresentOn(asMap(map))).toBe(false);
+  });
+
+  it("isPresentOn() does not require an outline the mask does not draw", () => {
+    const mask = new Mask({ geojson: polygon(square(0, 0)) }).addTo(asMap(map));
+    expect(mask.isPresentOn(asMap(map))).toBe(true);
+
+    map.removeLayer("geolonia-mask");
+    expect(mask.isPresentOn(asMap(map))).toBe(false);
+    expect(
+      new Mask({ geojson: polygon(square(0, 0)) }).isPresentOn(asMap(map)),
+    ).toBe(false);
+  });
 });

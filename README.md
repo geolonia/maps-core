@@ -172,7 +172,7 @@ const map = new GeoloniaMap({
 });
 ```
 
-The sources and layers added by `geojson`, `simpleVector`, `mask` and `rasterTiles`, and the layer visibility set by `3d`, are applied again each time a new style is applied: by `setStyle()` (whether it is applied as a diff or rebuilt), and when MapLibre rebuilds the style after the WebGL context is lost or, from MapLibre 6.16, after its workers are restarted. When the new style already has all the sources and layers that `geojson` or `simpleVector` added (carried over by `transformStyle`, or restored by MapLibre), they are kept as they are and the map does not fit to them again; the data of `geojson` (once fetched, when it is a URL) is written to the kept source again. Otherwise they are added again, and `geojson` fits the map again when `center` is not given.
+The sources and layers added by `geojson`, `simpleVector`, `mask` and `rasterTiles`, and the layer visibility set by `3d`, are applied again each time a new style is applied: by `setStyle()` (whether it is applied as a diff or rebuilt), and when MapLibre rebuilds the style after the WebGL context is lost or, from MapLibre 6.16, after its workers are restarted. When the new style already has all the sources and layers that `geojson`, `simpleVector` or `mask` added (carried over by `transformStyle`, or restored by MapLibre), they are kept as they are and the map does not fit to them again; the data of `geojson` (once fetched, when it is a URL) is written to the kept source again. Otherwise they are added again: `geojson` fits the map again when `center` is not given, and `simpleVector` fits the map to its tiles again unless the container has a `data-lng` or `data-lat` attribute.
 
 #### `errorMessage`
 
