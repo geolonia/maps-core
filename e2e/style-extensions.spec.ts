@@ -9,6 +9,8 @@ type TestMap = {
     id: string,
   ) => { serialize: () => { data?: unknown } } | undefined;
   getLayer: (id: string) => unknown;
+  loaded: () => boolean;
+  isMoving: () => boolean;
   getStyle: () => {
     sources: Record<string, unknown>;
     layers: { id: string; source?: string }[];
@@ -79,26 +81,9 @@ async function layersOf(page: Page, sourceIds: string[]): Promise<string[]> {
   );
 }
 
-/** 地図が落ち着く（idle）まで待ちます。止まったときに原因の分かる失敗になるよう期限を設けます。 */
-async function waitForIdle(page: Page): Promise<void> {
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(
-          () => reject(new Error("idle timed out")),
-          10000,
-        );
-        (window as unknown as TestWindow).map.once("idle", () => {
-          clearTimeout(timer);
-          resolve();
-        });
-      }),
-  );
-}
-
 /**
  * 次の `style.load` の待ちを登録します。取得を進める前に登録を済ませ、取りこぼさないようにします。
- * 待つのは {@link styleLoaded} です。
+ * 待つのは {@link styleLoadedAndIdle} です。
  */
 async function armStyleLoad(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -116,14 +101,33 @@ async function armStyleLoad(page: Page): Promise<void> {
   });
 }
 
-/** {@link armStyleLoad} で登録した `style.load` を待ちます。 */
-async function styleLoaded(page: Page): Promise<void> {
-  await page.evaluate(
-    () => (window as unknown as { styleLoad?: Promise<void> }).styleLoad,
-  );
+/**
+ * {@link armStyleLoad} で登録した `style.load` を待ち、同じ `evaluate` の中で地図が落ち着く（idle）まで待ちます。
+ * 別の `evaluate` で待つと、その間に `idle` が来て取りこぼすので、先に `loaded()` と `isMoving()` で確かめ、
+ * 落ち着いていなければ `idle` を待ちます。
+ */
+async function styleLoadedAndIdle(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const w = window as unknown as TestWindow & { styleLoad?: Promise<void> };
+    await w.styleLoad;
+    if (w.map.loaded() && !w.map.isMoving()) return;
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("idle timed out")),
+        10000,
+      );
+      w.map.once("idle", () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  });
 }
 
-/** WebGL のコンテキストを失わせてから戻し、MapLibre にスナップショットからスタイルを作り直させます。 */
+/**
+ * WebGL のコンテキストを失わせてから戻し、MapLibre にスナップショットからスタイルを作り直させて、落ち着く（idle）まで待ちます。
+ * 戻った直後の同じ `evaluate` の中で `idle` を待つので、間に `idle` が来て取りこぼすことがありません。
+ */
 async function loseAndRestoreContext(page: Page): Promise<void> {
   await page.evaluate(
     () =>
@@ -135,7 +139,14 @@ async function loseAndRestoreContext(page: Page): Promise<void> {
         );
         w.map.once("webglcontextrestored", () => {
           clearTimeout(timer);
-          resolve();
+          const idleTimer = setTimeout(
+            () => reject(new Error("idle timed out")),
+            10000,
+          );
+          w.map.once("idle", () => {
+            clearTimeout(idleTimer);
+            resolve();
+          });
         });
         const canvas = document.querySelector(
           "canvas.maplibregl-canvas",
@@ -209,8 +220,7 @@ test.describe("style extensions after a style change (#175)", () => {
     // 取得を進め、差分が適用されて落ち着くまで待つ
     await armStyleLoad(page);
     release();
-    await styleLoaded(page);
-    await waitForIdle(page);
+    await styleLoadedAndIdle(page);
 
     expect(await sourcesPresent(page, SIMPLE_STYLE_SOURCES)).toEqual([
       true,
@@ -237,7 +247,6 @@ test.describe("style extensions after a style change (#175)", () => {
       expect(layersBefore.length).toBeGreaterThan(0);
 
       await loseAndRestoreContext(page);
-      await waitForIdle(page);
 
       expect(await sourcesPresent(page, sources)).toEqual(
         sources.map(() => true),
@@ -336,8 +345,7 @@ test.describe("style extensions after a style change (#175)", () => {
 
     await armStyleLoad(page);
     releaseStyle();
-    await styleLoaded(page);
-    await waitForIdle(page);
+    await styleLoadedAndIdle(page);
 
     const featureCount = await page.evaluate(() => {
       const w = window as unknown as TestWindow;
