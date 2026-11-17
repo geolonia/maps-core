@@ -1,0 +1,344 @@
+import { expect, type Page, test } from "@playwright/test";
+import { collectConsoleErrors, waitForMapLoad } from "./helper";
+
+// setStyle とスタイルの作り直しのあとに、geojson（SimpleStyle）と simpleVector のソースとレイヤーが
+// 1 組だけ揃っていることを確かめる（#175）
+
+type TestMap = {
+  getSource: (
+    id: string,
+  ) => { serialize: () => { data?: unknown } } | undefined;
+  getLayer: (id: string) => unknown;
+  getStyle: () => {
+    sources: Record<string, unknown>;
+    layers: { id: string; source?: string }[];
+  };
+  setStyle: (style: unknown, options?: Record<string, unknown>) => void;
+  setLayoutProperty: (layer: string, name: string, value: unknown) => void;
+  on: (type: string, listener: (...args: unknown[]) => void) => void;
+  once: (type: string, listener: () => void) => void;
+};
+
+type TestWindow = { map: TestMap; mapErrors: string[] };
+
+const SIMPLE_STYLE_SOURCES = [
+  "geolonia-simple-style",
+  "geolonia-simple-style-points",
+];
+const SIMPLE_VECTOR_SOURCE = "vt-geolonia-simple-style";
+
+// 地図の読み込み（最悪 15 秒 × 2）と、ここでの待ちを足すと既定の 30 秒を超えうる
+test.describe.configure({ timeout: 60000 });
+
+/** 地図の error イベントを集め始めます（GeoloniaMap が購読するのでコンソールには出ない）。 */
+async function recordMapErrors(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as TestWindow;
+    w.mapErrors = [];
+    w.map.on("error", (event) => {
+      const error = (event as { error?: { message?: string } }).error;
+      w.mapErrors.push(String(error?.message ?? error));
+    });
+  });
+}
+
+/**
+ * 集めた地図の error イベントです。example の simpleVector のタイル（`/tiles/...`）は配信していないので、
+ * その解析の失敗は除きます。
+ */
+async function mapErrorsOf(page: Page): Promise<string[]> {
+  const errors = await page.evaluate(
+    () => (window as unknown as TestWindow).mapErrors,
+  );
+  return errors.filter(
+    (message) => !message.startsWith("Unable to parse the tile at "),
+  );
+}
+
+/** 指定した ID のソースが、今のスタイルにあるかどうかです。 */
+async function sourcesPresent(page: Page, ids: string[]): Promise<boolean[]> {
+  return page.evaluate(
+    (sourceIds) =>
+      sourceIds.map(
+        (id) =>
+          (window as unknown as TestWindow).map.getSource(id) !== undefined,
+      ),
+    ids,
+  );
+}
+
+/** 指定したソースを使うレイヤーの ID です。 */
+async function layersOf(page: Page, sourceIds: string[]): Promise<string[]> {
+  return page.evaluate(
+    (ids) =>
+      (window as unknown as TestWindow).map
+        .getStyle()
+        .layers.filter((layer) => ids.includes(layer.source ?? ""))
+        .map((layer) => layer.id),
+    sourceIds,
+  );
+}
+
+/** 地図が落ち着く（idle）まで待ちます。止まったときに原因の分かる失敗になるよう期限を設けます。 */
+async function waitForIdle(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("idle timed out")),
+          10000,
+        );
+        (window as unknown as TestWindow).map.once("idle", () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      }),
+  );
+}
+
+/** WebGL のコンテキストを失わせてから戻し、MapLibre にスナップショットからスタイルを作り直させます。 */
+async function loseAndRestoreContext(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const w = window as unknown as TestWindow;
+        const timer = setTimeout(
+          () => reject(new Error("webglcontextrestored timed out")),
+          10000,
+        );
+        w.map.once("webglcontextrestored", () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        const canvas = document.querySelector(
+          "canvas.maplibregl-canvas",
+        ) as HTMLCanvasElement;
+        const lose = canvas
+          .getContext("webgl2")
+          ?.getExtension("WEBGL_lose_context");
+        if (!lose) {
+          reject(new Error("WEBGL_lose_context is not available"));
+          return;
+        }
+        canvas.addEventListener(
+          "webglcontextlost",
+          () => setTimeout(() => lose.restoreContext(), 0),
+          { once: true },
+        );
+        lose.loseContext();
+      }),
+  );
+}
+
+test.describe("style extensions after a style change (#175)", () => {
+  test("setStyle(URL) の差分の取得中に古いスタイルの styledata が来ても、geojson を作り直す", async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/geojson.html");
+    await waitForMapLoad(page);
+    await recordMapErrors(page);
+    const layersBefore = await layersOf(page, SIMPLE_STYLE_SOURCES);
+    expect(layersBefore.length).toBeGreaterThan(0);
+
+    // 新しいスタイルの取得を止めておく
+    let release: () => void = () => {};
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/sample-basic-style.json?v=held", async (route) => {
+      await released;
+      await route.continue();
+    });
+
+    // 差分（既定）で差し替え、取得中に古いスタイルを変えて styledata を出させる
+    await page.evaluate(() => {
+      const w = window as unknown as TestWindow;
+      const baseLayer = w.map
+        .getStyle()
+        .layers.find((layer) => !layer.id.includes("simple-style"));
+      w.map.setStyle(
+        new URL("/sample-basic-style.json?v=held", location.href).href,
+      );
+      if (baseLayer) {
+        w.map.setLayoutProperty(baseLayer.id, "visibility", "visible");
+      }
+    });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          (window as unknown as TestWindow).map.once("styledata", () =>
+            resolve(),
+          ),
+        ),
+    );
+
+    // 取得を進め、差分が適用されて落ち着くまで待つ
+    const applied = page.evaluate(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          const w = window as unknown as TestWindow;
+          const timer = setTimeout(
+            () => reject(new Error("style.load timed out")),
+            10000,
+          );
+          w.map.once("style.load", () => {
+            clearTimeout(timer);
+            resolve();
+          });
+        }),
+    );
+    release();
+    await applied;
+    await waitForIdle(page);
+
+    expect(await sourcesPresent(page, SIMPLE_STYLE_SOURCES)).toEqual([
+      true,
+      true,
+    ]);
+    expect(await layersOf(page, SIMPLE_STYLE_SOURCES)).toEqual(layersBefore);
+    expect(await mapErrorsOf(page)).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  for (const kind of ["geojson", "simpleVector"] as const) {
+    test(`コンテキストを復元したあとも、${kind} のソースとレイヤーが 1 組だけ残り、エラーが出ない`, async ({
+      page,
+    }) => {
+      const errors = collectConsoleErrors(page);
+      await page.goto(
+        kind === "geojson" ? "/geojson.html" : "/simple-vector.html",
+      );
+      await waitForMapLoad(page);
+      await recordMapErrors(page);
+      const sources =
+        kind === "geojson" ? SIMPLE_STYLE_SOURCES : [SIMPLE_VECTOR_SOURCE];
+      const layersBefore = await layersOf(page, sources);
+      expect(layersBefore.length).toBeGreaterThan(0);
+
+      await loseAndRestoreContext(page);
+      await waitForIdle(page);
+
+      expect(await sourcesPresent(page, sources)).toEqual(
+        sources.map(() => true),
+      );
+      expect(await layersOf(page, sources)).toEqual(layersBefore);
+      expect(await mapErrorsOf(page)).toEqual([]);
+      expect(errors).toEqual([]);
+    });
+  }
+
+  test("transformStyle で写した geojson のソースに、取得中だった GeoJSON が入る", async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+
+    // GeoJSON の取得を止めておく
+    let releaseGeoJSON: () => void = () => {};
+    const geojsonReleased = new Promise<void>((resolve) => {
+      releaseGeoJSON = resolve;
+    });
+    await page.route("**/sample.geojson", async (route) => {
+      await geojsonReleased;
+      await route.continue();
+    });
+
+    await page.goto("/geojson.html?source=url");
+    await waitForMapLoad(page);
+    await recordMapErrors(page);
+    const layersBefore = await layersOf(page, SIMPLE_STYLE_SOURCES);
+
+    // 新しいスタイルの取得も止めておき、その間に GeoJSON の取得を終わらせる
+    let releaseStyle: () => void = () => {};
+    const styleReleased = new Promise<void>((resolve) => {
+      releaseStyle = resolve;
+    });
+    let styleRequested: () => void = () => {};
+    const styleRequestSeen = new Promise<void>((resolve) => {
+      styleRequested = resolve;
+    });
+    await page.route("**/sample-basic-style.json?v=carry", async (route) => {
+      styleRequested();
+      await styleReleased;
+      await route.continue();
+    });
+
+    // 前のスタイルの geojson のソースとレイヤーを、新しいスタイルに写す
+    await page.evaluate(() => {
+      const w = window as unknown as TestWindow;
+      w.map.setStyle(
+        new URL("/sample-basic-style.json?v=carry", location.href).href,
+        {
+          diff: false,
+          transformStyle: (
+            previous: {
+              sources: Record<string, unknown>;
+              layers: { id: string; source?: string }[];
+            },
+            next: {
+              sources: Record<string, unknown>;
+              layers: { id: string; source?: string }[];
+            },
+          ) => {
+            const ids = [
+              "geolonia-simple-style",
+              "geolonia-simple-style-points",
+            ];
+            const sources = { ...next.sources };
+            for (const id of ids) sources[id] = previous.sources[id];
+            return {
+              ...next,
+              sources,
+              layers: [
+                ...next.layers,
+                ...previous.layers.filter((layer) =>
+                  ids.includes(layer.source ?? ""),
+                ),
+              ],
+            };
+          },
+        },
+      );
+    });
+    await styleRequestSeen;
+
+    // 新しいスタイルを取得している間に GeoJSON が届く
+    const geojsonDone = page.waitForResponse("**/sample.geojson");
+    releaseGeoJSON();
+    await geojsonDone;
+
+    const applied = page.evaluate(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(
+            () => reject(new Error("style.load timed out")),
+            10000,
+          );
+          (window as unknown as TestWindow).map.once("style.load", () => {
+            clearTimeout(timer);
+            resolve();
+          });
+        }),
+    );
+    releaseStyle();
+    await applied;
+    await waitForIdle(page);
+
+    const featureCount = await page.evaluate(() => {
+      const w = window as unknown as TestWindow;
+      const count = (id: string) =>
+        (
+          w.map.getSource(id)?.serialize().data as
+            | { features?: unknown[] }
+            | undefined
+        )?.features?.length ?? 0;
+      return (
+        count("geolonia-simple-style") + count("geolonia-simple-style-points")
+      );
+    });
+    expect(featureCount).toBeGreaterThan(0);
+    expect(await layersOf(page, SIMPLE_STYLE_SOURCES)).toEqual(layersBefore);
+    expect(await mapErrorsOf(page)).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+});

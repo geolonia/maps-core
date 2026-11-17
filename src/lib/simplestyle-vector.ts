@@ -12,6 +12,16 @@ const textHaloColor = "#FFFFFF";
 const backgroundColor = "rgba(255, 0, 0, 0.4)";
 const strokeColor = "#FFFFFF";
 
+/** {@link SimpleStyleVector.addTo} が追加するレイヤーの ID です。 */
+const LAYER_IDS = [
+  "vt-geolonia-simple-style-polygon-symbol",
+  "vt-geolonia-simple-style-linestring-symbol",
+  "vt-geolonia-simple-style-polygon",
+  "vt-geolonia-simple-style-linestring",
+  "vt-circle-simple-style-points",
+  "vt-geolonia-simple-style-points",
+];
+
 /**
  * ベクトルタイル（tiles.json / TileJSON）を simplestyle の規約に沿って地図に表示するヘルパーです。
  *
@@ -288,6 +298,36 @@ class SimpleStyleVector {
 
     this.setPopup(map, "vt-circle-simple-style-points");
     this.setPopup(map, "vt-geolonia-simple-style-points");
+  }
+
+  /**
+   * このクラスが追加するソースとレイヤーが、すべて地図のスタイルにあるかを返します。
+   *
+   * WebGL のコンテキストの復元や、`setStyle` の `transformStyle` で、追加したものが新しいスタイルに写されたかを
+   * 判定するのに使います。
+   *
+   * @internal
+   */
+  isPresentOn(map: MaplibreMap): boolean {
+    return (
+      map.getSource(this.sourceName) !== undefined &&
+      LAYER_IDS.every((id) => map.getLayer(id) !== undefined)
+    );
+  }
+
+  /**
+   * このクラスが追加するレイヤーとソースのうち、地図のスタイルにあるものを取り除きます。
+   *
+   * `transformStyle` でソースだけが新しいスタイルに写されたときなど、一部だけが残っている状態から
+   * {@link SimpleStyleVector.addTo | addTo} で追加し直す前に使います。登録したイベントのリスナーは外しません。
+   *
+   * @internal
+   */
+  removeLayersAndSource(map: MaplibreMap): void {
+    for (const id of LAYER_IDS) {
+      if (map.getLayer(id)) map.removeLayer(id);
+    }
+    if (map.getSource(this.sourceName)) map.removeSource(this.sourceName);
   }
 
   /**

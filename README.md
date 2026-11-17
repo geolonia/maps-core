@@ -172,6 +172,8 @@ const map = new GeoloniaMap({
 });
 ```
 
+The sources and layers added by `geojson`, `simpleVector`, `mask` and `rasterTiles`, and the layer visibility set by `3d`, are applied again each time a new style is applied: by `setStyle()` (whether it is applied as a diff or rebuilt), and when MapLibre rebuilds the style after the WebGL context is lost or, from MapLibre 6.16, after its workers are restarted. When the new style already has all the sources and layers that `geojson` or `simpleVector` added (carried over by `transformStyle`, or restored by MapLibre), they are kept as they are and the map does not fit to them again; the data of `geojson` (once fetched, when it is a URL) is written to the kept source again. Otherwise they are added again, and `geojson` fits the map again when `center` is not given.
+
 #### `errorMessage`
 
 When the map cannot be initialized (typically because WebGL is unavailable on the
@@ -303,7 +305,7 @@ new GeoloniaMap({
 - The tiles are placed below the first symbol layer of the style, so labels stay on top. In a style without symbol layers they are placed above the style's layers. Style layers below that position, such as 3D buildings (`fill-extrusion`) in some styles, are covered by the tiles unless `opacity` is lowered.
 - Layers added by `geojson` and `simpleVector` are drawn above the tiles, and so is `mask` unless its `beforeId` names the tiles' layer or a layer below it. This order holds when the style is loaded without `transformStyle`. Layers that `transformStyle` carries over into a new style keep the position it gave them, so a carried-over `mask` may end up below newly added tiles.
 - The source and the layer both have the ID `geolonia-raster-tiles`. Use it as `beforeId` to place your own layers or the `mask` relative to the tiles.
-- The overlay is added again when the style is replaced with `setStyle()`, also when `transformStyle` carries over only its source. When `transformStyle` carries over both the source and the layer, the carried layer is kept where `transformStyle` put it. One case where this is missed is tracked in [#175](https://github.com/geolonia/maps-core/issues/175).
+- The overlay is added again when the style is replaced with `setStyle()`, also when `transformStyle` carries over only its source. When `transformStyle` carries over both the source and the layer, the carried layer is kept where `transformStyle` put it.
 - `opacity` outside 0 to 1 is clamped, and an `opacity` that is not a finite number falls back to 1. A `tileSize` that is not a positive finite number falls back to 256. A `minZoom` or `maxZoom` that is not a finite number is ignored.
 
 #### `transformRequest`

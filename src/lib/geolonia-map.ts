@@ -111,7 +111,6 @@ export default class GeoloniaMap extends maplibregl.Map {
   /** `projection` オプションの値です。`setStyle` で、スタイルのオブジェクトか transformStyle の結果に投影を書き込むときに使います。 */
   private projectionOption: Projection | undefined;
   private geoloniaSourcesUrl!: URL;
-  private __styleExtensionLoadRequired!: boolean;
   /**
    * このインスタンスが追加したローディング表示です。`load` か {@link GeoloniaMap.remove | remove} で外します。
    * 同じコンテナに作り直した別の地図の表示を消さないよう、コンテナの中を探さずにこの要素だけを外します。
@@ -309,7 +308,6 @@ export default class GeoloniaMap extends maplibregl.Map {
     }
 
     this.geoloniaSourcesUrl = sourcesUrl;
-    this.__styleExtensionLoadRequired = true;
     this.loadingElement = loading;
 
     // Controls
@@ -448,25 +446,43 @@ export default class GeoloniaMap extends maplibregl.Map {
     });
 
     // Style extensions (RasterTiles, SimpleStyle, SimpleVector, Mask, 3D)
+    // 新しいスタイルを適用するたびに（style.load）、拡張のソースとレイヤーを追加し直す。
+    // style.load は、スタイルを読み込み直したときと、差分の適用で変更があったときに発火する（MapLibre の Style._load と Style.setState）。
+    // 差分の適用で変更が無ければ発火しないが、そのときは拡張のソースとレイヤーもそのまま残っている。
+    // WebGL のコンテキストの復元と Worker の再起動でも、MapLibre がスナップショットから読み込み直すので発火する。
+    // そのときと、setStyle の transformStyle で写されたときは、追加済みのソースとレイヤーが新しいスタイルにあるので、作り直さない。
     // 前のスタイルで作った Mask。作り直す前に取り除き、取得中の境界の GeoJSON を止める
     let mask: Mask | undefined;
+    // 前のスタイルで作った SimpleStyleVector と SimpleStyle
+    let simpleVector: SimpleStyleVector | undefined;
+    let simpleStyle: SimpleStyle | undefined;
     // 地図を破棄したら、取得中の境界の GeoJSON も止める
     this.once("remove", () => mask?.remove());
-    this.on("styledata", async () => {
-      if (!this.__styleExtensionLoadRequired) {
-        return;
-      }
-      this.__styleExtensionLoadRequired = false;
-
+    this.on("style.load", () => {
       // simpleVector や geojson より先に重ねる。後に重ねると、symbol レイヤの無い
       // スタイルで geojson のラベルが「最初の symbol レイヤ」になり、その下に入ってしまう。
       if (options.rasterTiles) {
-        addRasterTiles(this, options.rasterTiles);
+        try {
+          addRasterTiles(this, options.rasterTiles);
+        } catch (error) {
+          console.error("[Geolonia] Failed to add the raster tiles:", error);
+        }
       }
 
       if (options.simpleVector) {
-        const url = parseSimpleVector(options.simpleVector);
-        new SimpleStyleVector(url).addTo(this);
+        // 拡張ごとに失敗を閉じ込め、後に続く拡張と、style.load の他のリスナーを止めない
+        try {
+          if (!simpleVector?.isPresentOn(this)) {
+            // 一部だけが写されていれば取り除いてから追加する
+            simpleVector?.removeLayersAndSource(this);
+            simpleVector = new SimpleStyleVector(
+              parseSimpleVector(options.simpleVector),
+            );
+            simpleVector.addTo(this);
+          }
+        } catch (error) {
+          console.error("[Geolonia] Failed to add the simple vector:", error);
+        }
       }
 
       const maskOptions = normalizeMask(options.mask);
@@ -499,34 +515,49 @@ export default class GeoloniaMap extends maplibregl.Map {
       }
 
       if (options.geojson) {
-        const ss = new SimpleStyle(options.geojson, {
-          cluster: options.cluster !== false,
-          clusterColor: options.clusterColor || "#ff0000",
-          choropleth: options.choropleth,
-          heatmap: options.heatmap,
-          circle: options.circle,
-          extrusion: options.extrusion,
-        });
-        ss.addTo(this);
+        try {
+          if (simpleStyle?.isPresentOn(this)) {
+            // 写されたソースは写した時点の中身なので、その後に取得し終えた GeoJSON を書き込み直す
+            simpleStyle.syncData();
+          } else {
+            // 前の SimpleStyle の登録したイベントのリスナーと、一部だけ写されたソースとレイヤーを取り除いてから作る
+            simpleStyle?.remove();
+            simpleStyle = new SimpleStyle(options.geojson, {
+              cluster: options.cluster !== false,
+              clusterColor: options.clusterColor || "#ff0000",
+              choropleth: options.choropleth,
+              heatmap: options.heatmap,
+              circle: options.circle,
+              extrusion: options.extrusion,
+            });
+            simpleStyle.addTo(this);
 
-        if (!options.center) {
-          ss.fitBounds();
+            if (!options.center) {
+              simpleStyle.fitBounds();
+            }
+          }
+        } catch (error) {
+          console.error("[Geolonia] Failed to add the GeoJSON:", error);
         }
       }
 
       if (options["3d"] === true) {
-        const style = this.getStyle();
-        if (style?.layers) {
-          for (const layer of style.layers) {
-            const metadata = (layer as { metadata?: Record<string, boolean> })
-              .metadata;
-            if (metadata?.["visible-on-3d"]) {
-              this.setLayoutProperty(layer.id, "visibility", "visible");
-            }
-            if (metadata?.["hide-on-3d"]) {
-              this.setLayoutProperty(layer.id, "visibility", "none");
+        try {
+          const style = this.getStyle();
+          if (style?.layers) {
+            for (const layer of style.layers) {
+              const metadata = (layer as { metadata?: Record<string, boolean> })
+                .metadata;
+              if (metadata?.["visible-on-3d"]) {
+                this.setLayoutProperty(layer.id, "visibility", "visible");
+              }
+              if (metadata?.["hide-on-3d"]) {
+                this.setLayoutProperty(layer.id, "visibility", "none");
+              }
             }
           }
+        } catch (error) {
+          console.error("[Geolonia] Failed to apply the 3D layers:", error);
         }
       }
     });
@@ -611,7 +642,6 @@ export default class GeoloniaMap extends maplibregl.Map {
       }
     }
 
-    this.__styleExtensionLoadRequired = true;
     super.setStyle.call(this, style, options);
 
     return this;

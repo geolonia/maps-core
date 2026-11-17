@@ -113,6 +113,10 @@ interface SimpleStyleOptions {
  */
 export class SimpleStyle {
   public _loadingPromise: Promise<unknown> | undefined;
+  /** URL から GeoJSON を取得している間は true です。 */
+  private loading = false;
+  /** {@link SimpleStyle.addTo | addTo} で追加したレイヤーの ID です。 */
+  private addedLayerIds: string[] = [];
   private callFitBounds = false;
   private geojson!: FeatureCollection;
   private map!: MaplibreMap;
@@ -301,7 +305,39 @@ export class SimpleStyle {
       this.setCluster();
     }
     this.applyDataDrivenPaint();
+    this.addedLayerIds = this.layerIds().filter((id) => this.map.getLayer(id));
 
+    return this;
+  }
+
+  /**
+   * この SimpleStyle が追加したソースとレイヤーが、すべて今の地図のスタイルにあるかを返します。
+   *
+   * WebGL のコンテキストの復元や、`setStyle` の `transformStyle` で、追加したものが新しいスタイルに写されたかを
+   * 判定するのに使います。
+   *
+   * @internal
+   */
+  isPresentOn(map: MaplibreMap): boolean {
+    if (this.map !== map || this.addedLayerIds.length === 0) return false;
+    const id = this.options.id;
+    return (
+      [id, `${id}-points`].every((sourceId) => map.getSource(sourceId)) &&
+      this.addedLayerIds.every((layerId) => map.getLayer(layerId))
+    );
+  }
+
+  /**
+   * 保持している GeoJSON を、地図のソースに書き込み直します。URL から取得している間は何もしません（取得後に書き込まれます）。
+   *
+   * 新しいスタイルに写されたソースは、写した時点の中身なので、その後に取得し終えた GeoJSON が入っていないことがあります。
+   *
+   * @internal
+   */
+  syncData(): this {
+    if (!this.loading) {
+      this.updateData(this.geojson);
+    }
     return this;
   }
 
@@ -733,20 +769,9 @@ export class SimpleStyle {
       this.map.off(event, layer, handler);
     }
     this._eventHandlers = [];
+    this.addedLayerIds = [];
 
-    const layerIds = [
-      `${id}-polygon-symbol`,
-      `${id}-linestring-symbol`,
-      `${id}-circle-points`,
-      `${id}-symbol-points`,
-      `${id}-polygon`,
-      `${id}-polygon-extrusion`,
-      `${id}-linestring`,
-      `${id}-clusters`,
-      `${id}-cluster-count`,
-      `${id}-heatmap`,
-    ];
-    for (const layerId of layerIds) {
+    for (const layerId of this.layerIds()) {
       if (this.map.getLayer(layerId)) {
         this.map.removeLayer(layerId);
       }
@@ -760,6 +785,23 @@ export class SimpleStyle {
     this.map.getCanvas().style.cursor = "";
 
     return this;
+  }
+
+  /** この SimpleStyle が追加しうるレイヤーの ID です。 */
+  private layerIds(): string[] {
+    const id = this.options.id;
+    return [
+      `${id}-polygon-symbol`,
+      `${id}-linestring-symbol`,
+      `${id}-circle-points`,
+      `${id}-symbol-points`,
+      `${id}-polygon`,
+      `${id}-polygon-extrusion`,
+      `${id}-linestring`,
+      `${id}-clusters`,
+      `${id}-cluster-count`,
+      `${id}-heatmap`,
+    ];
   }
 
   /**
@@ -777,6 +819,7 @@ export class SimpleStyle {
   setGeoJSON(geojson: string | FeatureCollection) {
     if (typeof geojson === "string" && isURL(geojson)) {
       this.geojson = template;
+      this.loading = true;
 
       const fetchGeoJSON = async () => {
         try {
@@ -791,6 +834,8 @@ export class SimpleStyle {
           }
         } catch (error) {
           console.error("[Geolonia] Failed to load GeoJSON:", error); // eslint-disable-line no-console
+        } finally {
+          this.loading = false;
         }
       };
 
