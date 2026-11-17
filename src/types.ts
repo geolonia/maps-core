@@ -217,7 +217,7 @@ export type GeoloniaMapOptions = MapOptions & {
 export type ColorMap = Record<string, string>;
 
 /**
- * {@link GeoloniaMapOptions.rasterTiles} の指定。
+ * {@link GeoloniaMapOptions} の `rasterTiles` の指定。
  *
  * @example
  * ```typescript
@@ -254,7 +254,7 @@ export type RasterTilesOptions = {
 };
 
 /**
- * {@link GeoloniaMapOptions.choropleth} の詳細な指定。
+ * {@link GeoloniaMapOptions} の `choropleth` の詳細な指定。
  */
 export type ChoroplethOptions = {
   /**
@@ -273,7 +273,7 @@ export type ChoroplethOptions = {
 };
 
 /**
- * {@link GeoloniaMapOptions.heatmap} の詳細な指定。
+ * {@link GeoloniaMapOptions} の `heatmap` の詳細な指定。
  */
 export type HeatmapOptions = {
   /** 重みに使うプロパティ名。データの最小値を 0、最大値を 1 として扱う。省略するとすべて同じ重み。 */
@@ -286,7 +286,7 @@ export type HeatmapOptions = {
 };
 
 /**
- * {@link GeoloniaMapOptions.circle} の指定。
+ * {@link GeoloniaMapOptions} の `circle` の指定。
  */
 export type CircleOptions = {
   /** 円の大きさに使うプロパティ名。データの範囲を半径 3 から 11 ピクセルに対応させる。 */
@@ -305,7 +305,7 @@ export type CircleOptions = {
 };
 
 /**
- * {@link GeoloniaMapOptions.extrusion} の詳細な指定。
+ * {@link GeoloniaMapOptions} の `extrusion` の詳細な指定。
  */
 export type ExtrusionOptions = {
   /** 高さに使うプロパティ名、または {@link ExtrusionHeightOptions}。 */

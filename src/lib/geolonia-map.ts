@@ -554,7 +554,7 @@ export default class GeoloniaMap extends maplibregl.Map {
    * 直接渡した場合は、`projection` オプションが無ければそのまま適用します。
    *
    * `projection` オプションを指定した地図では、スタイルの投影をオプションの値にします（渡したオブジェクトは変えません）。
-   * 詳しくは {@link GeoloniaMapOptions.projection} を参照してください。
+   * 詳しくは {@link GeoloniaMapOptions} の `projection` を参照してください。
    *
    * @param style 新しいスタイルです。スタイル論理名や URL などの文字列、または
    *   `StyleSpecification` オブジェクトを指定します。
