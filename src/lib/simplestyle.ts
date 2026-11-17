@@ -820,7 +820,7 @@ export class SimpleStyle {
    * {@link SimpleStyle.updateData | updateData} で表示を更新します。フィット要求が保留されていれば
    * あわせてフィットします。取得し終えたときに地図から取り除かれていれば（{@link SimpleStyle.remove | remove} の後で、
    * まだ {@link SimpleStyle.addTo | addTo} し直していないとき）、表示の更新もフィットもせず、次の addTo で使います。
-   * 取得している間に、もう一度 URL を渡して取得を始めた場合は、先の取得の結果は使いません。応答が 2xx 以外の場合は空のデータとして扱い、通信や JSON の解析で
+   * 取得している間に、もう一度 URL を渡して取得を始めた場合や、{@link FeatureCollection} を渡した場合は、先の取得の結果は使いません。応答が 2xx 以外の場合は空のデータとして扱い、通信や JSON の解析で
    * 例外が発生した場合はエラーをコンソールに出力します。
    * `geojson` が {@link FeatureCollection} の場合は、そのまま内部データとして設定します。
    *
@@ -856,6 +856,8 @@ export class SimpleStyle {
 
       this._loadingPromise = fetchGeoJSON();
     } else if (typeof geojson !== "string") {
+      // 取得している間に GeoJSON を直接渡されたら、取得の結果は使わない
+      this.loadingToken = undefined;
       this.geojson = geojson;
     }
   }

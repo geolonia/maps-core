@@ -96,6 +96,33 @@ async function waitForIdle(page: Page): Promise<void> {
   );
 }
 
+/**
+ * 次の `style.load` の待ちを登録します。取得を進める前に登録を済ませ、取りこぼさないようにします。
+ * 待つのは {@link styleLoaded} です。
+ */
+async function armStyleLoad(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as TestWindow & { styleLoad?: Promise<void> };
+    w.styleLoad = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("style.load timed out")),
+        10000,
+      );
+      w.map.once("style.load", () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  });
+}
+
+/** {@link armStyleLoad} で登録した `style.load` を待ちます。 */
+async function styleLoaded(page: Page): Promise<void> {
+  await page.evaluate(
+    () => (window as unknown as { styleLoad?: Promise<void> }).styleLoad,
+  );
+}
+
 /** WebGL のコンテキストを失わせてから戻し、MapLibre にスナップショットからスタイルを作り直させます。 */
 async function loseAndRestoreContext(page: Page): Promise<void> {
   await page.evaluate(
@@ -180,22 +207,9 @@ test.describe("style extensions after a style change (#175)", () => {
     );
 
     // 取得を進め、差分が適用されて落ち着くまで待つ
-    const applied = page.evaluate(
-      () =>
-        new Promise<void>((resolve, reject) => {
-          const w = window as unknown as TestWindow;
-          const timer = setTimeout(
-            () => reject(new Error("style.load timed out")),
-            10000,
-          );
-          w.map.once("style.load", () => {
-            clearTimeout(timer);
-            resolve();
-          });
-        }),
-    );
+    await armStyleLoad(page);
     release();
-    await applied;
+    await styleLoaded(page);
     await waitForIdle(page);
 
     expect(await sourcesPresent(page, SIMPLE_STYLE_SOURCES)).toEqual([
@@ -320,21 +334,9 @@ test.describe("style extensions after a style change (#175)", () => {
     releaseGeoJSON();
     await geojsonDone;
 
-    const applied = page.evaluate(
-      () =>
-        new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(
-            () => reject(new Error("style.load timed out")),
-            10000,
-          );
-          (window as unknown as TestWindow).map.once("style.load", () => {
-            clearTimeout(timer);
-            resolve();
-          });
-        }),
-    );
+    await armStyleLoad(page);
     releaseStyle();
-    await applied;
+    await styleLoaded(page);
     await waitForIdle(page);
 
     const featureCount = await page.evaluate(() => {

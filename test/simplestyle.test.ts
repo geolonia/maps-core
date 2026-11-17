@@ -465,6 +465,35 @@ describe("SimpleStyle", () => {
     }
   });
 
+  it("keeps a FeatureCollection given while a URL was being fetched", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    let respond: (value: unknown) => void = () => {};
+    const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(
+      new Promise((resolve) => {
+        respond = resolve;
+      }) as Promise<Response>,
+    );
+    try {
+      const map = new MockMap();
+      const ss = new SimpleStyle("https://example.com/data.geojson").addTo(map);
+      const loading = ss._loadingPromise;
+      ss.updateData(geojson as Parameters<typeof ss.updateData>[0]);
+
+      respond({ ok: true, json: async () => emptyGeojson });
+      await loading;
+
+      expect(
+        (
+          map.getSource("geolonia-simple-style-points")?.data as
+            | typeof geojson
+            | undefined
+        )?.features,
+      ).toHaveLength(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("should be safe to call remove() twice", async () => {
     const { SimpleStyle } = await import("../src/lib/simplestyle");
     const map = new MockMap();
