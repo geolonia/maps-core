@@ -113,8 +113,8 @@ interface SimpleStyleOptions {
  */
 export class SimpleStyle {
   public _loadingPromise: Promise<unknown> | undefined;
-  /** URL から GeoJSON を取得している間は true です。 */
-  private loading = false;
+  /** 最後に始めた URL の GeoJSON の取得です。取得し終えたら undefined に戻します（先に始めた取得の完了では戻しません）。 */
+  private loadingToken: object | undefined;
   /**
    * {@link SimpleStyle.addTo | addTo} から {@link SimpleStyle.remove | remove} までの間は true です。
    * 取り除かれている間に取得し終えた GeoJSON は、地図に書き込みません（同じ ID で作り直した別の SimpleStyle のソースに書き込まないため）。
@@ -341,7 +341,7 @@ export class SimpleStyle {
    * @internal
    */
   syncData(): this {
-    if (!this.loading) {
+    if (this.loadingToken === undefined) {
       this.updateData(this.geojson);
     }
     return this;
@@ -828,7 +828,8 @@ export class SimpleStyle {
   setGeoJSON(geojson: string | FeatureCollection) {
     if (typeof geojson === "string" && isURL(geojson)) {
       this.geojson = template;
-      this.loading = true;
+      const token = {};
+      this.loadingToken = token;
 
       const fetchGeoJSON = async () => {
         try {
@@ -846,7 +847,7 @@ export class SimpleStyle {
         } catch (error) {
           console.error("[Geolonia] Failed to load GeoJSON:", error); // eslint-disable-line no-console
         } finally {
-          this.loading = false;
+          if (this.loadingToken === token) this.loadingToken = undefined;
         }
       };
 
