@@ -15,7 +15,7 @@ const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
 /**
- * {@link GeoloniaMapOptions.rasterTiles} のラスタタイルを地図に重ねます。
+ * {@link GeoloniaMapOptions} の `rasterTiles` のラスタタイルを地図に重ねます。
  *
  * スタイルの最初の symbol レイヤの下（ラベルの下）に重ね、symbol レイヤが無いスタイルでは一番上に重ねます。
  * `url` が `{z}`、`{x}`、`{y}` を含まないときは警告して重ねません。
