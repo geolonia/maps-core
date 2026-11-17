@@ -818,7 +818,8 @@ export class SimpleStyle {
    * `geojson` が URL 文字列の場合は、いったん空のデータを設定したうえで、その URL から GeoJSON を
    * 非同期に取得します。取得中の Promise は `_loadingPromise` に保持され、取得完了後に
    * {@link SimpleStyle.updateData | updateData} で表示を更新します。フィット要求が保留されていれば
-   * あわせてフィットします。応答が 2xx 以外の場合は空のデータとして扱い、通信や JSON の解析で
+   * あわせてフィットします。取得し終えたときに地図から取り除かれていれば（{@link SimpleStyle.remove | remove} の後で、
+   * まだ {@link SimpleStyle.addTo | addTo} し直していないとき）、表示の更新もフィットもせず、次の addTo で使います。応答が 2xx 以外の場合は空のデータとして扱い、通信や JSON の解析で
    * 例外が発生した場合はエラーをコンソールに出力します。
    * `geojson` が {@link FeatureCollection} の場合は、そのまま内部データとして設定します。
    *
