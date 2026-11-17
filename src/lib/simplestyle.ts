@@ -352,7 +352,10 @@ export class SimpleStyle {
    *
    * 現在の GeoJSON のフィーチャーからバウンディングボックスを算出し、そこへ地図を移動します。
    * フィーチャーが存在しない場合は何もしません。データを URL から取得中に呼び出した場合は、
-   * フィット要求を保持しておき、取得完了後に自動でフィットします。
+   * フィット要求を保持しておき、取得完了後に自動でフィットします。ただし、取得の結果を使わないとき
+   * （取得し終えたときに {@link SimpleStyle.remove | remove} されていた、取得している間に
+   * {@link FeatureCollection} を渡した）は、フィット要求も取り消します。別の URL に取得を始め直した場合は、
+   * その取得が終わったときにフィットします。
    *
    * @param options `map.fitBounds` に渡すオプションです。既定値は `duration: 3000`、`padding: 30` で、
    *   指定した項目のみがこれらを上書きします。
@@ -839,11 +842,16 @@ export class SimpleStyle {
           // 後から別の取得を始めていたら、この結果は使わない
           if (this.loadingToken !== token) return;
           this.geojson = data;
-          // 取り除かれていたら、地図には書き込まず、次の addTo で使う
-          if (!this.added) return;
+          // 取り除かれていたら、地図には書き込まず、次の addTo で使う。フィットの要求も取り消す
+          if (!this.added) {
+            this.callFitBounds = false;
+            return;
+          }
+          // updateData は取得の要求を取り消すので、その前にフィットの要求を控える
+          const fit = this.callFitBounds;
           this.updateData(data);
 
-          if (this.callFitBounds) {
+          if (fit) {
             this.fitBounds();
             this.callFitBounds = false;
           }
@@ -856,8 +864,9 @@ export class SimpleStyle {
 
       this._loadingPromise = fetchGeoJSON();
     } else if (typeof geojson !== "string") {
-      // 取得している間に GeoJSON を直接渡されたら、取得の結果は使わない
+      // 取得している間に GeoJSON を直接渡されたら、取得の結果は使わず、フィットの要求も取り消す
       this.loadingToken = undefined;
+      this.callFitBounds = false;
       this.geojson = geojson;
     }
   }

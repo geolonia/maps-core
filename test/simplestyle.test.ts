@@ -3,7 +3,16 @@
  */
 
 import { readFileSync } from "node:fs";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { MockMap } from "./helpers/mock-map";
 
 const originalCreateObjectURL = window.URL.createObjectURL;
@@ -492,6 +501,91 @@ describe("SimpleStyle", () => {
     } finally {
       fetchSpy.mockRestore();
     }
+  });
+
+  describe("a pending fitBounds() request when the fetched GeoJSON is not used", () => {
+    const origRAF = window.requestAnimationFrame;
+    let responders: ((value: unknown) => void)[];
+    let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      // fitBounds は requestAnimationFrame の中で map.fitBounds を呼ぶので、同期で実行する
+      window.requestAnimationFrame = (cb: FrameRequestCallback) => {
+        cb(0);
+        return 0;
+      };
+      responders = [];
+      fetchSpy = vi.spyOn(window, "fetch").mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            responders.push(resolve);
+          }) as Promise<Response>,
+      );
+    });
+
+    afterEach(() => {
+      window.requestAnimationFrame = origRAF;
+      fetchSpy.mockRestore();
+    });
+
+    it("is dropped when a FeatureCollection replaces the fetch, so a later fetch does not fit", async () => {
+      const { SimpleStyle } = await import("../src/lib/simplestyle");
+      const map = new MockMap();
+      const fitSpy = vi.spyOn(map, "fitBounds");
+      const ss = new SimpleStyle("https://example.com/a.geojson").addTo(map);
+      const first = ss._loadingPromise;
+      ss.fitBounds();
+      ss.updateData(geojson as Parameters<typeof ss.updateData>[0]);
+
+      responders[0]({ ok: true, json: async () => geojson });
+      await first;
+      expect(fitSpy).not.toHaveBeenCalled();
+
+      // 頼んでいないフィットが、後の取得の完了で起きない
+      ss.setGeoJSON("https://example.com/b.geojson");
+      responders[1]({ ok: true, json: async () => geojson });
+      await ss._loadingPromise;
+      expect(fitSpy).not.toHaveBeenCalled();
+    });
+
+    it("is dropped when the SimpleStyle was removed, so a later fetch does not fit", async () => {
+      const { SimpleStyle } = await import("../src/lib/simplestyle");
+      const map = new MockMap();
+      const fitSpy = vi.spyOn(map, "fitBounds");
+      const ss = new SimpleStyle("https://example.com/a.geojson").addTo(map);
+      const first = ss._loadingPromise;
+      ss.fitBounds();
+      ss.remove();
+
+      responders[0]({ ok: true, json: async () => geojson });
+      await first;
+      expect(fitSpy).not.toHaveBeenCalled();
+
+      ss.addTo(map);
+      ss.setGeoJSON("https://example.com/b.geojson");
+      responders[1]({ ok: true, json: async () => geojson });
+      await ss._loadingPromise;
+      expect(fitSpy).not.toHaveBeenCalled();
+    });
+
+    it("is kept when another URL replaces the fetch, and the later fetch fits", async () => {
+      const { SimpleStyle } = await import("../src/lib/simplestyle");
+      const map = new MockMap();
+      const fitSpy = vi.spyOn(map, "fitBounds");
+      const ss = new SimpleStyle("https://example.com/a.geojson").addTo(map);
+      const first = ss._loadingPromise;
+      ss.fitBounds();
+      ss.setGeoJSON("https://example.com/b.geojson");
+      const second = ss._loadingPromise;
+
+      responders[0]({ ok: true, json: async () => geojson });
+      await first;
+      expect(fitSpy).not.toHaveBeenCalled();
+
+      responders[1]({ ok: true, json: async () => geojson });
+      await second;
+      expect(fitSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("should be safe to call remove() twice", async () => {
