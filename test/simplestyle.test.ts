@@ -431,6 +431,40 @@ describe("SimpleStyle", () => {
     }
   });
 
+  it("ignores an earlier fetch that finishes after a later one", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const responders: ((value: unknown) => void)[] = [];
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          responders.push(resolve);
+        }) as Promise<Response>,
+    );
+    try {
+      const map = new MockMap();
+      const ss = new SimpleStyle("https://example.com/a.geojson").addTo(map);
+      const first = ss._loadingPromise;
+      ss.setGeoJSON("https://example.com/b.geojson");
+      const second = ss._loadingPromise;
+
+      responders[1]({ ok: true, json: async () => geojson });
+      await second;
+      responders[0]({ ok: true, json: async () => emptyGeojson });
+      await first;
+      ss.syncData();
+
+      expect(
+        (
+          map.getSource("geolonia-simple-style-points")?.data as
+            | typeof geojson
+            | undefined
+        )?.features,
+      ).toHaveLength(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("should be safe to call remove() twice", async () => {
     const { SimpleStyle } = await import("../src/lib/simplestyle");
     const map = new MockMap();

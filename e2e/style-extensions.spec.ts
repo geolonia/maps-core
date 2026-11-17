@@ -27,8 +27,8 @@ const SIMPLE_STYLE_SOURCES = [
 ];
 const SIMPLE_VECTOR_SOURCE = "vt-geolonia-simple-style";
 
-// 地図の読み込み（最悪 15 秒 × 2）と、ここでの待ちを足すと既定の 30 秒を超えうる
-test.describe.configure({ timeout: 60000 });
+// 地図の読み込み（最悪 15 秒 × 2）と、ここでの待ち（それぞれ最悪 10 秒）を足しても収まる値にする
+test.describe.configure({ timeout: 90000 });
 
 /** 地図の error イベントを集め始めます（GeoloniaMap が購読するのでコンソールには出ない）。 */
 async function recordMapErrors(page: Page): Promise<void> {
@@ -314,7 +314,9 @@ test.describe("style extensions after a style change (#175)", () => {
     ]);
 
     // 新しいスタイルを取得している間に GeoJSON が届く
-    const geojsonDone = page.waitForResponse("**/sample.geojson");
+    const geojsonDone = page.waitForResponse("**/sample.geojson", {
+      timeout: 10000,
+    });
     releaseGeoJSON();
     await geojsonDone;
 
