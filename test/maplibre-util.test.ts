@@ -232,3 +232,78 @@ describe("bindAll", () => {
     ).not.toThrow();
   });
 });
+
+describe("DOM.sanitize", () => {
+  /** 断片を `div` に入れて HTML にします（検証用。本番の挿入には断片をそのまま使う）。 */
+  function html(input: string): string {
+    const div = document.createElement("div");
+    div.append(DOM.sanitize(input));
+    return div.innerHTML;
+  }
+
+  it("keeps plain text and allowed markup", () => {
+    expect(html("© Geolonia")).toBe("© Geolonia");
+    expect(
+      html('<a href="https://geolonia.com/" target="_blank">Geolonia</a>'),
+    ).toBe('<a href="https://geolonia.com/" target="_blank">Geolonia</a>');
+    expect(html("<b>a</b> <i>b</i> <span>c</span> <br>")).toBe(
+      "<b>a</b> <i>b</i> <span>c</span> <br>",
+    );
+  });
+
+  it("keeps character references as text", () => {
+    expect(html("&copy; A &amp; B")).toBe("© A &amp; B");
+  });
+
+  it("drops scripts, event handlers and elements that are not allowed", () => {
+    expect(html("<script>window.x=1</script>ok")).toBe("ok");
+    expect(html('<img src="x" onerror="window.x=1">')).toBe('<img src="x">');
+    expect(
+      html('<a href="https://a.test/" onclick="x()" onmouseover="y()">a</a>'),
+    ).toBe('<a href="https://a.test/">a</a>');
+    expect(html("<iframe src=https://a.test/></iframe>")).toBe("");
+    expect(html('<details open ontoggle="x()">d</details>')).toBe("");
+  });
+
+  it("drops every dangerous attribute when they are consecutive", () => {
+    // 本家の GHSA-jrc7-96c5-q579 は、属性を消すと次の属性を読み飛ばすことで起きた
+    const out = html(
+      '<a href="https://a.test/" onfocus="1" onclick="2" onmouseover="3" onauxclick="4">a</a>',
+    );
+    expect(out).toBe('<a href="https://a.test/">a</a>');
+  });
+
+  it("allows only http, https and mailto in href and src", () => {
+    expect(html('<a href="javascript:window.x=1">a</a>')).toBe("<a>a</a>");
+    expect(html('<a href="  JaVa\tScRiPt:window.x=1">a</a>')).toBe("<a>a</a>");
+    expect(html('<a href="data:text/html,<b>x</b>">a</a>')).toBe("<a>a</a>");
+    expect(html('<img src="javascript:window.x=1">')).toBe("<img>");
+    expect(html('<a href="mailto:a@a.test">a</a>')).toBe(
+      '<a href="mailto:a@a.test">a</a>',
+    );
+    expect(html('<a href="/relative">a</a>')).toBe('<a href="/relative">a</a>');
+  });
+
+  it("drops svg and math content, even with an allowed local name", () => {
+    expect(html('<svg><a href="https://a.test/">a</a></svg>')).not.toContain(
+      "svg",
+    );
+    expect(html("<math><mi>x</mi></math>")).not.toContain("math");
+  });
+
+  it("is not fooled by a form control that shadows a property of its form", () => {
+    const out = html(
+      '<form><input name="remove"><input name="localName"><input name="children"></form><b>ok</b>',
+    );
+    expect(out).toBe("<b>ok</b>");
+  });
+
+  it("returns nodes that stay sanitized (no serialize and re-parse)", () => {
+    const fragment = DOM.sanitize(
+      '<noscript><p title="</noscript><img src=x onerror=window.x=1>"></noscript>',
+    );
+    const div = document.createElement("div");
+    div.append(fragment);
+    expect(div.querySelector("[onerror]")).toBeNull();
+  });
+});

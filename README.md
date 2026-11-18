@@ -301,7 +301,7 @@ new GeoloniaMap({
 
 - `url` must be a template containing `{z}`, `{x}` and `{y}`. Any other URL, including a TileJSON URL, logs a warning and is not overlaid.
 - `tileSize` defaults to 256, the size of common XYZ tiles. With MapLibre's own default of 512, each 256-pixel tile would be stretched to twice its size and look blurry.
-- `attribution` is added to the map's attribution and rendered as HTML. Do not pass untrusted input such as URL parameters.
+- `attribution` is added to the map's attribution. It may contain HTML, but it is sanitized before it is shown (the same allow list as MapLibre GL JS's own attribution control): links and basic formatting tags are kept, and scripts and event handlers are removed. `href` may only use `http:`, `https:` or `mailto:`. The same applies to the attribution of every source and to `customAttribution`.
 - The tiles are placed below the first symbol layer of the style, so labels stay on top. In a style without symbol layers they are placed above the style's layers. Style layers below that position, such as 3D buildings (`fill-extrusion`) in some styles, are covered by the tiles unless `opacity` is lowered.
 - Layers added by `geojson` and `simpleVector` are drawn above the tiles, and so is `mask` unless its `beforeId` names the tiles' layer or a layer below it. This order holds when the style is loaded without `transformStyle`. Layers that `transformStyle` carries over into a new style keep the position it gave them, so a carried-over `mask` may end up below newly added tiles.
 - The source and the layer both have the ID `geolonia-raster-tiles`. Use it as `beforeId` to place your own layers or the `mask` relative to the tiles.
