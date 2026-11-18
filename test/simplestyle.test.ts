@@ -3,7 +3,16 @@
  */
 
 import { readFileSync } from "node:fs";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { MockMap } from "./helpers/mock-map";
 
 const originalCreateObjectURL = window.URL.createObjectURL;
@@ -249,6 +258,334 @@ describe("SimpleStyle", () => {
     ss.remove();
 
     expect(offSpy.mock.calls.length).toBe(onSpy.mock.calls.length);
+  });
+
+  it("isPresentOn() is true only while every added source and layer is on the map", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    const ss = new SimpleStyle(geojson);
+    expect(ss.isPresentOn(map)).toBe(false);
+
+    ss.addTo(map);
+    expect(ss.isPresentOn(map)).toBe(true);
+    // 別の地図では false
+    expect(ss.isPresentOn(new MockMap())).toBe(false);
+
+    // レイヤーが 1 つでも欠けたら false
+    map.removeLayer("geolonia-simple-style-polygon");
+    expect(ss.isPresentOn(map)).toBe(false);
+
+    ss.remove();
+    expect(ss.isPresentOn(map)).toBe(false);
+  });
+
+  it("isPresentOn() is false when only the sources are on the map", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    const ss = new SimpleStyle(geojson).addTo(map);
+    for (const layer of [...map.layers]) map.removeLayer(layer.id as string);
+
+    expect(ss.isPresentOn(map)).toBe(false);
+  });
+
+  it("syncData() writes the held GeoJSON to the sources", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    const ss = new SimpleStyle(geojson).addTo(map);
+    // 写した時点の空のデータに置き換わったソース
+    map.getSource("geolonia-simple-style-points")?.setData?.(emptyGeojson);
+
+    ss.syncData();
+
+    const points = map.getSource("geolonia-simple-style-points");
+    expect((points?.data as typeof geojson | undefined)?.features).toHaveLength(
+      1,
+    );
+  });
+
+  it("does not write a GeoJSON fetched after remove() to the map, but keeps it for the next addTo", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    let respond: (value: unknown) => void = () => {};
+    const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(
+      new Promise((resolve) => {
+        respond = resolve;
+      }) as Promise<Response>,
+    );
+    try {
+      const map = new MockMap();
+      const old = new SimpleStyle("https://example.com/data.geojson").addTo(
+        map,
+      );
+      old.fitBounds();
+      old.remove();
+      // 同じ ID で作り直した SimpleStyle のソース
+      new SimpleStyle(emptyGeojson).addTo(map);
+      const setDataSpy = vi.fn();
+      const source = map.getSource("geolonia-simple-style-points");
+      if (source) source.setData = setDataSpy;
+      const fitSpy = vi.spyOn(map, "fitBounds");
+
+      respond({ ok: true, json: async () => geojson });
+      await old._loadingPromise;
+
+      expect(setDataSpy).not.toHaveBeenCalled();
+      expect(fitSpy).not.toHaveBeenCalled();
+
+      // 取り除いた SimpleStyle を別の地図に追加し直すと、取得した GeoJSON を使う
+      const other = new MockMap();
+      old.addTo(other);
+      expect(
+        (
+          other.getSource("geolonia-simple-style-points")?.data as
+            | typeof geojson
+            | undefined
+        )?.features,
+      ).toHaveLength(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("syncData() does nothing while the GeoJSON is being fetched", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    let respond: (value: unknown) => void = () => {};
+    const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(
+      new Promise((resolve) => {
+        respond = resolve;
+      }) as Promise<Response>,
+    );
+    try {
+      const map = new MockMap();
+      const ss = new SimpleStyle("https://example.com/data.geojson").addTo(map);
+      const setDataSpy = vi.fn();
+      const source = map.getSource("geolonia-simple-style-points");
+      if (source) source.setData = setDataSpy;
+
+      ss.syncData();
+      expect(setDataSpy).not.toHaveBeenCalled();
+
+      // 取得し終えたら、取得した GeoJSON が書き込まれ、その後の syncData も書き込む
+      respond({ ok: true, json: async () => geojson });
+      await ss._loadingPromise;
+      expect(setDataSpy).toHaveBeenCalledTimes(1);
+      ss.syncData();
+      expect(setDataSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("writes a GeoJSON fetched after it was removed and added again", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    let respond: (value: unknown) => void = () => {};
+    const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(
+      new Promise((resolve) => {
+        respond = resolve;
+      }) as Promise<Response>,
+    );
+    try {
+      const map = new MockMap();
+      const ss = new SimpleStyle("https://example.com/data.geojson").addTo(map);
+      ss.remove();
+      ss.addTo(map);
+
+      respond({ ok: true, json: async () => geojson });
+      await ss._loadingPromise;
+
+      expect(
+        (
+          map.getSource("geolonia-simple-style-points")?.data as
+            | typeof geojson
+            | undefined
+        )?.features,
+      ).toHaveLength(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("keeps waiting in syncData() while a later fetch is still running", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const responders: ((value: unknown) => void)[] = [];
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          responders.push(resolve);
+        }) as Promise<Response>,
+    );
+    try {
+      const map = new MockMap();
+      const ss = new SimpleStyle("https://example.com/a.geojson").addTo(map);
+      const first = ss._loadingPromise;
+      ss.setGeoJSON("https://example.com/b.geojson");
+
+      // 先に始めた取得が終わっても、後の取得はまだ終わっていない
+      responders[0]({ ok: true, json: async () => emptyGeojson });
+      await first;
+      const setDataSpy = vi.fn();
+      const source = map.getSource("geolonia-simple-style-points");
+      if (source) source.setData = setDataSpy;
+      ss.syncData();
+      expect(setDataSpy).not.toHaveBeenCalled();
+
+      responders[1]({ ok: true, json: async () => geojson });
+      await ss._loadingPromise;
+      ss.syncData();
+      expect(setDataSpy).toHaveBeenLastCalledWith({
+        type: "FeatureCollection",
+        features: geojson.features,
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("ignores an earlier fetch that finishes after a later one", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const responders: ((value: unknown) => void)[] = [];
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          responders.push(resolve);
+        }) as Promise<Response>,
+    );
+    try {
+      const map = new MockMap();
+      const ss = new SimpleStyle("https://example.com/a.geojson").addTo(map);
+      const first = ss._loadingPromise;
+      ss.setGeoJSON("https://example.com/b.geojson");
+      const second = ss._loadingPromise;
+
+      responders[1]({ ok: true, json: async () => geojson });
+      await second;
+      responders[0]({ ok: true, json: async () => emptyGeojson });
+      await first;
+      ss.syncData();
+
+      expect(
+        (
+          map.getSource("geolonia-simple-style-points")?.data as
+            | typeof geojson
+            | undefined
+        )?.features,
+      ).toHaveLength(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("keeps a FeatureCollection given while a URL was being fetched", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    let respond: (value: unknown) => void = () => {};
+    const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(
+      new Promise((resolve) => {
+        respond = resolve;
+      }) as Promise<Response>,
+    );
+    try {
+      const map = new MockMap();
+      const ss = new SimpleStyle("https://example.com/data.geojson").addTo(map);
+      const loading = ss._loadingPromise;
+      ss.updateData(geojson as Parameters<typeof ss.updateData>[0]);
+
+      respond({ ok: true, json: async () => emptyGeojson });
+      await loading;
+
+      expect(
+        (
+          map.getSource("geolonia-simple-style-points")?.data as
+            | typeof geojson
+            | undefined
+        )?.features,
+      ).toHaveLength(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  describe("a pending fitBounds() request when the fetched GeoJSON is not used", () => {
+    const origRAF = window.requestAnimationFrame;
+    let responders: ((value: unknown) => void)[];
+    let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      // fitBounds は requestAnimationFrame の中で map.fitBounds を呼ぶので、同期で実行する
+      window.requestAnimationFrame = (cb: FrameRequestCallback) => {
+        cb(0);
+        return 0;
+      };
+      responders = [];
+      fetchSpy = vi.spyOn(window, "fetch").mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            responders.push(resolve);
+          }) as Promise<Response>,
+      );
+    });
+
+    afterEach(() => {
+      window.requestAnimationFrame = origRAF;
+      fetchSpy.mockRestore();
+    });
+
+    it("is dropped when a FeatureCollection replaces the fetch, so a later fetch does not fit", async () => {
+      const { SimpleStyle } = await import("../src/lib/simplestyle");
+      const map = new MockMap();
+      const fitSpy = vi.spyOn(map, "fitBounds");
+      const ss = new SimpleStyle("https://example.com/a.geojson").addTo(map);
+      const first = ss._loadingPromise;
+      ss.fitBounds();
+      ss.updateData(geojson as Parameters<typeof ss.updateData>[0]);
+
+      responders[0]({ ok: true, json: async () => geojson });
+      await first;
+      expect(fitSpy).not.toHaveBeenCalled();
+
+      // 頼んでいないフィットが、後の取得の完了で起きない
+      ss.setGeoJSON("https://example.com/b.geojson");
+      responders[1]({ ok: true, json: async () => geojson });
+      await ss._loadingPromise;
+      expect(fitSpy).not.toHaveBeenCalled();
+    });
+
+    it("is dropped when the SimpleStyle was removed, so a later fetch does not fit", async () => {
+      const { SimpleStyle } = await import("../src/lib/simplestyle");
+      const map = new MockMap();
+      const fitSpy = vi.spyOn(map, "fitBounds");
+      const ss = new SimpleStyle("https://example.com/a.geojson").addTo(map);
+      const first = ss._loadingPromise;
+      ss.fitBounds();
+      ss.remove();
+
+      responders[0]({ ok: true, json: async () => geojson });
+      await first;
+      expect(fitSpy).not.toHaveBeenCalled();
+
+      ss.addTo(map);
+      ss.setGeoJSON("https://example.com/b.geojson");
+      responders[1]({ ok: true, json: async () => geojson });
+      await ss._loadingPromise;
+      expect(fitSpy).not.toHaveBeenCalled();
+    });
+
+    it("is kept when another URL replaces the fetch, and the later fetch fits", async () => {
+      const { SimpleStyle } = await import("../src/lib/simplestyle");
+      const map = new MockMap();
+      const fitSpy = vi.spyOn(map, "fitBounds");
+      const ss = new SimpleStyle("https://example.com/a.geojson").addTo(map);
+      const first = ss._loadingPromise;
+      ss.fitBounds();
+      ss.setGeoJSON("https://example.com/b.geojson");
+      const second = ss._loadingPromise;
+
+      responders[0]({ ok: true, json: async () => geojson });
+      await first;
+      expect(fitSpy).not.toHaveBeenCalled();
+
+      responders[1]({ ok: true, json: async () => geojson });
+      await second;
+      expect(fitSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("should be safe to call remove() twice", async () => {

@@ -518,6 +518,21 @@ export class Mask {
     return attached.get(map) === this;
   }
 
+  /**
+   * この Mask が地図に追加されていて、追加したソースとレイヤー（境界線を含む）がすべて今のスタイルにあるかどうかです。
+   * `setStyle` の `transformStyle` で、追加したものが新しいスタイルに写されたかを判定するのに使います。
+   * @internal
+   */
+  isPresentOn(map: MaplibreMap): boolean {
+    if (!this.isAddedTo(map)) return false;
+    const ids = this.outlineActive
+      ? [MASK_ID, `${MASK_ID}-outline`]
+      : [MASK_ID];
+    return ids.every(
+      (id) => map.getSource(id) !== undefined && map.getLayer(id) !== undefined,
+    );
+  }
+
   /** 地図の `geolonia-mask-outline` のソースを、この Mask が使っているかどうかです。 */
   private ownsOutline(map: MaplibreMap): boolean {
     return (

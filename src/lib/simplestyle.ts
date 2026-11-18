@@ -113,6 +113,15 @@ interface SimpleStyleOptions {
  */
 export class SimpleStyle {
   public _loadingPromise: Promise<unknown> | undefined;
+  /** 最後に始めた URL の GeoJSON の取得です。取得し終えたら undefined に戻します（先に始めた取得の完了では戻しません）。 */
+  private loadingToken: object | undefined;
+  /**
+   * {@link SimpleStyle.addTo | addTo} から {@link SimpleStyle.remove | remove} までの間は true です。
+   * 取り除かれている間に取得し終えた GeoJSON は、地図に書き込みません（同じ ID で作り直した別の SimpleStyle のソースに書き込まないため）。
+   */
+  private added = false;
+  /** {@link SimpleStyle.addTo | addTo} で追加したレイヤーの ID です。 */
+  private addedLayerIds: string[] = [];
   private callFitBounds = false;
   private geojson!: FeatureCollection;
   private map!: MaplibreMap;
@@ -214,6 +223,7 @@ export class SimpleStyle {
    */
   addTo(map: MaplibreMap) {
     this.map = map;
+    this.added = true;
 
     const features = this.geojson.features;
     const polygonAndLines = features.filter(
@@ -301,7 +311,39 @@ export class SimpleStyle {
       this.setCluster();
     }
     this.applyDataDrivenPaint();
+    this.addedLayerIds = this.layerIds().filter((id) => this.map.getLayer(id));
 
+    return this;
+  }
+
+  /**
+   * この SimpleStyle が追加したソースとレイヤーが、すべて今の地図のスタイルにあるかを返します。
+   *
+   * WebGL のコンテキストの復元や、`setStyle` の `transformStyle` で、追加したものが新しいスタイルに写されたかを
+   * 判定するのに使います。
+   *
+   * @internal
+   */
+  isPresentOn(map: MaplibreMap): boolean {
+    if (this.map !== map || this.addedLayerIds.length === 0) return false;
+    const id = this.options.id;
+    return (
+      [id, `${id}-points`].every((sourceId) => map.getSource(sourceId)) &&
+      this.addedLayerIds.every((layerId) => map.getLayer(layerId))
+    );
+  }
+
+  /**
+   * 保持している GeoJSON を、地図のソースに書き込み直します。URL から取得している間は何もしません（取得後に書き込まれます）。
+   *
+   * 新しいスタイルに写されたソースは、写した時点の中身なので、その後に取得し終えた GeoJSON が入っていないことがあります。
+   *
+   * @internal
+   */
+  syncData(): this {
+    if (this.loadingToken === undefined) {
+      this.updateData(this.geojson);
+    }
     return this;
   }
 
@@ -310,7 +352,10 @@ export class SimpleStyle {
    *
    * 現在の GeoJSON のフィーチャーからバウンディングボックスを算出し、そこへ地図を移動します。
    * フィーチャーが存在しない場合は何もしません。データを URL から取得中に呼び出した場合は、
-   * フィット要求を保持しておき、取得完了後に自動でフィットします。
+   * フィット要求を保持しておき、取得完了後に自動でフィットします。ただし、取得の結果を使わないとき
+   * （取得し終えたときに {@link SimpleStyle.remove | remove} されていた、取得している間に
+   * {@link FeatureCollection} を渡した）は、フィット要求も取り消します。別の URL に取得を始め直した場合は、
+   * その取得が終わったときにフィットします。
    *
    * @param options `map.fitBounds` に渡すオプションです。既定値は `duration: 3000`、`padding: 30` で、
    *   指定した項目のみがこれらを上書きします。
@@ -722,31 +767,22 @@ export class SimpleStyle {
    * {@link SimpleStyle.setPopup | setPopup} や {@link SimpleStyle.setCluster | setCluster}
    * で登録したイベントハンドラーをすべて解除し、ポリゴン、ライン、ポイント、クラスターの各レイヤーと、
    * それらのソースを削除します。カーソルのスタイルも元に戻します。まだ地図に追加されていない場合は何もしません。
+   * URL から GeoJSON を取得している間に取り除いた場合、取得した GeoJSON は地図に書き込まず、次に {@link SimpleStyle.addTo | addTo} したときに使います。
    *
    * @returns メソッドチェーンのための `this` を返します。
    */
   remove() {
     if (!this.map) return this;
     const id = this.options.id;
+    this.added = false;
 
     for (const { event, layer, handler } of this._eventHandlers) {
       this.map.off(event, layer, handler);
     }
     this._eventHandlers = [];
+    this.addedLayerIds = [];
 
-    const layerIds = [
-      `${id}-polygon-symbol`,
-      `${id}-linestring-symbol`,
-      `${id}-circle-points`,
-      `${id}-symbol-points`,
-      `${id}-polygon`,
-      `${id}-polygon-extrusion`,
-      `${id}-linestring`,
-      `${id}-clusters`,
-      `${id}-cluster-count`,
-      `${id}-heatmap`,
-    ];
-    for (const layerId of layerIds) {
+    for (const layerId of this.layerIds()) {
       if (this.map.getLayer(layerId)) {
         this.map.removeLayer(layerId);
       }
@@ -762,13 +798,32 @@ export class SimpleStyle {
     return this;
   }
 
+  /** この SimpleStyle が追加しうるレイヤーの ID です。 */
+  private layerIds(): string[] {
+    const id = this.options.id;
+    return [
+      `${id}-polygon-symbol`,
+      `${id}-linestring-symbol`,
+      `${id}-circle-points`,
+      `${id}-symbol-points`,
+      `${id}-polygon`,
+      `${id}-polygon-extrusion`,
+      `${id}-linestring`,
+      `${id}-clusters`,
+      `${id}-cluster-count`,
+      `${id}-heatmap`,
+    ];
+  }
+
   /**
    * 内部で保持する GeoJSON を設定します。
    *
    * `geojson` が URL 文字列の場合は、いったん空のデータを設定したうえで、その URL から GeoJSON を
    * 非同期に取得します。取得中の Promise は `_loadingPromise` に保持され、取得完了後に
    * {@link SimpleStyle.updateData | updateData} で表示を更新します。フィット要求が保留されていれば
-   * あわせてフィットします。応答が 2xx 以外の場合は空のデータとして扱い、通信や JSON の解析で
+   * あわせてフィットします。取得し終えたときに地図から取り除かれていれば（{@link SimpleStyle.remove | remove} の後で、
+   * まだ {@link SimpleStyle.addTo | addTo} し直していないとき）、表示の更新もフィットもせず、次の addTo で使います。
+   * 取得している間に、もう一度 URL を渡して取得を始めた場合や、{@link FeatureCollection} を渡した場合は、先の取得の結果は使いません。応答が 2xx 以外の場合は空のデータとして扱い、通信や JSON の解析で
    * 例外が発生した場合はエラーをコンソールに出力します。
    * `geojson` が {@link FeatureCollection} の場合は、そのまま内部データとして設定します。
    *
@@ -777,25 +832,41 @@ export class SimpleStyle {
   setGeoJSON(geojson: string | FeatureCollection) {
     if (typeof geojson === "string" && isURL(geojson)) {
       this.geojson = template;
+      const token = {};
+      this.loadingToken = token;
 
       const fetchGeoJSON = async () => {
         try {
           const response = await window.fetch(geojson);
           const data = response.ok ? await response.json() : template;
+          // 後から別の取得を始めていたら、この結果は使わない
+          if (this.loadingToken !== token) return;
           this.geojson = data;
+          // 取り除かれていたら、地図には書き込まず、次の addTo で使う。フィットの要求も取り消す
+          if (!this.added) {
+            this.callFitBounds = false;
+            return;
+          }
+          // updateData は取得の要求を取り消すので、その前にフィットの要求を控える
+          const fit = this.callFitBounds;
           this.updateData(data);
 
-          if (this.callFitBounds) {
+          if (fit) {
             this.fitBounds();
             this.callFitBounds = false;
           }
         } catch (error) {
           console.error("[Geolonia] Failed to load GeoJSON:", error); // eslint-disable-line no-console
+        } finally {
+          if (this.loadingToken === token) this.loadingToken = undefined;
         }
       };
 
       this._loadingPromise = fetchGeoJSON();
     } else if (typeof geojson !== "string") {
+      // 取得している間に GeoJSON を直接渡されたら、取得の結果は使わず、フィットの要求も取り消す
+      this.loadingToken = undefined;
+      this.callFitBounds = false;
       this.geojson = geojson;
     }
   }

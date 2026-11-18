@@ -158,4 +158,29 @@ describe("SimpleStyleVector", () => {
     );
     expect(sourcedataCalls).toHaveLength(0);
   });
+
+  it("isPresentOn() is true only while the source and every layer are on the map", () => {
+    const ssv = new SimpleStyleVector(TEST_URL);
+    expect(ssv.isPresentOn(map)).toBe(false);
+
+    ssv.addTo(map);
+    expect(ssv.isPresentOn(map)).toBe(true);
+
+    map.removeLayer("vt-geolonia-simple-style-points");
+    expect(ssv.isPresentOn(map)).toBe(false);
+  });
+
+  it("removeLayersAndSource() removes what is left so that addTo can add them again", () => {
+    const ssv = new SimpleStyleVector(TEST_URL);
+    ssv.addTo(map);
+    // ソースと一部のレイヤーだけが残った状態
+    map.removeLayer("vt-geolonia-simple-style-polygon");
+
+    ssv.removeLayersAndSource(map);
+    expect(map.layers).toHaveLength(0);
+    expect(Object.keys(map.sources)).toHaveLength(0);
+
+    expect(() => new SimpleStyleVector(TEST_URL).addTo(map)).not.toThrow();
+    expect(map.layers).toHaveLength(EXPECTED_LAYER_IDS.length);
+  });
 });
