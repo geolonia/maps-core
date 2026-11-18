@@ -312,6 +312,75 @@ describe("CustomAttributionControl", () => {
       });
     }
 
+    describe("untrusted HTML (#190)", () => {
+      const MALICIOUS =
+        '<img src="x" onerror="window.__xss = 1"><a href="javascript:window.__xss=1" onclick="window.__xss=1">link</a><script>window.__xss=1</script>';
+
+      function innerOf(container: HTMLElement): Element | null | undefined {
+        return container.shadowRoot?.querySelector(
+          ".maplibregl-ctrl-attrib-inner",
+        );
+      }
+
+      function expectSanitized(inner: Element | null | undefined): void {
+        expect(inner?.querySelector("script")).toBeNull();
+        expect(inner?.querySelector("[onerror]")).toBeNull();
+        expect(inner?.querySelector("[onclick]")).toBeNull();
+        expect(inner?.querySelector("a")?.hasAttribute("href")).toBe(false);
+      }
+
+      it("should sanitize customAttribution", () => {
+        const map = createAttributionMap();
+        const ctrl = new CustomAttributionControl({
+          customAttribution: MALICIOUS,
+        });
+        expectSanitized(innerOf(ctrl.onAdd(map as never)));
+      });
+
+      it("should sanitize the attribution of a source", () => {
+        const map = createAttributionMap({
+          sourceCaches: {
+            s1: { used: true, usedForTerrain: false, attribution: MALICIOUS },
+          },
+        });
+        const ctrl = new CustomAttributionControl();
+        expectSanitized(innerOf(ctrl.onAdd(map as never)));
+      });
+
+      it("should keep links and join entries with a separator", () => {
+        const map = createAttributionMap({
+          sourceCaches: {
+            s1: {
+              used: true,
+              usedForTerrain: false,
+              attribution: '<a href="https://a.test/" target="_blank">A</a>',
+            },
+          },
+        });
+        const ctrl = new CustomAttributionControl({
+          customAttribution: "© B",
+        });
+        const inner = innerOf(ctrl.onAdd(map as never));
+        expect(inner?.querySelector("a")?.getAttribute("href")).toBe(
+          "https://a.test/",
+        );
+        expect(inner?.textContent).toBe("© B | A");
+      });
+
+      it("should hide the control when an entry sanitizes to nothing", () => {
+        const map = createAttributionMap();
+        const ctrl = new CustomAttributionControl({
+          customAttribution: "<script>window.__xss=1</script>",
+        });
+        const container = ctrl.onAdd(map as never);
+        expect(
+          container.shadowRoot
+            ?.querySelector("details")
+            ?.classList.contains("maplibregl-attrib-empty"),
+        ).toBe(true);
+      });
+    });
+
     it("should tolerate a style without any source container", () => {
       const map = createAttributionMap();
       (map as unknown as Record<string, unknown>).style = {};

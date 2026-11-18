@@ -1,6 +1,141 @@
 import type { Point } from "maplibre-gl";
 import * as maplibregl from "maplibre-gl";
 
+const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+
+const ALLOWED_TAGS = new Set([
+  "a",
+  "abbr",
+  "b",
+  "bdi",
+  "bdo",
+  "br",
+  "cite",
+  "code",
+  "del",
+  "div",
+  "em",
+  "i",
+  "img",
+  "ins",
+  "kbd",
+  "li",
+  "mark",
+  "ol",
+  "p",
+  "q",
+  "s",
+  "samp",
+  "small",
+  "span",
+  "strong",
+  "sub",
+  "sup",
+  "time",
+  "u",
+  "ul",
+  "var",
+  "wbr",
+]);
+
+const ALLOWED_ATTRIBUTES = new Set([
+  "alt",
+  "class",
+  "datetime",
+  "dir",
+  "height",
+  "href",
+  "hreflang",
+  "lang",
+  "referrerpolicy",
+  "rel",
+  "role",
+  "src",
+  "target",
+  "title",
+  "translate",
+  "type",
+  "width",
+]);
+
+const URL_ATTRIBUTES = new Set(["href", "src"]);
+
+const ALLOWED_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+
+/**
+ * 相対 URL は、プロトコルを読む前に何かに対して解決する必要がある。
+ * 使うのは結果のプロトコルだけなので、この基点が出力に漏れることはない。
+ */
+const RELATIVE_URL_BASE = "https://maplibre.invalid/";
+
+type ElementInternals = {
+  getAttribute: Element["getAttribute"];
+  getAttributeNames: Element["getAttributeNames"];
+  querySelectorAll: (this: Element, selectors: string) => NodeListOf<Element>;
+  remove: Element["remove"];
+  removeAttribute: Element["removeAttribute"];
+  localName: (this: Element) => string;
+  namespaceURI: (this: Element) => string;
+};
+
+let elementInternals: ElementInternals | undefined;
+
+/**
+ * サニタイザーが使う `Element` のメンバーを、見ている要素ではなくプロトタイプから読む。
+ * `children`、`remove`、`localName` という名前のフォームコントロールは、自分の form 要素の
+ * 同名のプロパティを隠すので、信頼できないマークアップが、サニタイザーの見る木を選べてしまう。
+ * モジュールの読み込み時ではなく初回の利用時に読む（DOM が無い環境でも import されるため）。
+ */
+function getElementInternals(): ElementInternals {
+  if (elementInternals) return elementInternals;
+  elementInternals = {
+    getAttribute: Element.prototype.getAttribute,
+    getAttributeNames: Element.prototype.getAttributeNames,
+    querySelectorAll: Element.prototype.querySelectorAll,
+    remove: Element.prototype.remove,
+    removeAttribute: Element.prototype.removeAttribute,
+    localName: Object.getOwnPropertyDescriptor(Element.prototype, "localName")
+      ?.get as () => string,
+    namespaceURI: Object.getOwnPropertyDescriptor(
+      Element.prototype,
+      "namespaceURI",
+    )?.get as () => string,
+  };
+  return elementInternals;
+}
+
+/**
+ * `href` と `src` は、許可したプロトコルだけに絞る。生の文字列ではなく解析した URL からプロトコルを読むのは、
+ * ブラウザが適用する URL パーサーが、タブ、改行、先頭の制御文字を無視するため。
+ */
+function isAllowedAttribute(name: string, value: string): boolean {
+  if (!ALLOWED_ATTRIBUTES.has(name) && !name.startsWith("aria-")) return false;
+  if (!URL_ATTRIBUTES.has(name)) return true;
+  try {
+    return ALLOWED_PROTOCOLS.has(new URL(value, RELATIVE_URL_BASE).protocol);
+  } catch {
+    return false;
+  }
+}
+
+function isAllowedElement(element: Element): boolean {
+  const { namespaceURI, localName } = getElementInternals();
+  return (
+    namespaceURI.call(element) === HTML_NAMESPACE &&
+    ALLOWED_TAGS.has(localName.call(element))
+  );
+}
+
+function removeDisallowedAttributes(element: Element): void {
+  const { getAttributeNames, getAttribute, removeAttribute } =
+    getElementInternals();
+  for (const name of getAttributeNames.call(element)) {
+    if (isAllowedAttribute(name, getAttribute.call(element, name) ?? ""))
+      continue;
+    removeAttribute.call(element, name);
+  }
+}
+
 /**
  * DOM utility class extracted from maplibre-gl-js.
  * https://github.com/maplibre/maplibre-gl-js/blob/main/src/util/dom.ts
@@ -127,6 +262,30 @@ export class DOM {
     if (node.parentNode) {
       node.parentNode.removeChild(node);
     }
+  }
+
+  /**
+   * 信頼できない HTML 文字列（スタイルやオプションで渡された出典など）をサニタイズします。
+   * 許可したタグと属性だけを残し、それ以外は部分木ごと捨てます。既知の危険なものを消す方式ではなく
+   * 許可リスト方式なのは、前者は知らないものを黙って通すため。
+   * 文字列ではなくノードを返すのは、直列化して再解析すると、入れ子にしたマークアップが
+   * サニタイズ済みでない別の木に変わりうるため。
+   * MapLibre の `DOM.sanitize()`（GHSA-jrc7-96c5-q579 の修正後、6.4.1 以降）と同じ許可リストです。
+   */
+  static sanitize(str: string): DocumentFragment {
+    const doc = new DOMParser().parseFromString(str, "text/html");
+    const body = doc.body;
+    const { querySelectorAll, remove } = getElementInternals();
+    for (const element of Array.from(querySelectorAll.call(body, "*"))) {
+      if (isAllowedElement(element)) {
+        removeDisallowedAttributes(element);
+      } else {
+        remove.call(element);
+      }
+    }
+    const fragment = document.createDocumentFragment();
+    fragment.append(...Array.from(body.childNodes));
+    return fragment;
   }
 }
 

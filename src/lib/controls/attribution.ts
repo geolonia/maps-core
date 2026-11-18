@@ -411,8 +411,18 @@ class CustomAttributionControl implements IControl {
 
     this._attribHTML = attribHTML;
 
-    if (attributions.length) {
-      if (this._innerContainer) this._innerContainer.innerHTML = attribHTML;
+    // 出典は第三者のスタイルから来るので、サニタイズしてから挿入する（#190）。
+    // 項目ごとにサニタイズし、空になった項目は捨てる（本家の AttributionControl と同じ）。
+    const fragment = document.createDocumentFragment();
+    for (const attribution of attributions) {
+      const sanitized = DOM.sanitize(attribution);
+      if (!sanitized.hasChildNodes()) continue;
+      if (fragment.hasChildNodes()) fragment.append(" | ");
+      fragment.append(sanitized);
+    }
+
+    if (fragment.hasChildNodes()) {
+      this._innerContainer?.replaceChildren(fragment);
       this._shadowContainer?.classList.remove("maplibregl-attrib-empty");
     } else {
       this._shadowContainer?.classList.add("maplibregl-attrib-empty");
