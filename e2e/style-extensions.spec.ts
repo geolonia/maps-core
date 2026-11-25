@@ -355,6 +355,16 @@ test.describe("style extensions after a style change (#175)", () => {
     expect(await sourcesPresent(page, [SIMPLE_VECTOR_SOURCE])).toEqual([true]);
     expect(await delegatedCounts()).toEqual([1, 1, 1]);
     expect(await mapErrorsOf(page)).toEqual([]);
+
+    // 地図を破棄すると、simpleVector のリスナーも外れる
+    await page.evaluate(() =>
+      (
+        (window as unknown as TestWindow).map as unknown as {
+          remove: () => void;
+        }
+      ).remove(),
+    );
+    expect(await delegatedCounts()).toEqual([0, 0, 0]);
     expect(errors).toEqual([]);
   });
 

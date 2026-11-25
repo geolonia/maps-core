@@ -262,6 +262,53 @@ test.describe("Loader animation", () => {
     expect(errors).toEqual([]);
   });
 
+  test("should rethrow the initialization error and log it when the cleanup also fails (#174)", async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/loader.html");
+    await waitForMapLoad(page);
+
+    const thrown = await page.evaluate(() => {
+      type MapClass = {
+        new (options: unknown): unknown;
+        prototype: Record<string, unknown>;
+      };
+      const w = window as unknown as {
+        map: { remove: () => void };
+        GeoloniaMap: MapClass;
+        mapOptions: Record<string, unknown>;
+      };
+      w.map.remove();
+      // super() の後のコントロールの追加と、その後の MapLibre の片付けの両方で例外を投げさせる
+      const maplibreMap = Object.getPrototypeOf(w.GeoloniaMap.prototype) as {
+        remove: () => void;
+      };
+      const originalRemove = maplibreMap.remove;
+      w.GeoloniaMap.prototype.addControl = () => {
+        throw new Error("addControl failed");
+      };
+      maplibreMap.remove = () => {
+        throw new Error("remove failed");
+      };
+      try {
+        new w.GeoloniaMap(w.mapOptions);
+        return "";
+      } catch (error) {
+        return (error as Error).message;
+      } finally {
+        delete w.GeoloniaMap.prototype.addControl;
+        maplibreMap.remove = originalRemove;
+      }
+    });
+    // 呼び出し元には初期化の例外を伝え、片付けの失敗はコンソールに出す
+    expect(thrown).toBe("addControl failed");
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain(
+      "Failed to clean up the map after its initialization failed",
+    );
+  });
+
   test("should not return the removed map to a remove listener that recreates it", async ({
     page,
   }) => {

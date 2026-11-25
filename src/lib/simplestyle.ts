@@ -375,8 +375,11 @@ export class SimpleStyle {
         ? (bbox(this.geojson) as [number, number, number, number])
         : undefined;
     if (bounds) {
+      const map = this.map;
       window.requestAnimationFrame(() => {
-        this.map.fitBounds(bounds, _options);
+        // 次のフレームまでに取り除かれていたら（地図を破棄したときを含む）、地図を動かさない
+        if (!this.added || this.map !== map) return;
+        map.fitBounds(bounds, _options);
       });
     }
 

@@ -317,8 +317,12 @@ export default class GeoloniaMap extends maplibregl.Map {
     } catch (error) {
       try {
         this.remove();
-      } catch {
-        // 破棄の失敗より、初期化の失敗を呼び出し元に伝える
+      } catch (removeError) {
+        // 破棄の失敗より、初期化の失敗を呼び出し元に伝える。破棄は途中で止まり、コンテナに残るものがありうるので、コンソールには出す
+        console.error(
+          "[Geolonia] Failed to clean up the map after its initialization failed:",
+          removeError,
+        );
       }
       throw error;
     }
@@ -490,6 +494,8 @@ export default class GeoloniaMap extends maplibregl.Map {
     this.once("remove", () => {
       mask?.remove();
       simpleStyle?.remove();
+      // 登録したリスナーも外す
+      simpleVector?.remove();
     });
     this.on("style.load", () => {
       // simpleVector や geojson より先に重ねる。後に重ねると、symbol レイヤの無い
