@@ -148,6 +148,13 @@ export class MockMap {
     this.removed = true;
   }
 
+  /** Number of handlers registered for an event (and a layer, for layer-scoped events). */
+  listenerCount(event: string, layer?: string): number {
+    return layer === undefined
+      ? (this._eventHandlers.get(event) || []).length
+      : (this._layerEventHandlers.get(`${event}:${layer}`) || []).length;
+  }
+
   /** Fire registered event handlers (useful for testing event-driven behavior). */
   fire(event: string, data?: unknown) {
     const handlers = this._eventHandlers.get(event) || [];

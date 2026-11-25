@@ -171,6 +171,97 @@ test.describe("Loader animation", () => {
     expect(await mapErrorsOf(page)).toEqual([]);
   });
 
+  test("should keep the map recreated in the same container when a late 402 reaches the removed map (#176)", async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+    // 1 つ目を読み込み前に破棄し、同じコンテナに 2 つ目を作る
+    await page.goto("/loader.html?removeBeforeLoad=true");
+    await waitForMapLoad(page);
+
+    // 破棄した 1 つ目に、遅れて 402 の error が届いたときを作る
+    const state = await page.evaluate(() => {
+      const w = window as unknown as {
+        map: unknown;
+        first: { fire: (type: string, data: unknown) => void };
+      };
+      w.first.fire("error", { error: { status: 402 } });
+      const container = document.querySelector("#map") as HTMLElement & {
+        geoloniaMap?: unknown;
+      };
+      return {
+        canvases: container.querySelectorAll("canvas.maplibregl-canvas").length,
+        registered: container.geoloniaMap === w.map,
+        restricted: container.classList.contains(
+          "geolonia__restricted-mode-image-container",
+        ),
+      };
+    });
+    expect(state).toEqual({ canvases: 1, registered: true, restricted: false });
+    expect(errors).toEqual([]);
+  });
+
+  test("should not leave the loader and the map when the constructor throws after super() (#174)", async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/loader.html");
+    await waitForMapLoad(page);
+
+    const state = await page.evaluate(() => {
+      type MapClass = {
+        new (options: unknown): { remove: () => void };
+        prototype: Record<string, unknown>;
+      };
+      const w = window as unknown as {
+        map: { remove: () => void };
+        GeoloniaMap: MapClass;
+        mapOptions: Record<string, unknown>;
+      };
+      w.map.remove();
+      const container = document.querySelector("#map") as HTMLElement & {
+        geoloniaMap?: unknown;
+      };
+
+      // super() の後のコントロールの追加で例外を投げさせる
+      w.GeoloniaMap.prototype.addControl = () => {
+        throw new Error("addControl failed");
+      };
+      let thrown = "";
+      try {
+        new w.GeoloniaMap(w.mapOptions);
+      } catch (error) {
+        thrown = (error as Error).message;
+      } finally {
+        delete w.GeoloniaMap.prototype.addControl;
+      }
+      const afterFailure = {
+        thrown,
+        loaders: container.querySelectorAll(".loading-geolonia-map").length,
+        canvases: container.querySelectorAll("canvas.maplibregl-canvas").length,
+        maplibreClass: container.classList.contains("maplibregl-map"),
+        registered: container.geoloniaMap !== undefined,
+      };
+
+      // 同じコンテナに作り直せる
+      const recreated = new w.GeoloniaMap(w.mapOptions);
+      (window as unknown as { map: unknown }).map = recreated;
+      return { afterFailure, recreated: container.geoloniaMap === recreated };
+    });
+    expect(state).toEqual({
+      afterFailure: {
+        thrown: "addControl failed",
+        loaders: 0,
+        canvases: 0,
+        maplibreClass: false,
+        registered: false,
+      },
+      recreated: true,
+    });
+    await waitForMapLoad(page);
+    expect(errors).toEqual([]);
+  });
+
   test("should not return the removed map to a remove listener that recreates it", async ({
     page,
   }) => {

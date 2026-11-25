@@ -1,5 +1,7 @@
 import turfCenter from "@turf/center";
 import type {
+  MapEventType,
+  MapLayerEventType,
   MapLayerMouseEvent,
   Map as MaplibreMap,
   MapSourceDataEvent,
@@ -38,8 +40,22 @@ const LAYER_IDS = [
  * new SimpleStyleVector(url).addTo(map);
  * ```
  */
+type ListenerType = keyof MapEventType | keyof MapLayerEventType;
+
+type RegisteredListener = {
+  type: ListenerType;
+  /** レイヤーに委ねたリスナーのレイヤー ID です。地図全体のリスナーでは `undefined` です。 */
+  layer: string | undefined;
+  // biome-ignore lint/suspicious/noExplicitAny: MapLibre の on/off のリスナーの型は、イベントの種類ごとに違う
+  listener: (event: any) => void;
+};
+
 class SimpleStyleVector {
   private sourceName: string;
+  /** {@link SimpleStyleVector.addTo | addTo} した地図です。{@link SimpleStyleVector.remove | remove} で外します。 */
+  private map: MaplibreMap | undefined;
+  /** 地図に登録したリスナーです。{@link SimpleStyleVector.remove | remove} で外します。 */
+  private listeners: RegisteredListener[] = [];
 
   /**
    * @param url 表示するベクトルタイルソースの TileJSON（tiles.json）URL です。
@@ -68,6 +84,7 @@ class SimpleStyleVector {
    * ```
    */
   addTo(map: MaplibreMap) {
+    this.map = map;
     const container = map.getContainer();
 
     if (
@@ -75,7 +92,7 @@ class SimpleStyleVector {
       (!container.dataset.lng && !container.dataset.lat)
     ) {
       let initialZoomDone = false;
-      map.on("sourcedata", (event: MapSourceDataEvent) => {
+      this.listen(map, "sourcedata", undefined, (event: MapSourceDataEvent) => {
         // skip events for sources that don't concern us
         if (event.sourceId !== this.sourceName) {
           return;
@@ -318,8 +335,8 @@ class SimpleStyleVector {
   /**
    * このクラスが追加するレイヤーとソースのうち、地図のスタイルにあるものを取り除きます。
    *
-   * `transformStyle` でソースだけが新しいスタイルに写されたときなど、一部だけが残っている状態から
-   * {@link SimpleStyleVector.addTo | addTo} で追加し直す前に使います。登録したイベントのリスナーは外しません。
+   * `transformStyle` でソースだけが新しいスタイルに写されたときなど、一部だけが残っている状態も取り除けます。
+   * 登録したイベントのリスナーは外しません。リスナーも外すときは {@link SimpleStyleVector.remove | remove} を使います。
    *
    * @internal
    */
@@ -328,6 +345,46 @@ class SimpleStyleVector {
       if (map.getLayer(id)) map.removeLayer(id);
     }
     if (map.getSource(this.sourceName)) map.removeSource(this.sourceName);
+  }
+
+  /**
+   * {@link SimpleStyleVector.addTo | addTo} で地図に登録したリスナー（ポップアップ、カーソル、表示範囲を合わせる処理）を外し、
+   * 追加したレイヤーとソースのうち地図のスタイルにあるものを取り除きます。カーソルのスタイルも元に戻します。
+   * まだ地図に追加していないときと、取り除いた後に呼んだときは何もしません。
+   *
+   * @returns メソッドチェーンのための `this` を返します。
+   */
+  remove(): this {
+    const map = this.map;
+    if (!map) return this;
+    this.map = undefined;
+    for (const { type, layer, listener } of this.listeners) {
+      if (layer === undefined) {
+        map.off(type as keyof MapEventType, listener);
+      } else {
+        map.off(type as keyof MapLayerEventType, layer, listener);
+      }
+    }
+    this.listeners = [];
+    this.removeLayersAndSource(map);
+    map.getCanvas().style.cursor = "";
+    return this;
+  }
+
+  /** 地図にリスナーを登録し、{@link SimpleStyleVector.remove | remove} で外せるように控えます。 */
+  private listen(
+    map: MaplibreMap,
+    type: ListenerType,
+    layer: string | undefined,
+    // biome-ignore lint/suspicious/noExplicitAny: MapLibre の on/off のリスナーの型は、イベントの種類ごとに違う
+    listener: (event: any) => void,
+  ): void {
+    if (layer === undefined) {
+      map.on(type as keyof MapEventType, listener);
+    } else {
+      map.on(type as keyof MapLayerEventType, layer, listener);
+    }
+    this.listeners.push({ type, layer, listener });
   }
 
   /**
@@ -344,7 +401,7 @@ class SimpleStyleVector {
    * @returns イベントリスナーの登録が完了すると解決する Promise です。
    */
   async setPopup(map: MaplibreMap, source: string) {
-    map.on("click", source, async (e: MapLayerMouseEvent) => {
+    this.listen(map, "click", source, async (e: MapLayerMouseEvent) => {
       if (!e.features?.[0]) return;
       const center: [number, number] = turfCenter(e.features[0]).geometry
         .coordinates as [number, number];
@@ -359,13 +416,13 @@ class SimpleStyleVector {
       }
     });
 
-    map.on("mouseenter", source, (e: MapLayerMouseEvent) => {
+    this.listen(map, "mouseenter", source, (e: MapLayerMouseEvent) => {
       if (e.features?.[0]?.properties?.description) {
         map.getCanvas().style.cursor = "pointer";
       }
     });
 
-    map.on("mouseleave", source, () => {
+    this.listen(map, "mouseleave", source, () => {
       map.getCanvas().style.cursor = "";
     });
   }

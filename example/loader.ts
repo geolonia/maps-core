@@ -45,6 +45,12 @@ const map = new GeoloniaMap(options);
 recordErrors(map);
 // ?recreateOnRemove=true replaces this with the recreated map below.
 (window as unknown as Record<string, unknown>).map = map;
+// For the E2E tests that drive the removed first map, or create a map themselves.
+Object.assign(window as unknown as Record<string, unknown>, {
+  first,
+  GeoloniaMap,
+  mapOptions: options,
+});
 
 if (params.get("removeTwice") === "true") {
   first?.remove();

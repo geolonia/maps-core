@@ -257,6 +257,107 @@ test.describe("style extensions after a style change (#175)", () => {
     });
   }
 
+  test("remove() の後に URL の GeoJSON の取得が終わっても、破棄した地図に書き込まない (#189)", async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+    // GeoJSON の取得を止めておく
+    let release: () => void = () => {};
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let requested = false;
+    await page.route("**/sample.geojson", async (route) => {
+      requested = true;
+      await released;
+      await route.continue();
+    });
+    // 中心を指定しないので、取得し終えたら表示範囲を合わせる（fitBounds）
+    await page.goto("/geojson.html?source=url&noCenter=true");
+    await waitForMapLoad(page);
+    await expect.poll(() => requested, { timeout: 10000 }).toBe(true);
+
+    // 破棄してから、地図への書き込みと表示範囲の変更を数える
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        map: Record<string, unknown> & { remove: () => void };
+        touched: string[];
+      };
+      w.map.remove();
+      w.touched = [];
+      for (const name of ["getSource", "fitBounds", "setPaintProperty"]) {
+        w.map[name] = (...args: unknown[]) => {
+          w.touched.push(`${name}(${String(args[0])})`);
+          return undefined;
+        };
+      }
+    });
+
+    const finished = page.waitForEvent("requestfinished", (request) =>
+      request.url().endsWith("/sample.geojson"),
+    );
+    release();
+    await finished;
+    // 取得の後の処理（JSON の解析と、表示範囲を合わせる requestAnimationFrame）を待つ
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          setTimeout(() => requestAnimationFrame(() => resolve()), 200),
+        ),
+    );
+
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { touched: string[] }).touched,
+      ),
+    ).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  test("simpleVector を setStyle で作り直しても、ポップアップのリスナーが重ならない (#187)", async ({
+    page,
+  }) => {
+    const errors = collectConsoleErrors(page);
+    await page.goto("/simple-vector.html");
+    await waitForMapLoad(page);
+    await recordMapErrors(page);
+
+    // レイヤーに委ねたリスナー（map.on(type, layer, listener)）のうち、指定したレイヤーのものの数。
+    // 公開の API では数えられないので、MapLibre の内部の _delegatedListeners を見る
+    const delegatedCounts = () =>
+      page.evaluate(() => {
+        const listeners = (
+          (window as unknown as TestWindow).map as unknown as {
+            _delegatedListeners?: Record<string, { layers: string[] }[]>;
+          }
+        )._delegatedListeners;
+        return ["click", "mouseenter", "mouseleave"].map(
+          (type) =>
+            (listeners?.[type] ?? []).filter((listener) =>
+              listener.layers.includes("vt-geolonia-simple-style-polygon"),
+            ).length,
+        );
+      });
+    expect(await delegatedCounts()).toEqual([1, 1, 1]);
+
+    // 差分を使わずに読み込み直すと、simpleVector は作り直される
+    for (let i = 0; i < 3; i++) {
+      await armStyleLoad(page);
+      await page.evaluate(() =>
+        (window as unknown as TestWindow).map.setStyle(
+          "/sample-basic-style.json",
+          { diff: false },
+        ),
+      );
+      await styleLoadedAndIdle(page);
+    }
+
+    expect(await sourcesPresent(page, [SIMPLE_VECTOR_SOURCE])).toEqual([true]);
+    expect(await delegatedCounts()).toEqual([1, 1, 1]);
+    expect(await mapErrorsOf(page)).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
   test("transformStyle で写した geojson のソースに、取得中だった GeoJSON が入る", async ({
     page,
   }) => {
