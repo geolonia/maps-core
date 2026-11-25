@@ -97,21 +97,30 @@ has to allow both the Blob URL and the CDN origin in `worker-src`:
 worker-src 'self' blob: https://unpkg.com
 ```
 
+Use the origin of the CDN you actually load MapLibre from; unpkg is only an
+example here.
+
 `worker-src blob:` alone is not enough: the worker starts, its import is
 refused, and the map never finishes loading. The refusal happens inside the
 worker, so the page sees no `securitypolicyviolation` event — in Chromium no
 `report-uri` report and no console error either, apart from MapLibre's own
 "Worker failed to load".
 
-If your CSP cannot allow the CDN in `worker-src`, host the two worker files
-yourself and name the worker explicitly before creating a map. That works with
-`worker-src 'self'`:
+If your CSP cannot allow the CDN in `worker-src`, host the worker yourself and
+name it explicitly before creating a map. That works with `worker-src 'self'`.
+Without a bundler or an import map, import `setWorkerUrl` from the same CDN URL
+as the rest of MapLibre:
 
-```typescript
-import { setWorkerUrl } from 'maplibre-gl';
+```js
+import { setWorkerUrl } from 'https://unpkg.com/maplibre-gl@6.16.0/dist/maplibre-gl.mjs';
 
 setWorkerUrl('/path/to/maplibre-gl-worker.mjs');
 ```
+
+The hosted worker has to come from the same MapLibre version as the module you
+load from the CDN. From MapLibre 6.13.0 on, `maplibre-gl-worker.mjs` is
+self-contained and is the only file to host; up to 6.12.0 it imports
+`maplibre-gl-shared.mjs`, which has to sit next to it.
 
 ## Usage
 
