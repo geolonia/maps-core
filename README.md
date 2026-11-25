@@ -88,9 +88,24 @@ which of the two cases above your setup lands in.
 
 Loading MapLibre from a CDN as an ES module needs no setup: the worker URL is
 derived from the module's own URL. Cross-origin, MapLibre starts that worker
-from a same-origin Blob URL, so the page needs `worker-src blob:`. If your CSP
-cannot allow that, host the two worker files yourself and name the worker
-explicitly before creating a map:
+from a same-origin Blob URL whose only content is an `import` of the CDN's
+`maplibre-gl-worker.mjs`. Inside a module worker, imports are checked against
+`worker-src`, not `script-src`. A page with a Content-Security-Policy therefore
+has to allow both the Blob URL and the CDN origin in `worker-src`:
+
+```
+worker-src 'self' blob: https://unpkg.com
+```
+
+`worker-src blob:` alone is not enough: the worker starts, its import is
+refused, and the map never finishes loading. The refusal happens inside the
+worker, so the page sees no `securitypolicyviolation` event — in Chromium no
+`report-uri` report and no console error either, apart from MapLibre's own
+"Worker failed to load".
+
+If your CSP cannot allow the CDN in `worker-src`, host the two worker files
+yourself and name the worker explicitly before creating a map. That works with
+`worker-src 'self'`:
 
 ```typescript
 import { setWorkerUrl } from 'maplibre-gl';
