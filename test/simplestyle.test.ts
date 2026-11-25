@@ -113,6 +113,38 @@ describe("SimpleStyle", () => {
     window.requestAnimationFrame = origRAF;
   });
 
+  it("does not move the map when it is removed before the next animation frame", async () => {
+    const { SimpleStyle } = await import("../src/lib/simplestyle");
+    const map = new MockMap();
+    const fitBoundsSpy = vi.spyOn(map, "fitBounds");
+
+    // 次のフレームの処理を控えておき、remove() の後に実行する
+    const frames: FrameRequestCallback[] = [];
+    const origRAF = window.requestAnimationFrame;
+    window.requestAnimationFrame = (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return 0;
+    };
+    const geojson: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Point", coordinates: [139.0, 35.0] },
+        },
+      ],
+    };
+    try {
+      const simpleStyle = new SimpleStyle(geojson).addTo(map).fitBounds();
+      simpleStyle.remove();
+      for (const frame of frames) frame(0);
+      expect(fitBoundsSpy).not.toHaveBeenCalled();
+    } finally {
+      window.requestAnimationFrame = origRAF;
+    }
+  });
+
   it("should handle empty GeoJSON", async () => {
     const { SimpleStyle } = await import("../src/lib/simplestyle");
     const map = new MockMap();

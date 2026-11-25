@@ -183,4 +183,58 @@ describe("SimpleStyleVector", () => {
     expect(() => new SimpleStyleVector(TEST_URL).addTo(map)).not.toThrow();
     expect(map.layers).toHaveLength(EXPECTED_LAYER_IDS.length);
   });
+
+  const POPUP_LAYERS = [
+    "vt-geolonia-simple-style-polygon",
+    "vt-geolonia-simple-style-linestring",
+    "vt-circle-simple-style-points",
+    "vt-geolonia-simple-style-points",
+  ];
+
+  const popupListenerCounts = () =>
+    POPUP_LAYERS.flatMap((layer) =>
+      ["click", "mouseenter", "mouseleave"].map((event) =>
+        map.listenerCount(event, layer),
+      ),
+    );
+
+  it("remove() removes the layers, the source and every listener it registered (#187)", () => {
+    const ssv = new SimpleStyleVector(TEST_URL);
+    ssv.addTo(map);
+    expect(popupListenerCounts().every((n) => n === 1)).toBe(true);
+    expect(map.listenerCount("sourcedata")).toBe(1);
+
+    ssv.remove();
+    expect(map.layers).toHaveLength(0);
+    expect(Object.keys(map.sources)).toHaveLength(0);
+    expect(popupListenerCounts().every((n) => n === 0)).toBe(true);
+    expect(map.listenerCount("sourcedata")).toBe(0);
+  });
+
+  it("does not pile up listeners when it is removed and recreated, as on setStyle (#187)", () => {
+    let ssv = new SimpleStyleVector(TEST_URL);
+    ssv.addTo(map);
+    for (let i = 0; i < 3; i++) {
+      ssv.remove();
+      ssv = new SimpleStyleVector(TEST_URL);
+      ssv.addTo(map);
+    }
+    expect(popupListenerCounts().every((n) => n === 1)).toBe(true);
+    expect(map.listenerCount("sourcedata")).toBe(1);
+  });
+
+  it("remove() resets the cursor, and does nothing before addTo or when called twice", () => {
+    const ssv = new SimpleStyleVector(TEST_URL);
+    expect(() => ssv.remove()).not.toThrow();
+
+    ssv.addTo(map);
+    map.fireLayerEvent("mouseenter", POPUP_LAYERS[0], {
+      features: [{ properties: { description: "hello" } }],
+    });
+    expect(map.getCanvas().style.cursor).toBe("pointer");
+
+    ssv.remove();
+    expect(map.getCanvas().style.cursor).toBe("");
+    expect(() => ssv.remove()).not.toThrow();
+  });
 });

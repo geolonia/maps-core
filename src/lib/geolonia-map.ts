@@ -310,6 +310,39 @@ export default class GeoloniaMap extends maplibregl.Map {
     this.geoloniaSourcesUrl = sourcesUrl;
     this.loadingElement = loading;
 
+    // super() の後の初期化が例外を投げると、インスタンスは呼び出し元に返らず、呼び出し元は remove() を呼べない。
+    // ローディング表示と初期化の途中の地図をコンテナに残さないよう、ここで破棄してから投げ直す（#174）
+    try {
+      this.setUp(options, container, lang, projection);
+    } catch (error) {
+      try {
+        this.remove();
+      } catch (removeError) {
+        // 破棄の失敗より、初期化の失敗を呼び出し元に伝える。破棄は途中で止まり、コンテナに残るものがありうるので、コンソールには出す
+        console.error(
+          "[Geolonia] Failed to clean up the map after its initialization failed:",
+          removeError,
+        );
+      }
+      throw error;
+    }
+
+    container.geoloniaMap = this;
+
+    // biome-ignore lint/correctness/noConstructorReturn: intentional singleton pattern
+    return this;
+  }
+
+  /**
+   * `super()` の後の初期化です。コントロールの追加と、地図のイベント（読み込み、スタイルの適用、エラー）の購読を行います。
+   * 例外を投げたときは、コンストラクタが地図を破棄してから投げ直します。
+   */
+  private setUp(
+    options: GeoloniaMapOptions,
+    container: Container,
+    lang: NonNullable<GeoloniaMapOptions["lang"]>,
+    projection: Projection | undefined,
+  ): void {
     // Controls
     // Note: GeoloniaControl should be placed before another controls.
     // Because this control should be "very" bottom-left(default) or the attributed position.
@@ -456,8 +489,14 @@ export default class GeoloniaMap extends maplibregl.Map {
     // 前のスタイルで作った SimpleStyleVector と SimpleStyle
     let simpleVector: SimpleStyleVector | undefined;
     let simpleStyle: SimpleStyle | undefined;
-    // 地図を破棄したら、取得中の境界の GeoJSON も止める
-    this.once("remove", () => mask?.remove());
+    // 地図を破棄したら、取得中の境界の GeoJSON と URL の GeoJSON の結果を、破棄した地図に書き込ませない（#189）。
+    // remove イベントは MapLibre がスタイルを破棄した後に発火するので、どちらの remove() もスタイルにあるか確かめてから取り除く
+    this.once("remove", () => {
+      mask?.remove();
+      simpleStyle?.remove();
+      // 登録したリスナーも外す
+      simpleVector?.remove();
+    });
     this.on("style.load", () => {
       // simpleVector や geojson より先に重ねる。後に重ねると、symbol レイヤの無い
       // スタイルで geojson のラベルが「最初の symbol レイヤ」になり、その下に入ってしまう。
@@ -473,8 +512,8 @@ export default class GeoloniaMap extends maplibregl.Map {
         // 拡張ごとに失敗を閉じ込め、後に続く拡張と、style.load の他のリスナーを止めない
         try {
           if (!simpleVector?.isPresentOn(this)) {
-            // 一部だけが写されていれば取り除いてから追加する
-            simpleVector?.removeLayersAndSource(this);
+            // 前の SimpleStyleVector の登録したリスナーと、一部だけ写されたソースとレイヤーを取り除いてから作る（#187）
+            simpleVector?.remove();
             simpleVector = new SimpleStyleVector(
               parseSimpleVector(options.simpleVector),
             );
@@ -561,15 +600,13 @@ export default class GeoloniaMap extends maplibregl.Map {
 
     // Handle server errors
     this.on("error", async (error) => {
+      // 破棄した地図に遅れて届いたエラーでは何もしない。制限モードの処理はコンテナの子ノードを消すので、
+      // 同じコンテナに作り直した別の地図を消してしまう（#176）
+      if (this.removed) return;
       if (error.error && (error.error as { status?: number }).status === 402) {
         handleRestrictedMode(this);
       }
     });
-
-    container.geoloniaMap = this;
-
-    // biome-ignore lint/correctness/noConstructorReturn: intentional singleton pattern
-    return this;
   }
 
   /**
