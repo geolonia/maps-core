@@ -114,13 +114,15 @@ as the rest of MapLibre:
 ```js
 import { setWorkerUrl } from 'https://unpkg.com/maplibre-gl@6.16.0/dist/maplibre-gl.mjs';
 
-setWorkerUrl('/path/to/maplibre-gl-worker.mjs');
+setWorkerUrl('/path/to/maplibre-gl-6.16.0/maplibre-gl-worker.mjs');
 ```
 
 The hosted worker has to come from the same MapLibre version as the module you
-load from the CDN. From MapLibre 6.13.0 on, `maplibre-gl-worker.mjs` is
-self-contained and is the only file to host; up to 6.12.0 it imports
-`maplibre-gl-shared.mjs`, which has to sit next to it.
+load from the CDN. Put the version in its path, as above, so that a browser
+never pairs a cached worker with a newer module after an upgrade. From
+MapLibre 6.13.0 on, `maplibre-gl-worker.mjs` is self-contained and is the only
+file to host; up to 6.12.0 it imports `maplibre-gl-shared.mjs`, which has to
+sit next to it.
 
 ## Usage
 
