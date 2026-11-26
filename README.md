@@ -88,15 +88,41 @@ which of the two cases above your setup lands in.
 
 Loading MapLibre from a CDN as an ES module needs no setup: the worker URL is
 derived from the module's own URL. Cross-origin, MapLibre starts that worker
-from a same-origin Blob URL, so the page needs `worker-src blob:`. If your CSP
-cannot allow that, host the two worker files yourself and name the worker
-explicitly before creating a map:
+from a same-origin Blob URL whose only content is an `import` of the CDN's
+`maplibre-gl-worker.mjs`. Inside a module worker, imports are checked against
+`worker-src`, not `script-src`. A page with a Content-Security-Policy therefore
+has to allow both the Blob URL and the CDN origin in `worker-src`:
 
-```typescript
-import { setWorkerUrl } from 'maplibre-gl';
-
-setWorkerUrl('/path/to/maplibre-gl-worker.mjs');
 ```
+worker-src 'self' blob: https://unpkg.com
+```
+
+Use the origin of the CDN you actually load MapLibre from; unpkg is only an
+example here.
+
+`worker-src blob:` alone is not enough: the worker starts, its import is
+refused, and the map never finishes loading. The refusal happens inside the
+worker, so the page sees no `securitypolicyviolation` event — in Chromium no
+`report-uri` report and no console error either, apart from MapLibre's own
+"Worker failed to load".
+
+If your CSP cannot allow the CDN in `worker-src`, host the worker yourself and
+name it explicitly before creating a map. That works with `worker-src 'self'`.
+Without a bundler or an import map, import `setWorkerUrl` from the same CDN URL
+as the rest of MapLibre:
+
+```js
+import { setWorkerUrl } from 'https://unpkg.com/maplibre-gl@6.16.0/dist/maplibre-gl.mjs';
+
+setWorkerUrl('/path/to/maplibre-gl-6.16.0/maplibre-gl-worker.mjs');
+```
+
+The hosted worker has to come from the same MapLibre version as the module you
+load from the CDN. Put the version in its path, as above, so that a browser
+never pairs a cached worker with a newer module after an upgrade. From
+MapLibre 6.13.0 on, `maplibre-gl-worker.mjs` is self-contained and is the only
+file to host; up to 6.12.0 it imports `maplibre-gl-shared.mjs`, which has to
+sit next to it.
 
 ## Usage
 
